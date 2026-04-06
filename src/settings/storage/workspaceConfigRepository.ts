@@ -1,5 +1,5 @@
 import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
-import { createSettingsRepository, type SettingsRepository, type SettingsStorage } from '@/settings/storage/settingsRepository'
+import { createSettingsRepository, type SettingsStorage } from '@/settings/storage/settingsRepository'
 import { graphicInstanceConfigSchema } from '@/settings/schemas/appConfigSchemas'
 
 export interface GraphicConfigFileMap {
