@@ -2,6 +2,7 @@ import { contextBridge } from 'electron'
 import type { AppLanguage } from '../../../config/types'
 import {
   ipcInvokeChannels,
+  type ReferenceImagePickerResponse,
   type SettingsGetResponse,
 } from '../../../src/shared/ipc/contracts'
 import type { UpdatePreferences, UiPreferences } from '../../../src/shared/settings/types'
@@ -33,9 +34,17 @@ export function registerSettingsApi() {
       const response = await invoke(ipcInvokeChannels.settingsSet, { key: 'uiPreferences', value })
       return extractValue(response)
     },
+    async pickReferenceImage(): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsPickReferenceImage)
+      return extractFilePath(response)
+    },
   })
 }
 
 function extractValue<TValue>(payload: SettingsGetResponse): TValue {
   return payload.value as TValue
+}
+
+function extractFilePath(payload: ReferenceImagePickerResponse): string | null {
+  return payload.filePath
 }

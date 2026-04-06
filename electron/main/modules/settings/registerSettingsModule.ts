@@ -1,4 +1,4 @@
-import { app, ipcMain } from 'electron'
+import { app, dialog, ipcMain } from 'electron'
 import {
   ipcInvokeChannels,
   type SettingsGetRequest,
@@ -33,5 +33,22 @@ export function registerSettingsModule() {
       key,
       value: settingsStore.setSetting(key, value),
     } as SettingsValuePayload
+  })
+
+  ipcMain.handle(ipcInvokeChannels.settingsPickReferenceImage, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select reference background image',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Images',
+          extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'svg'],
+        },
+      ],
+    })
+
+    return {
+      filePath: result.canceled ? null : (result.filePaths[0] ?? null),
+    }
   })
 }

@@ -7,6 +7,7 @@ import type {
   GraphicInstanceConfig,
   PreviewElementDefinition,
   PreviewElementKind,
+  ReferenceImageAsset,
   ShowProfileConfig,
   TransformOrigin,
 } from '@/settings/models/appConfig'
@@ -44,6 +45,9 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const selectedProfile = settings.profiles.find((profile) => profile.id === settings.selectedProfileId)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(selectedProfile?.graphicConfigIds[0] ?? null)
+  const [draftReferenceImageName, setDraftReferenceImageName] = useState('')
+  const [draftReferenceImagePath, setDraftReferenceImagePath] = useState('')
+  const [isPickingReferenceImage, setIsPickingReferenceImage] = useState(false)
 
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
@@ -104,6 +108,71 @@ export function SettingsPanel({
     }))
   }
 
+  const addReferenceImage = () => {
+    const name = draftReferenceImageName.trim()
+    const filePath = draftReferenceImagePath.trim()
+
+    if (name.length === 0 || filePath.length === 0) {
+      return
+    }
+
+    const nextReferenceImage: ReferenceImageAsset = {
+      id: createUniqueReferenceImageId(settings, name),
+      name,
+      filePath,
+    }
+
+    onSettingsChange({
+      ...settings,
+      referenceImages: [...settings.referenceImages, nextReferenceImage],
+    })
+    setDraftReferenceImageName('')
+    setDraftReferenceImagePath('')
+  }
+
+  const removeReferenceImage = (referenceImageId: string) => {
+    onSettingsChange({
+      ...settings,
+      referenceImages: settings.referenceImages.filter((image) => image.id !== referenceImageId),
+      graphics: settings.graphics.map((graphic) => ({
+        ...graphic,
+        preview: {
+          ...graphic.preview,
+          ...(graphic.preview.background?.referenceImageId === referenceImageId
+            ? {
+              background: {
+                ...graphic.preview.background,
+                referenceImageId: undefined,
+              },
+            }
+            : {}),
+        },
+      })),
+    })
+  }
+
+  const handlePickReferenceImage = async () => {
+    if (!window.settingsApi?.pickReferenceImage) {
+      return
+    }
+
+    setIsPickingReferenceImage(true)
+
+    try {
+      const filePath = await window.settingsApi.pickReferenceImage()
+      if (!filePath) {
+        return
+      }
+
+      setDraftReferenceImagePath(filePath)
+      if (draftReferenceImageName.trim().length === 0) {
+        setDraftReferenceImageName(getFileNameFromPath(filePath))
+      }
+    } finally {
+      setIsPickingReferenceImage(false)
+    }
+  }
+
   return (
     <Panel
       title='Settings'
@@ -161,6 +230,18 @@ export function SettingsPanel({
               selectedProfile={selectedProfile}
               selectedGraphicId={selectedGraphicId}
               onSelectedGraphicIdChange={setSelectedGraphicId}
+            />
+
+            <ReferenceImagesSection
+              referenceImages={settings.referenceImages}
+              draftName={draftReferenceImageName}
+              draftPath={draftReferenceImagePath}
+              isPickingReferenceImage={isPickingReferenceImage}
+              onDraftNameChange={setDraftReferenceImageName}
+              onDraftPathChange={setDraftReferenceImagePath}
+              onPickReferenceImage={handlePickReferenceImage}
+              onAddReferenceImage={addReferenceImage}
+              onRemoveReferenceImage={removeReferenceImage}
             />
           </div>
 
@@ -287,6 +368,24 @@ function createUniqueProfileId(settings: AppSettings): string {
   return candidate
 }
 
+function createUniqueReferenceImageId(settings: AppSettings, name: string): string {
+  const base = name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'reference-image'
+
+  let candidate = base
+  let index = 2
+
+  while (settings.referenceImages.some((image) => image.id === candidate)) {
+    candidate = `${base}-${index}`
+    index += 1
+  }
+
+  return candidate
+}
+
 function normalizeHexColor(value: string | undefined): string {
   if (!value) {
     return '#000000'
@@ -298,6 +397,11 @@ function normalizeHexColor(value: string | undefined): string {
   }
 
   return '#000000'
+}
+
+function getFileNameFromPath(filePath: string): string {
+  const segments = filePath.split(/[\\/]/)
+  return segments[segments.length - 1] ?? filePath
 }
 
 function ProfileSection({
@@ -451,6 +555,103 @@ function GraphicSelectionSection({
           This profile does not currently load any graphic config.
         </div>
       ) : null}
+    </FormSection>
+  )
+}
+
+function ReferenceImagesSection({
+  referenceImages,
+  draftName,
+  draftPath,
+  isPickingReferenceImage,
+  onDraftNameChange,
+  onDraftPathChange,
+  onPickReferenceImage,
+  onAddReferenceImage,
+  onRemoveReferenceImage,
+}: {
+  referenceImages: ReferenceImageAsset[]
+  draftName: string
+  draftPath: string
+  isPickingReferenceImage: boolean
+  onDraftNameChange: (value: string) => void
+  onDraftPathChange: (value: string) => void
+  onPickReferenceImage: () => Promise<void>
+  onAddReferenceImage: () => void
+  onRemoveReferenceImage: (referenceImageId: string) => void
+}) {
+  return (
+    <FormSection title='Reference images' description='Manage reusable background images used only for Preview16x9 calibration.'>
+      <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+        <div className='grid gap-3'>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image name</span>
+            <input
+              value={draftName}
+              onChange={(event) => onDraftNameChange(event.target.value)}
+              placeholder='Title reference'
+              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            />
+          </label>
+
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image file path</span>
+            <input
+              value={draftPath}
+              onChange={(event) => onDraftPathChange(event.target.value)}
+              placeholder='C:\\APlay\\references\\title.png'
+              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            />
+          </label>
+        </div>
+
+        <div className='flex flex-wrap gap-2'>
+          <button
+            type='button'
+            onClick={onPickReferenceImage}
+            disabled={isPickingReferenceImage}
+            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isPickingReferenceImage ? 'Choosing file...' : 'Choose image'}
+          </button>
+          <button
+            type='button'
+            onClick={onAddReferenceImage}
+            disabled={draftName.trim().length === 0 || draftPath.trim().length === 0}
+            className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Add image
+          </button>
+        </div>
+      </div>
+
+      <div className='space-y-3'>
+        <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Available reference images</p>
+        {referenceImages.length > 0 ? (
+          <div className='space-y-3'>
+            {referenceImages.map((image) => (
+              <div key={image.id} className='flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border bg-white p-4'>
+                <div className='min-w-0 flex-1'>
+                  <p className='text-sm font-semibold text-ink'>{image.name}</p>
+                  <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{image.id}</p>
+                  <p className='mt-2 break-all text-sm text-muted'>{image.filePath}</p>
+                </div>
+                <button
+                  type='button'
+                  onClick={() => onRemoveReferenceImage(image.id)}
+                  className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
+            No reference images added yet.
+          </div>
+        )}
+      </div>
     </FormSection>
   )
 }
@@ -615,6 +816,125 @@ function PreviewTemplateSection({
             </label>
             <NumberField label='Design width' value={graphic.preview.designWidth} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designWidth: value } }))} />
             <NumberField label='Design height' value={graphic.preview.designHeight} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designHeight: value } }))} />
+          </div>
+
+          <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview background</p>
+              <p className='mt-1 text-sm text-muted'>
+                Background images are used only for APlay preview calibration and do not affect LiveBoard output.
+              </p>
+            </div>
+
+            <div className='grid gap-3 md:grid-cols-2'>
+              <label className='space-y-2 md:col-span-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Reference image</span>
+                <select
+                  value={graphic.preview.background?.referenceImageId ?? ''}
+                  onChange={(event) => updateGraphic((current) => ({
+                    ...current,
+                    preview: {
+                      ...current.preview,
+                      background: event.target.value
+                        ? {
+                          opacity: current.preview.background?.opacity ?? 1,
+                          fitMode: current.preview.background?.fitMode ?? 'contain',
+                          position: current.preview.background?.position ?? 'center',
+                          referenceImageId: event.target.value,
+                        }
+                        : {
+                          opacity: current.preview.background?.opacity ?? 1,
+                          fitMode: current.preview.background?.fitMode ?? 'contain',
+                          position: current.preview.background?.position ?? 'center',
+                        },
+                    },
+                  }))}
+                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                >
+                  <option value=''>No background</option>
+                  {settings.referenceImages.map((referenceImage) => (
+                    <option key={referenceImage.id} value={referenceImage.id}>
+                      {referenceImage.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>
+                  Opacity {Math.round((graphic.preview.background?.opacity ?? 1) * 100)}%
+                </span>
+                <input
+                  type='range'
+                  min='0'
+                  max='1'
+                  step='0.05'
+                  value={graphic.preview.background?.opacity ?? 1}
+                  onChange={(event) => updateGraphic((current) => ({
+                    ...current,
+                    preview: {
+                      ...current.preview,
+                      background: {
+                        referenceImageId: current.preview.background?.referenceImageId,
+                        opacity: Number(event.target.value),
+                        fitMode: current.preview.background?.fitMode ?? 'contain',
+                        position: current.preview.background?.position ?? 'center',
+                      },
+                    },
+                  }))}
+                  className='w-full accent-accent'
+                />
+              </label>
+
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Fit mode</span>
+                <select
+                  value={graphic.preview.background?.fitMode ?? 'contain'}
+                  onChange={(event) => updateGraphic((current) => ({
+                    ...current,
+                    preview: {
+                      ...current.preview,
+                      background: {
+                        referenceImageId: current.preview.background?.referenceImageId,
+                        opacity: current.preview.background?.opacity ?? 1,
+                        fitMode: event.target.value as 'contain' | 'cover',
+                        position: current.preview.background?.position ?? 'center',
+                      },
+                    },
+                  }))}
+                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                >
+                  <option value='contain'>Contain</option>
+                  <option value='cover'>Cover</option>
+                </select>
+              </label>
+            </div>
+
+            <div className='flex flex-wrap gap-2'>
+              <button
+                type='button'
+                onClick={() => updateGraphic((current) => ({
+                  ...current,
+                  preview: {
+                    ...current.preview,
+                    background: {
+                      opacity: current.preview.background?.opacity ?? 1,
+                      fitMode: current.preview.background?.fitMode ?? 'contain',
+                      position: current.preview.background?.position ?? 'center',
+                    },
+                  },
+                }))}
+                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+              >
+                Clear selection
+              </button>
+            </div>
+
+            {previewBackground.diagnostics.length > 0 ? (
+              <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+                {previewBackground.diagnostics.join(' | ')}
+              </div>
+            ) : null}
           </div>
 
           <div className='space-y-3'>

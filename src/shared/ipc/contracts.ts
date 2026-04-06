@@ -28,6 +28,7 @@ export const ipcInvokeChannels = {
   databaseQuery: 'database:query',
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
+  settingsPickReferenceImage: 'settings:pick-reference-image',
 } as const
 
 export const ipcEventChannels = {
@@ -101,6 +102,9 @@ export type SettingsValuePayload = {
 }[SettingsKey]
 
 export type SettingsGetResponse = SettingsValuePayload
+export interface ReferenceImagePickerResponse {
+  filePath: string | null
+}
 
 export interface IpcInvokeContract {
   [ipcInvokeChannels.appGetInfo]: {
@@ -170,6 +174,10 @@ export interface IpcInvokeContract {
   [ipcInvokeChannels.settingsSet]: {
     request: SettingsValuePayload
     response: SettingsValuePayload
+  }
+  [ipcInvokeChannels.settingsPickReferenceImage]: {
+    request: void
+    response: ReferenceImagePickerResponse
   }
 }
 

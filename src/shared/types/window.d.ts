@@ -62,6 +62,7 @@ declare global {
       setUpdatePreferences: (value: UpdatePreferences) => Promise<UpdatePreferences>
       getUiPreferences: () => Promise<UiPreferences>
       setUiPreferences: (value: UiPreferences) => Promise<UiPreferences>
+      pickReferenceImage: () => Promise<string | null>
     }
   }
 }
