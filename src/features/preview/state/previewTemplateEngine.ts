@@ -1,4 +1,5 @@
 import type {
+  PreviewBackgroundFitMode,
   PreviewElementDefinition,
   PreviewTemplateDefinition,
   TextBehaviorConfig,
@@ -27,12 +28,21 @@ export interface PreviewTemplateLayoutElement {
     width: number
     height: number
     transformOrigin: TransformOrigin
+    zIndex: number
     color?: string
     backgroundColor?: string
     borderColor?: string
     scaleX?: number
     whiteSpace?: 'nowrap'
   }
+}
+
+export interface PreviewBackgroundStyle {
+  imagePath: string
+  opacity: number
+  objectFit: PreviewBackgroundFitMode
+  objectPosition: 'center'
+  zIndex: number
 }
 
 export interface PreviewTemplateLayout {
@@ -119,6 +129,26 @@ export function calculateTextElementStyle(
   }
 }
 
+export function calculatePreviewBackgroundStyle(
+  template: PreviewTemplateDefinition,
+  imagePath: string | undefined,
+): PreviewBackgroundStyle | undefined {
+  const normalizedPath = imagePath?.trim()
+  const background = template.background
+
+  if (!background?.referenceImageId || !normalizedPath) {
+    return undefined
+  }
+
+  return {
+    imagePath: normalizedPath,
+    opacity: background.opacity ?? 1,
+    objectFit: background.fitMode ?? 'contain',
+    objectPosition: background.position ?? 'center',
+    zIndex: 0,
+  }
+}
+
 function calculatePreviewElementLayout(
   element: PreviewElementDefinition,
   scale: PreviewScale,
@@ -132,6 +162,7 @@ function calculatePreviewElementLayout(
     width: element.box.width * scale.scaleX,
     height: element.box.height * scale.scaleY,
     transformOrigin,
+    zIndex: 1,
     ...(element.textColor ? { color: element.textColor } : {}),
     ...(element.backgroundColor ? { backgroundColor: element.backgroundColor } : {}),
     ...(element.borderColor ? { borderColor: element.borderColor } : {}),

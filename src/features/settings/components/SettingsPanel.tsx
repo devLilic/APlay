@@ -1,5 +1,6 @@
 import { useEffect, useState, type PropsWithChildren } from 'react'
 import { supportedEntityTypes } from '@/core/entities/entityTypes'
+import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import type {
   AppSettings,
   GraphicFieldBinding,
@@ -9,6 +10,7 @@ import type {
   ShowProfileConfig,
   TransformOrigin,
 } from '@/settings/models/appConfig'
+import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 import { Panel } from '@/shared/ui/panel'
 
 export interface SettingsFeedback {
@@ -20,6 +22,8 @@ interface SettingsPanelProps {
   settings: AppSettings
   diagnostics: string[]
   feedback: SettingsFeedback | null
+  selectedGraphic?: GraphicInstanceConfig
+  previewContent: Record<string, string | undefined>
   onSettingsChange: (settings: AppSettings) => void
   onSave: () => void
   onReload: () => void
@@ -32,6 +36,8 @@ export function SettingsPanel({
   settings,
   diagnostics,
   feedback,
+  selectedGraphic: activeGraphic,
+  previewContent,
   onSettingsChange,
   onSave,
   onReload,
@@ -163,7 +169,10 @@ export function SettingsPanel({
               <>
                 <GraphicBindingSection graphic={selectedGraphic} updateGraphic={updateGraphic} updateBinding={updateBinding} />
                 <PreviewTemplateSection
+                  settings={settings}
                   graphic={selectedGraphic}
+                  activeGraphic={activeGraphic}
+                  previewContent={previewContent}
                   updateGraphic={updateGraphic}
                   updatePreviewElement={updatePreviewElement}
                 />
@@ -214,6 +223,38 @@ function NumberField({
   )
 }
 
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string | undefined
+  onChange: (value: string) => void
+}) {
+  const normalizedValue = normalizeHexColor(value)
+
+  return (
+    <label className='space-y-2'>
+      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
+      <div className='flex items-center gap-3 rounded-xl border border-border bg-white px-3 py-2'>
+        <input
+          type='color'
+          value={normalizedValue}
+          onChange={(event) => onChange(event.target.value)}
+          className='h-10 w-12 cursor-pointer rounded border-0 bg-transparent p-0'
+        />
+        <input
+          value={value ?? ''}
+          placeholder='#ffffff'
+          onChange={(event) => onChange(event.target.value)}
+          className='w-full bg-transparent text-sm text-ink outline-none'
+        />
+      </div>
+    </label>
+  )
+}
+
 function createDefaultBinding(): GraphicFieldBinding {
   return {
     sourceField: 'text',
@@ -244,6 +285,19 @@ function createUniqueProfileId(settings: AppSettings): string {
   }
 
   return candidate
+}
+
+function normalizeHexColor(value: string | undefined): string {
+  if (!value) {
+    return '#000000'
+  }
+
+  const normalized = value.trim()
+  if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+    return normalized
+  }
+
+  return '#000000'
 }
 
 function ProfileSection({
@@ -527,158 +581,183 @@ function GraphicBindingSection({
 }
 
 function PreviewTemplateSection({
+  settings,
   graphic,
+  activeGraphic,
+  previewContent,
   updateGraphic,
   updatePreviewElement,
 }: {
+  settings: AppSettings
   graphic: GraphicInstanceConfig
+  activeGraphic?: GraphicInstanceConfig
+  previewContent: Record<string, string | undefined>
   updateGraphic: (updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig) => void
   updatePreviewElement: (
     elementIndex: number,
     updater: (element: PreviewElementDefinition) => PreviewElementDefinition,
   ) => void
 }) {
+  const previewBackground = resolveActivePreviewBackground(settings, graphic)
+
   return (
     <FormSection title='Preview template' description='Edit the APlay-side preview approximation for the selected graphic.'>
-      <div className='grid gap-3 md:grid-cols-3'>
-        <label className='space-y-2'>
-          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Template id</span>
-          <input
-            value={graphic.preview.id}
-            onChange={(event) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, id: event.target.value } }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-          />
-        </label>
-        <NumberField label='Design width' value={graphic.preview.designWidth} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designWidth: value } }))} />
-        <NumberField label='Design height' value={graphic.preview.designHeight} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designHeight: value } }))} />
-      </div>
+      <div className='grid gap-6 2xl:grid-cols-[minmax(0,1.2fr),minmax(22rem,0.8fr)]'>
+        <div className='space-y-4'>
+          <div className='grid gap-3 md:grid-cols-3'>
+            <label className='space-y-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Template id</span>
+              <input
+                value={graphic.preview.id}
+                onChange={(event) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, id: event.target.value } }))}
+                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              />
+            </label>
+            <NumberField label='Design width' value={graphic.preview.designWidth} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designWidth: value } }))} />
+            <NumberField label='Design height' value={graphic.preview.designHeight} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designHeight: value } }))} />
+          </div>
 
-      <div className='space-y-3'>
-        <div className='flex items-center justify-between gap-3'>
-          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview elements</p>
-          <button
-            type='button'
-            onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: [...current.preview.elements, createDefaultPreviewElement(current.preview.elements.length + 1)] } }))}
-            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
-          >
-            Add element
-          </button>
-        </div>
-
-        {graphic.preview.elements.map((element, elementIndex) => (
-          <div key={element.id} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
+          <div className='space-y-3'>
             <div className='flex items-center justify-between gap-3'>
-              <p className='text-sm font-semibold text-ink'>{element.id}</p>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview elements</p>
               <button
                 type='button'
-                onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
-                disabled={graphic.preview.elements.length === 1}
-                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+                onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: [...current.preview.elements, createDefaultPreviewElement(current.preview.elements.length + 1)] } }))}
+                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
               >
-                Remove
+                Add element
               </button>
             </div>
 
-            <div className='grid gap-3 md:grid-cols-3'>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element id</span>
-                <input
-                  value={element.id}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
-                <select
-                  value={element.kind}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                >
-                  {previewElementKinds.map((kind) => (
-                    <option key={kind} value={kind}>
-                      {kind}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
-                <input
-                  value={element.sourceField}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
-              <NumberField label='X' value={element.box.x} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
-              <NumberField label='Y' value={element.box.y} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
-              <NumberField label='Width' value={element.box.width} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
-              <NumberField label='Height' value={element.box.height} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
-                <select
-                  value={element.transformOrigin ?? 'top-left'}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                >
-                  {transformOrigins.map((origin) => (
-                    <option key={origin} value={origin}>
-                      {origin}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Text color</span>
-                <input
-                  value={element.textColor ?? ''}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, textColor: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Background color</span>
-                <input
-                  value={element.backgroundColor ?? ''}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, backgroundColor: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Border color</span>
-                <input
-                  value={element.borderColor ?? ''}
-                  onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderColor: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
-            </div>
+            {graphic.preview.elements.map((element, elementIndex) => (
+              <div key={element.id} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
+                <div className='flex items-center justify-between gap-3'>
+                  <p className='text-sm font-semibold text-ink'>{element.id}</p>
+                  <button
+                    type='button'
+                    onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
+                    disabled={graphic.preview.elements.length === 1}
+                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+                  >
+                    Remove
+                  </button>
+                </div>
 
-            {element.kind === 'text' ? (
-              <div className='grid gap-3 rounded-2xl border border-border bg-surface/40 p-4 md:grid-cols-3'>
-                <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
-                  <input
-                    type='checkbox'
-                    checked={element.text?.allCaps ?? false}
-                    onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, allCaps: event.target.checked } }))}
-                    className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                <div className='grid gap-3 md:grid-cols-3'>
+                  <label className='space-y-2'>
+                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element id</span>
+                    <input
+                      value={element.id}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
+                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                    />
+                  </label>
+                  <label className='space-y-2'>
+                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
+                    <select
+                      value={element.kind}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
+                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                    >
+                      {previewElementKinds.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {kind}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className='space-y-2'>
+                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
+                    <input
+                      value={element.sourceField}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
+                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                    />
+                  </label>
+                  <NumberField label='X' value={element.box.x} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
+                  <NumberField label='Y' value={element.box.y} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
+                  <NumberField label='Width' value={element.box.width} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
+                  <NumberField label='Height' value={element.box.height} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
+                  <label className='space-y-2'>
+                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
+                    <select
+                      value={element.transformOrigin ?? 'top-left'}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
+                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                    >
+                      {transformOrigins.map((origin) => (
+                        <option key={origin} value={origin}>
+                          {origin}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <ColorField
+                    label='Text color'
+                    value={element.textColor}
+                    onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, textColor: value }))}
                   />
-                  ALL CAPS
-                </label>
-                <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
-                  <input
-                    type='checkbox'
-                    checked={element.text?.fitInBox ?? false}
-                    onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fitInBox: event.target.checked } }))}
-                    className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                  <ColorField
+                    label='Background color'
+                    value={element.backgroundColor}
+                    onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, backgroundColor: value }))}
                   />
-                  Fit in box
-                </label>
-                <NumberField label='Min scaleX' value={element.text?.minScaleX ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, minScaleX: value } }))} />
+                  <ColorField
+                    label='Border color'
+                    value={element.borderColor}
+                    onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderColor: value }))}
+                  />
+                </div>
+
+                {element.kind === 'text' ? (
+                  <div className='grid gap-3 rounded-2xl border border-border bg-surface/40 p-4 md:grid-cols-3'>
+                    <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+                      <input
+                        type='checkbox'
+                        checked={element.text?.allCaps ?? false}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, allCaps: event.target.checked } }))}
+                        className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                      />
+                      ALL CAPS
+                    </label>
+                    <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+                      <input
+                        type='checkbox'
+                        checked={element.text?.fitInBox ?? false}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fitInBox: event.target.checked } }))}
+                        className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                      />
+                      Fit in box
+                    </label>
+                    <NumberField label='Min scaleX' value={element.text?.minScaleX ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, minScaleX: value } }))} />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            ))}
           </div>
-        ))}
+        </div>
+
+        <aside className='space-y-4 rounded-3xl border border-border bg-slate-950 p-5 text-white shadow-panel'>
+          <div className='flex items-center justify-between gap-3'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300'>Preview</p>
+              <h4 className='mt-1 text-lg font-semibold'>Preview16x9</h4>
+            </div>
+            <span className='rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300'>
+              {activeGraphic?.id ?? graphic.id}
+            </span>
+          </div>
+          <div className='rounded-3xl border border-white/10 bg-white/5 p-4'>
+            <PreviewCanvas
+              template={graphic.preview}
+              content={previewContent}
+              backgroundImagePath={previewBackground.resolvedFilePath}
+            />
+          </div>
+          <p className='text-sm text-slate-300'>
+            Preview-ul se actualizează live pe baza configurării curente și a conținutului entității selectate.
+          </p>
+        </aside>
       </div>
     </FormSection>
   )

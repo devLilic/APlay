@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PreviewTemplateDefinition } from '@/settings/models/appConfig'
 import {
+  calculatePreviewBackgroundStyle,
   calculatePreviewScale,
   calculatePreviewTemplateLayout,
   calculateTextElementStyle,
@@ -10,6 +11,12 @@ const previewTemplate: PreviewTemplateDefinition = {
   id: 'title-preview',
   designWidth: 1920,
   designHeight: 1080,
+  background: {
+    referenceImageId: 'ref-title',
+    opacity: 0.45,
+    fitMode: 'contain',
+    position: 'center',
+  },
   elements: [
     {
       id: 'headline',
@@ -232,6 +239,7 @@ describe('preview element calculations', () => {
         width: 300,
         height: 90,
         transformOrigin: 'center',
+        zIndex: 1,
       },
     })
   })
@@ -267,5 +275,148 @@ describe('preview element calculations', () => {
 
     expect(layout).not.toHaveProperty('osc')
     expect(layout).not.toHaveProperty('datasourceFile')
+  })
+})
+
+describe('preview background rendering', () => {
+  it('renders a background image when referenceImageId exists', () => {
+    const style = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      '/references/title.png',
+    )
+
+    expect(style).toEqual({
+      imagePath: '/references/title.png',
+      opacity: 0.45,
+      objectFit: 'contain',
+      objectPosition: 'center',
+      zIndex: 0,
+    })
+  })
+
+  it('does not render a background when no image is selected', () => {
+    const style = calculatePreviewBackgroundStyle(
+      {
+        ...previewTemplate,
+        background: undefined,
+      },
+      undefined,
+    )
+
+    expect(style).toBeUndefined()
+  })
+
+  it('applies opacity correctly', () => {
+    const style = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      '/references/title.png',
+    )
+
+    expect(style?.opacity).toBe(0.45)
+  })
+
+  it('applies contain fit mode correctly', () => {
+    const style = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      '/references/title.png',
+    )
+
+    expect(style?.objectFit).toBe('contain')
+  })
+
+  it('applies cover fit mode correctly', () => {
+    const style = calculatePreviewBackgroundStyle(
+      {
+        ...previewTemplate,
+        background: {
+          referenceImageId: 'ref-title',
+          opacity: 1,
+          fitMode: 'cover',
+          position: 'center',
+        },
+      },
+      '/references/title.png',
+    )
+
+    expect(style?.objectFit).toBe('cover')
+  })
+
+  it('defaults background position to center', () => {
+    const style = calculatePreviewBackgroundStyle(
+      {
+        ...previewTemplate,
+        background: {
+          referenceImageId: 'ref-title',
+          opacity: 1,
+          fitMode: 'contain',
+        },
+      },
+      '/references/title.png',
+    )
+
+    expect(style?.objectPosition).toBe('center')
+  })
+
+  it('does not affect element positioning or scaling', () => {
+    const withBackground = calculatePreviewTemplateLayout(
+      previewTemplate,
+      { width: 960, height: 540 },
+      { text: 'Headline', panel: '', logoUrl: '/logo.png' },
+    )
+    const withoutBackground = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        background: undefined,
+      },
+      { width: 960, height: 540 },
+      { text: 'Headline', panel: '', logoUrl: '/logo.png' },
+    )
+
+    expect(withBackground.scale).toEqual(withoutBackground.scale)
+    expect(withBackground.elements).toEqual(withoutBackground.elements)
+  })
+
+  it('renders preview elements above the background layer', () => {
+    const style = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      '/references/title.png',
+    )
+    const layout = calculatePreviewTemplateLayout(
+      previewTemplate,
+      { width: 960, height: 540 },
+      { text: 'Headline', panel: '', logoUrl: '/logo.png' },
+    )
+
+    expect(style?.zIndex).toBe(0)
+    expect(layout.elements.every((element) => element.style.zIndex === 1)).toBe(true)
+  })
+
+  it('does not break preview rendering when image path is invalid', () => {
+    const style = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      '',
+    )
+
+    expect(style).toBeUndefined()
+  })
+
+  it('can toggle background on and off without affecting preview logic', () => {
+    const backgroundOn = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      '/references/title.png',
+    )
+    const backgroundOff = calculatePreviewBackgroundStyle(
+      previewTemplate,
+      undefined,
+    )
+    const layout = calculatePreviewTemplateLayout(
+      previewTemplate,
+      { width: 960, height: 540 },
+      { text: 'Headline', panel: '', logoUrl: '/logo.png' },
+    )
+
+    expect(backgroundOn).toBeDefined()
+    expect(backgroundOff).toBeUndefined()
+    expect(layout.elements).toHaveLength(3)
   })
 })

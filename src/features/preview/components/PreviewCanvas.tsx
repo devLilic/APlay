@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PreviewTemplateDefinition } from '@/settings/models/appConfig'
-import { calculatePreviewTemplateLayout } from '@/features/preview/state/previewTemplateEngine'
+import {
+  calculatePreviewBackgroundStyle,
+  calculatePreviewTemplateLayout,
+} from '@/features/preview/state/previewTemplateEngine'
 
 interface PreviewCanvasProps {
   template: PreviewTemplateDefinition
   content: Record<string, string | undefined>
+  backgroundImagePath?: string
 }
 
-export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
+export function PreviewCanvas({ template, content, backgroundImagePath }: PreviewCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
 
@@ -37,18 +41,33 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
   const layout = size.width > 0 && size.height > 0
     ? calculatePreviewTemplateLayout(template, size, content)
     : null
+  const backgroundStyle = calculatePreviewBackgroundStyle(template, backgroundImagePath)
 
   return (
     <div
       ref={containerRef}
       className='relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,_rgba(15,23,42,1),_rgba(30,41,59,0.96))]'
     >
+      {backgroundStyle ? (
+        <div className='absolute inset-0 z-0 flex items-center justify-center overflow-hidden'>
+          <img
+            src={backgroundStyle.imagePath}
+            alt=''
+            className={`h-full w-full ${backgroundStyle.objectFit === 'cover' ? 'object-cover' : 'object-contain'}`}
+            style={{
+              opacity: backgroundStyle.opacity,
+              objectPosition: backgroundStyle.objectPosition,
+            }}
+          />
+        </div>
+      ) : null}
+
       {layout ? layout.elements.map((element) => {
         if (element.kind === 'text') {
           return (
             <div
               key={element.id}
-              className='absolute flex items-center font-semibold tracking-tight text-white'
+              className='absolute z-10 flex items-center font-semibold tracking-tight text-white'
               style={{
                 left: `${element.style.left}px`,
                 top: `${element.style.top}px`,
@@ -60,6 +79,7 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
                 color: element.style.color,
                 backgroundColor: element.style.backgroundColor,
                 borderColor: element.style.borderColor,
+                zIndex: element.style.zIndex,
               }}
             >
               {element.content}
@@ -71,7 +91,7 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
           return (
             <div
               key={element.id}
-              className='absolute overflow-hidden rounded-xl border border-white/10 bg-white/5'
+              className='absolute z-10 overflow-hidden rounded-xl border border-white/10 bg-white/5'
               style={{
                 left: `${element.style.left}px`,
                 top: `${element.style.top}px`,
@@ -80,6 +100,7 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
                 transformOrigin: element.style.transformOrigin,
                 backgroundColor: element.style.backgroundColor,
                 borderColor: element.style.borderColor,
+                zIndex: element.style.zIndex,
               }}
             >
               {element.content ? (
@@ -96,7 +117,7 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
         return (
           <div
             key={element.id}
-            className='absolute rounded-2xl border border-white/15 bg-white/10'
+            className='absolute z-10 rounded-2xl border border-white/15 bg-white/10'
             style={{
               left: `${element.style.left}px`,
               top: `${element.style.top}px`,
@@ -105,6 +126,7 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
               transformOrigin: element.style.transformOrigin,
               backgroundColor: element.style.backgroundColor,
               borderColor: element.style.borderColor,
+              zIndex: element.style.zIndex,
             }}
           />
         )

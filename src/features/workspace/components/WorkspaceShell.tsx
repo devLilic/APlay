@@ -21,6 +21,7 @@ import {
 } from '@/features/workspace/state/workspaceShellRuntime'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
 import { createWorkspaceConfigRepository, type WorkspaceConfigRepository, type WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
+import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 
 type ShellLoadState =
   | { status: 'loading' }
@@ -90,6 +91,7 @@ export function WorkspaceShell() {
   const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection)
   const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsByEntityType, selectedEntity)
   const previewContent = createEntityPreviewContent(selectedEntity)
+  const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, selectedGraphic)
 
   const handleBlockSelect = (blockIndex: number) => {
     setSelection(workspace.selectBlock(blockIndex).selection)
@@ -197,6 +199,8 @@ export function WorkspaceShell() {
           settings={loadState.snapshot.settings}
           diagnostics={workspaceData.diagnostics}
           feedback={settingsFeedback}
+          selectedGraphic={selectedGraphic}
+          previewContent={previewContent}
           onSettingsChange={handleSettingsChange}
           onSave={handleSettingsSave}
           onReload={handleSettingsReload}
@@ -312,7 +316,11 @@ export function WorkspaceShell() {
                   <span>Preview16x9</span>
                   <span>{selectedGraphic.id}</span>
                 </div>
-                <PreviewCanvas template={selectedGraphic.preview} content={previewContent} />
+                <PreviewCanvas
+                  template={selectedGraphic.preview}
+                  content={previewContent}
+                  backgroundImagePath={selectedBackground.resolvedFilePath}
+                />
               </div>
 
               <div className='rounded-2xl border border-border bg-surface/30 p-4'>
