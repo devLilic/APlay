@@ -1,0 +1,5 @@
+{
+  "id": "person",
+  "entityType": "person",
+  "path": "graphics/person.json"
+}

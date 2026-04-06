@@ -1,0 +1,5 @@
+{
+  "id": "waitingLocation",
+  "entityType": "waitingLocation",
+  "path": "graphics/waitingLocation.json"
+}

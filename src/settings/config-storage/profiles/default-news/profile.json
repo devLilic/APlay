@@ -1,0 +1,24 @@
+{
+  "id": "default-news",
+  "label": "Default News",
+  "supportedEntityTypes": [
+    "title",
+    "supertitle",
+    "person",
+    "location",
+    "breakingNews",
+    "waitingTitle",
+    "waitingLocation",
+    "phone"
+  ],
+  "graphicConfigIds": [
+    "title",
+    "supertitle",
+    "person",
+    "location",
+    "breakingNews",
+    "waitingTitle",
+    "waitingLocation",
+    "phone"
+  ]
+}
