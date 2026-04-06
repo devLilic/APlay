@@ -349,10 +349,13 @@ function createDefaultPreviewElement(index: number): PreviewElementDefinition {
     id: `element-${index}`,
     kind: 'text',
     sourceField: 'text',
+    previewText: 'Sample Preview Text',
+    visible: true,
     transformOrigin: 'top-left',
+    borderRadius: 0,
     box: { x: 120, y: 120, width: 640, height: 80 },
     textColor: '#ffffff',
-    text: { fitInBox: true, minScaleX: 0.7 },
+    text: { fitInBox: true, minScaleX: 0.7, fontSize: 64, fontFamily: 'Arial' },
   }
 }
 
@@ -994,10 +997,29 @@ function PreviewTemplateSection({
                       className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
                     />
                   </label>
+                  <label className='space-y-2 md:col-span-2'>
+                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
+                    <input
+                      value={element.previewText ?? ''}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: event.target.value }))}
+                      placeholder='Write the exact text you want to arrange in preview'
+                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                    />
+                  </label>
+                  <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
+                    <input
+                      type='checkbox'
+                      checked={element.visible ?? true}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, visible: event.target.checked }))}
+                      className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                    />
+                    {element.visible ?? true ? 'VIEW' : 'HIDE'}
+                  </label>
                   <NumberField label='X' value={element.box.x} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
                   <NumberField label='Y' value={element.box.y} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
                   <NumberField label='Width' value={element.box.width} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
                   <NumberField label='Height' value={element.box.height} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
+                  <NumberField label='Border radius' value={element.borderRadius ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
                   <label className='space-y-2'>
                     <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
                     <select
@@ -1050,6 +1072,16 @@ function PreviewTemplateSection({
                       Fit in box
                     </label>
                     <NumberField label='Min scaleX' value={element.text?.minScaleX ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, minScaleX: value } }))} />
+                    <NumberField label='Font size' value={element.text?.fontSize ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fontSize: value } }))} />
+                    <label className='space-y-2 md:col-span-2'>
+                      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
+                      <input
+                        value={element.text?.fontFamily ?? ''}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fontFamily: event.target.value } }))}
+                        placeholder='Arial, Helvetica, "My Local Font"'
+                        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      />
+                    </label>
                   </div>
                 ) : null}
               </div>

@@ -10,6 +10,8 @@ export interface TextBehaviorConfig {
   allCaps?: boolean
   fitInBox?: boolean
   minScaleX?: number
+  fontSize?: number
+  fontFamily?: string
 }
 
 export interface ReferenceImageAsset {
@@ -46,7 +48,11 @@ export interface PreviewElementDefinition {
   id: string
   kind: PreviewElementKind
   sourceField: string
+  previewText?: string
+  visible?: boolean
+  behavior?: TextBehaviorConfig
   transformOrigin?: TransformOrigin
+  borderRadius?: number
   box: {
     x: number
     y: number
@@ -56,6 +62,7 @@ export interface PreviewElementDefinition {
   textColor?: string
   backgroundColor?: string
   borderColor?: string
+  // Deprecated compatibility alias. New configs should use `behavior`.
   text?: TextBehaviorConfig
 }
 

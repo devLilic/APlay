@@ -29,7 +29,7 @@ const previewTemplate: PreviewTemplateDefinition = {
         width: 840,
         height: 140,
       },
-      text: {
+      behavior: {
         allCaps: false,
         fitInBox: false,
       },
@@ -115,6 +115,158 @@ describe('transform origin behavior', () => {
 })
 
 describe('text behavior calculations', () => {
+  it('applies scale when fitInBox is on in element behavior config', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            transformOrigin: 'top-left',
+            box: {
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 80,
+            },
+            behavior: {
+              fitInBox: true,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { text: 'Long headline for fitting' },
+    )
+
+    expect(layout.elements[0]?.style.scaleX).toBeLessThanOrEqual(1)
+  })
+
+  it('does not apply scaling when fitInBox is off in element behavior config', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            transformOrigin: 'top-left',
+            box: {
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 80,
+            },
+            behavior: {
+              fitInBox: false,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { text: 'Long headline for fitting' },
+    )
+
+    expect(layout.elements[0]?.style.scaleX).toBe(1)
+  })
+
+  it('transforms text to all caps before measurement when allCaps is enabled in behavior config', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'headline',
+        boxWidth: 240,
+        transformOrigin: 'top-left',
+        text: {
+          allCaps: true,
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 320 },
+    )
+
+    expect(result.content).toBe('HEADLINE')
+    expect(result.style.scaleX).toBe(0.75)
+  })
+
+  it('applies transformOrigin from element config correctly', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            transformOrigin: 'bottom-right',
+            box: {
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 80,
+            },
+            behavior: {
+              fitInBox: true,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { text: 'Headline' },
+    )
+
+    expect(layout.elements[0]?.style.transformOrigin).toBe('bottom-right')
+  })
+
+  it('respects minScaleX from element behavior config', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            transformOrigin: 'top-left',
+            box: {
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 80,
+            },
+            behavior: {
+              fitInBox: true,
+              minScaleX: 0.7,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { text: 'Very long headline for fitting' },
+    )
+
+    expect(layout.elements[0]?.style.scaleX).toBe(0.7)
+  })
+
+  it('keeps scaleX at 1 without fitInBox and keeps nowrap clipping semantics', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'Overflowing headline',
+        boxWidth: 120,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: false,
+        },
+      },
+      { measuredTextWidth: 420 },
+    )
+
+    expect(result.style.scaleX).toBe(1)
+    expect(result.style.whiteSpace).toBe('nowrap')
+  })
+
   it('keeps text unchanged when allCaps is off', () => {
     const result = calculateTextElementStyle(
       {
@@ -181,6 +333,89 @@ describe('text behavior calculations', () => {
     expect(result.style.scaleX).toBe(0.5)
   })
 
+  it('uses containerWidth / textWidth for fitInBox scaling', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'Long headline',
+        boxWidth: 180,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 360 },
+    )
+
+    expect(result.style.scaleX).toBe(0.5)
+    expect(result.style.scaleX).toBeLessThanOrEqual(1)
+  })
+
+  it('keeps scaleX at 1 for empty text', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: '',
+        boxWidth: 200,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 0 },
+    )
+
+    expect(result.content).toBe('')
+    expect(result.style.scaleX).toBe(1)
+  })
+
+  it('reduces scaleX correctly for very long text so it fits the container width', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'This is a very long headline that must fit',
+        boxWidth: 160,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 640 },
+    )
+
+    expect(result.style.scaleX).toBe(0.25)
+    expect(640 * result.style.scaleX).toBeLessThanOrEqual(160)
+  })
+
+  it('falls back safely to scaleX 1 when containerWidth is 0', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 0,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 240 },
+    )
+
+    expect(result.style.scaleX).toBe(1)
+  })
+
+  it('falls back safely to scaleX 1 when textWidth is 0', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 240,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 0 },
+    )
+
+    expect(result.style.scaleX).toBe(1)
+  })
+
   it('respects minScaleX when fitInBox is enabled', () => {
     const result = calculateTextElementStyle(
       {
@@ -196,6 +431,89 @@ describe('text behavior calculations', () => {
     )
 
     expect(result.style.scaleX).toBe(0.7)
+  })
+
+  it('keeps the same stable scaleX for equivalent float inputs', () => {
+    const first = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 199.9999999,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 399.9999998 },
+    )
+    const second = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 200,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 400 },
+    )
+
+    expect(first.style.scaleX).toBeCloseTo(second.style.scaleX, 8)
+  })
+
+  it('recalculates when text changes', () => {
+    const shortText = calculateTextElementStyle(
+      {
+        content: 'Short',
+        boxWidth: 200,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 100 },
+    )
+    const longText = calculateTextElementStyle(
+      {
+        content: 'Very long headline',
+        boxWidth: 200,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 400 },
+    )
+
+    expect(shortText.style.scaleX).toBe(1)
+    expect(longText.style.scaleX).toBe(0.5)
+  })
+
+  it('recalculates when available width changes', () => {
+    const narrow = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 160,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 320 },
+    )
+    const wide = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 320,
+        transformOrigin: 'top-left',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 320 },
+    )
+
+    expect(narrow.style.scaleX).toBe(0.5)
+    expect(wide.style.scaleX).toBe(1)
   })
 
   it('calculates text style values for scalable HTML/CSS rendering', () => {
@@ -217,6 +535,24 @@ describe('text behavior calculations', () => {
       scaleX: 1,
       whiteSpace: 'nowrap',
     })
+  })
+
+  it('keeps fit-in-box logic independent from UI, OSC, and JSON publishing concerns', () => {
+    const result = calculateTextElementStyle(
+      {
+        content: 'Headline',
+        boxWidth: 200,
+        transformOrigin: 'center',
+        text: {
+          fitInBox: true,
+        },
+      },
+      { measuredTextWidth: 300 },
+    )
+
+    expect(result).not.toHaveProperty('component')
+    expect(result).not.toHaveProperty('osc')
+    expect(result).not.toHaveProperty('payload')
   })
 })
 

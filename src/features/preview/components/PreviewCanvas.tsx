@@ -14,6 +14,7 @@ interface PreviewCanvasProps {
 export function PreviewCanvas({ template, content, backgroundImagePath }: PreviewCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
+  const [resolvedBackgroundImageSrc, setResolvedBackgroundImageSrc] = useState<string | undefined>()
 
   useEffect(() => {
     const element = containerRef.current
@@ -38,10 +39,37 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
     return () => observer.disconnect()
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+
+    const resolveBackgroundImage = async () => {
+      if (!backgroundImagePath) {
+        setResolvedBackgroundImageSrc(undefined)
+        return
+      }
+
+      if (isDirectPreviewImageSource(backgroundImagePath)) {
+        setResolvedBackgroundImageSrc(backgroundImagePath)
+        return
+      }
+
+      const dataUrl = await window.settingsApi?.readReferenceImage?.(backgroundImagePath)
+      if (!cancelled) {
+        setResolvedBackgroundImageSrc(dataUrl ?? undefined)
+      }
+    }
+
+    void resolveBackgroundImage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [backgroundImagePath])
+
   const layout = size.width > 0 && size.height > 0
     ? calculatePreviewTemplateLayout(template, size, content)
     : null
-  const backgroundStyle = calculatePreviewBackgroundStyle(template, backgroundImagePath)
+  const backgroundStyle = calculatePreviewBackgroundStyle(template, resolvedBackgroundImageSrc)
 
   return (
     <div
@@ -67,22 +95,34 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
           return (
             <div
               key={element.id}
-              className='absolute z-10 flex items-center font-semibold tracking-tight text-white'
+              className='absolute z-10 flex items-center overflow-hidden whitespace-nowrap font-semibold tracking-tight text-white'
               style={{
                 left: `${element.style.left}px`,
                 top: `${element.style.top}px`,
                 width: `${element.style.width}px`,
                 height: `${element.style.height}px`,
-                transformOrigin: element.style.transformOrigin,
-                transform: `scaleX(${element.style.scaleX ?? 1})`,
-                whiteSpace: element.style.whiteSpace,
+                borderRadius: element.style.borderRadius !== undefined
+                  ? `${element.style.borderRadius}px`
+                  : undefined,
                 color: element.style.color,
                 backgroundColor: element.style.backgroundColor,
                 borderColor: element.style.borderColor,
                 zIndex: element.style.zIndex,
               }}
             >
-              {element.content}
+              <span
+                className='inline-block whitespace-nowrap'
+                style={{
+                  transformOrigin: element.style.transformOrigin,
+                  transform: `scaleX(${element.style.scaleX ?? 1})`,
+                  fontSize: element.style.fontSize !== undefined
+                    ? `${element.style.fontSize}px`
+                    : undefined,
+                  fontFamily: element.style.fontFamily,
+                }}
+              >
+                {element.content}
+              </span>
             </div>
           )
         }
@@ -97,6 +137,9 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
                 top: `${element.style.top}px`,
                 width: `${element.style.width}px`,
                 height: `${element.style.height}px`,
+                borderRadius: element.style.borderRadius !== undefined
+                  ? `${element.style.borderRadius}px`
+                  : undefined,
                 transformOrigin: element.style.transformOrigin,
                 backgroundColor: element.style.backgroundColor,
                 borderColor: element.style.borderColor,
@@ -123,6 +166,9 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
               top: `${element.style.top}px`,
               width: `${element.style.width}px`,
               height: `${element.style.height}px`,
+              borderRadius: element.style.borderRadius !== undefined
+                ? `${element.style.borderRadius}px`
+                : undefined,
               transformOrigin: element.style.transformOrigin,
               backgroundColor: element.style.backgroundColor,
               borderColor: element.style.borderColor,
@@ -133,4 +179,8 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
       }) : null}
     </div>
   )
+}
+
+function isDirectPreviewImageSource(source: string): boolean {
+  return /^(data:|https?:|blob:)/i.test(source)
 }

@@ -115,9 +115,31 @@ export const actionButtonConfigSchema = createSchema<ActionButtonConfig>((input)
 export const previewElementDefinitionSchema = createSchema<PreviewElementDefinition>((input) => {
   const value = assertRecord(input, 'previewElementDefinition')
   const box = assertRecord(value.box, 'previewElementDefinition.box')
-  const textSettings = value.text === undefined
+  const behaviorSettings = value.behavior === undefined
+    ? (value.text === undefined ? undefined : assertRecord(value.text, 'previewElementDefinition.text'))
+    : assertRecord(value.behavior, 'previewElementDefinition.behavior')
+  const legacyTextSettings = value.text === undefined
     ? undefined
     : assertRecord(value.text, 'previewElementDefinition.text')
+  const parsedBehavior = behaviorSettings
+    ? {
+      ...(parseOptionalBoolean(behaviorSettings, 'allCaps', 'previewElementDefinition.behavior') !== undefined
+        ? { allCaps: parseOptionalBoolean(behaviorSettings, 'allCaps', 'previewElementDefinition.behavior') }
+        : {}),
+      ...(parseOptionalBoolean(behaviorSettings, 'fitInBox', 'previewElementDefinition.behavior') !== undefined
+        ? { fitInBox: parseOptionalBoolean(behaviorSettings, 'fitInBox', 'previewElementDefinition.behavior') }
+        : {}),
+      ...(behaviorSettings.minScaleX !== undefined
+        ? { minScaleX: parseRequiredNumber(behaviorSettings, 'minScaleX', 'previewElementDefinition.behavior') }
+        : {}),
+      ...(behaviorSettings.fontSize !== undefined
+        ? { fontSize: parseRequiredNumber(behaviorSettings, 'fontSize', 'previewElementDefinition.behavior') }
+        : {}),
+      ...(parseOptionalString(behaviorSettings, 'fontFamily', 'previewElementDefinition.behavior')
+        ? { fontFamily: parseOptionalString(behaviorSettings, 'fontFamily', 'previewElementDefinition.behavior') }
+        : {}),
+    }
+    : undefined
 
   return {
     id: parseRequiredString(value, 'id', 'previewElementDefinition'),
@@ -128,6 +150,12 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
       'kind',
     ),
     sourceField: parseRequiredString(value, 'sourceField', 'previewElementDefinition'),
+    ...(parseOptionalString(value, 'previewText', 'previewElementDefinition')
+      ? { previewText: parseOptionalString(value, 'previewText', 'previewElementDefinition') }
+      : {}),
+    ...(parseOptionalBoolean(value, 'visible', 'previewElementDefinition') !== undefined
+      ? { visible: parseOptionalBoolean(value, 'visible', 'previewElementDefinition') }
+      : {}),
     transformOrigin: value.transformOrigin === undefined
       ? 'top-left'
       : parseEnumValue(
@@ -136,6 +164,9 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
         'previewElementDefinition',
         'transformOrigin',
       ),
+    ...(value.borderRadius !== undefined
+      ? { borderRadius: parseRequiredNumber(value, 'borderRadius', 'previewElementDefinition') }
+      : {}),
     box: {
       x: parseRequiredNumber(box, 'x', 'previewElementDefinition.box'),
       y: parseRequiredNumber(box, 'y', 'previewElementDefinition.box'),
@@ -151,17 +182,28 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
     ...(parseOptionalString(value, 'borderColor', 'previewElementDefinition')
       ? { borderColor: parseOptionalString(value, 'borderColor', 'previewElementDefinition') }
       : {}),
-    ...(textSettings
+    ...(parsedBehavior
+      ? {
+        behavior: parsedBehavior,
+      }
+      : {}),
+    ...(legacyTextSettings
       ? {
         text: {
-          ...(parseOptionalBoolean(textSettings, 'allCaps', 'previewElementDefinition.text') !== undefined
-            ? { allCaps: parseOptionalBoolean(textSettings, 'allCaps', 'previewElementDefinition.text') }
+          ...(parseOptionalBoolean(legacyTextSettings, 'allCaps', 'previewElementDefinition.text') !== undefined
+            ? { allCaps: parseOptionalBoolean(legacyTextSettings, 'allCaps', 'previewElementDefinition.text') }
             : {}),
-          ...(parseOptionalBoolean(textSettings, 'fitInBox', 'previewElementDefinition.text') !== undefined
-            ? { fitInBox: parseOptionalBoolean(textSettings, 'fitInBox', 'previewElementDefinition.text') }
+          ...(parseOptionalBoolean(legacyTextSettings, 'fitInBox', 'previewElementDefinition.text') !== undefined
+            ? { fitInBox: parseOptionalBoolean(legacyTextSettings, 'fitInBox', 'previewElementDefinition.text') }
             : {}),
-          ...(textSettings.minScaleX !== undefined
-            ? { minScaleX: parseRequiredNumber(textSettings, 'minScaleX', 'previewElementDefinition.text') }
+          ...(legacyTextSettings.minScaleX !== undefined
+            ? { minScaleX: parseRequiredNumber(legacyTextSettings, 'minScaleX', 'previewElementDefinition.text') }
+            : {}),
+          ...(legacyTextSettings.fontSize !== undefined
+            ? { fontSize: parseRequiredNumber(legacyTextSettings, 'fontSize', 'previewElementDefinition.text') }
+            : {}),
+          ...(parseOptionalString(legacyTextSettings, 'fontFamily', 'previewElementDefinition.text')
+            ? { fontFamily: parseOptionalString(legacyTextSettings, 'fontFamily', 'previewElementDefinition.text') }
             : {}),
         },
       }

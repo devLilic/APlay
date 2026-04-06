@@ -129,7 +129,7 @@ describe('PreviewElementDefinition schema', () => {
           width: 840,
           height: 180,
         },
-        text: {
+        behavior: {
           allCaps: true,
           fitInBox: false,
         },
@@ -145,9 +145,47 @@ describe('PreviewElementDefinition schema', () => {
         width: 840,
         height: 180,
       },
-      text: {
+      behavior: {
         allCaps: true,
         fitInBox: false,
+      },
+    })
+  })
+
+  it('accepts behavior config for fitInBox, allCaps, minScaleX, and transformOrigin', () => {
+    expect(
+      previewElementDefinitionSchema.parse({
+        id: 'headline',
+        kind: 'text',
+        sourceField: 'text',
+        transformOrigin: 'center',
+        box: {
+          x: 10,
+          y: 20,
+          width: 300,
+          height: 80,
+        },
+        behavior: {
+          fitInBox: true,
+          allCaps: true,
+          minScaleX: 0.6,
+        },
+      }),
+    ).toEqual({
+      id: 'headline',
+      kind: 'text',
+      sourceField: 'text',
+      transformOrigin: 'center',
+      box: {
+        x: 10,
+        y: 20,
+        width: 300,
+        height: 80,
+      },
+      behavior: {
+        fitInBox: true,
+        allCaps: true,
+        minScaleX: 0.6,
       },
     })
   })
@@ -306,7 +344,7 @@ describe('GraphicInstanceConfig schema', () => {
                 width: 800,
                 height: 180,
               },
-              text: {
+              behavior: {
                 allCaps: false,
                 fitInBox: true,
               },
@@ -350,7 +388,7 @@ describe('GraphicInstanceConfig schema', () => {
               width: 800,
               height: 180,
             },
-            text: {
+            behavior: {
               allCaps: false,
               fitInBox: true,
             },
@@ -491,7 +529,7 @@ describe('AppSettings/AppConfig schema', () => {
                   width: 640,
                   height: 120,
                 },
-                text: {
+                behavior: {
                   allCaps: true,
                   fitInBox: true,
                 },

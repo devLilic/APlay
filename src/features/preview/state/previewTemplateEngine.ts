@@ -5,6 +5,7 @@ import type {
   TextBehaviorConfig,
   TransformOrigin,
 } from '@/settings/models/appConfig'
+import { calculateScaleToFit } from '@/features/preview/state/scaleToFit'
 
 export interface PreviewSize {
   width: number
@@ -27,11 +28,14 @@ export interface PreviewTemplateLayoutElement {
     top: number
     width: number
     height: number
+    borderRadius?: number
     transformOrigin: TransformOrigin
     zIndex: number
     color?: string
     backgroundColor?: string
     borderColor?: string
+    fontSize?: number
+    fontFamily?: string
     scaleX?: number
     whiteSpace?: 'nowrap'
   }
@@ -102,7 +106,7 @@ export function calculatePreviewTemplateLayout(
     scale,
     elements: template.elements.map((element) =>
       calculatePreviewElementLayout(element, scale, content[element.sourceField]),
-    ),
+    ).filter((element): element is PreviewTemplateLayoutElement => element !== undefined),
   }
 }
 
@@ -111,13 +115,13 @@ export function calculateTextElementStyle(
   measurement: TextMeasurement,
 ): TextElementCalculationResult {
   const allCaps = input.text?.allCaps ?? false
-  const fitInBox = input.text?.fitInBox ?? false
-  const minScaleX = input.text?.minScaleX ?? 0
   const content = allCaps ? input.content.toUpperCase() : input.content
-  const overflowScaleX = measurement.measuredTextWidth > input.boxWidth && measurement.measuredTextWidth > 0
-    ? input.boxWidth / measurement.measuredTextWidth
-    : 1
-  const scaleX = fitInBox ? Math.max(minScaleX, overflowScaleX) : 1
+  const scaleX = calculateScaleToFit({
+    availableWidth: input.boxWidth,
+    textWidth: measurement.measuredTextWidth,
+    fitInBox: input.text?.fitInBox,
+    minScaleX: input.text?.minScaleX,
+  })
 
   return {
     content,
@@ -153,19 +157,33 @@ function calculatePreviewElementLayout(
   element: PreviewElementDefinition,
   scale: PreviewScale,
   rawContent: string | undefined,
-): PreviewTemplateLayoutElement {
+): PreviewTemplateLayoutElement | undefined {
+  if (element.visible === false) {
+    return undefined
+  }
+
   const transformOrigin = element.transformOrigin ?? 'top-left'
-  const content = rawContent ?? ''
+  const content = element.previewText ?? rawContent ?? ''
+  const behavior = element.behavior ?? element.text
   const baseStyle = {
     left: element.box.x * scale.scaleX,
     top: element.box.y * scale.scaleY,
     width: element.box.width * scale.scaleX,
     height: element.box.height * scale.scaleY,
+    ...(element.borderRadius !== undefined
+      ? { borderRadius: element.borderRadius * scale.scale }
+      : {}),
     transformOrigin,
     zIndex: 1,
     ...(element.textColor ? { color: element.textColor } : {}),
     ...(element.backgroundColor ? { backgroundColor: element.backgroundColor } : {}),
     ...(element.borderColor ? { borderColor: element.borderColor } : {}),
+    ...(behavior?.fontSize !== undefined
+      ? { fontSize: behavior.fontSize * scale.scale }
+      : {}),
+    ...(behavior?.fontFamily
+      ? { fontFamily: behavior.fontFamily }
+      : {}),
   }
 
   if (element.kind === 'text') {
@@ -174,7 +192,7 @@ function calculatePreviewElementLayout(
         content,
         boxWidth: element.box.width,
         transformOrigin,
-        text: element.text,
+        text: behavior,
       },
       {
         measuredTextWidth: content.length * 10,
