@@ -1,6 +1,7 @@
 import type {
   PreviewBackgroundFitMode,
   PreviewElementDefinition,
+  PreviewTextAlign,
   PreviewTemplateDefinition,
   TextBehaviorConfig,
   TransformOrigin,
@@ -37,7 +38,10 @@ export interface PreviewTemplateLayoutElement {
     fontSize?: number
     fontFamily?: string
     scaleX?: number
+    fitInBox?: boolean
+    minScaleX?: number
     whiteSpace?: 'nowrap'
+    textAlign?: PreviewTextAlign
   }
 }
 
@@ -207,7 +211,10 @@ function calculatePreviewElementLayout(
       style: {
         ...baseStyle,
         scaleX: textStyle.style.scaleX,
+        fitInBox: behavior?.fitInBox,
+        minScaleX: behavior?.minScaleX,
         whiteSpace: textStyle.style.whiteSpace,
+        textAlign: behavior?.textAlign ?? 'left',
       },
     }
   }

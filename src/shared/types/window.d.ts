@@ -65,6 +65,7 @@ declare global {
       pickReferenceImage: () => Promise<string | null>
       pickSourceCsvFile: () => Promise<string | null>
       readReferenceImage: (filePath: string) => Promise<string | null>
+      readSourceFileSync: (filePath: string) => string | null
     }
   }
 }

@@ -20,8 +20,10 @@ import {
 
 export const titleEntitySchema = createSchema<TitleEntity>((input) => {
   const value = assertRecord(input, 'titleEntity')
+  const number = parseOptionalString(value, 'number', 'titleEntity')
 
   return {
+    ...(number ? { number } : {}),
     text: parseRequiredString(value, 'text', 'titleEntity'),
   }
 })
@@ -102,9 +104,14 @@ function parseEntityWithContext<T>(
 }
 
 const titleEntityCollectionSchema = createSchema<TitleEntity>((input) =>
-  parseEntityWithContext(input, 'titleEntity', (value, context) => ({
-    text: parseRequiredString(value, 'text', context),
-  })),
+  parseEntityWithContext(input, 'titleEntity', (value, context) => {
+    const number = parseOptionalString(value, 'number', context)
+
+    return {
+      ...(number ? { number } : {}),
+      text: parseRequiredString(value, 'text', context),
+    }
+  }),
 )
 
 const supertitleEntityCollectionSchema = createSchema<SupertitleEntity>((input) =>

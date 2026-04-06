@@ -3,7 +3,9 @@ import type { PreviewTemplateDefinition } from '@/settings/models/appConfig'
 import {
   calculatePreviewBackgroundStyle,
   calculatePreviewTemplateLayout,
+  type PreviewTemplateLayoutElement,
 } from '@/features/preview/state/previewTemplateEngine'
+import { useScaleToFit } from '@/features/preview/state/scaleToFit'
 
 interface PreviewCanvasProps {
   template: PreviewTemplateDefinition
@@ -92,39 +94,7 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
 
       {layout ? layout.elements.map((element) => {
         if (element.kind === 'text') {
-          return (
-            <div
-              key={element.id}
-              className='absolute z-10 flex items-center overflow-hidden whitespace-nowrap font-semibold tracking-tight text-white'
-              style={{
-                left: `${element.style.left}px`,
-                top: `${element.style.top}px`,
-                width: `${element.style.width}px`,
-                height: `${element.style.height}px`,
-                borderRadius: element.style.borderRadius !== undefined
-                  ? `${element.style.borderRadius}px`
-                  : undefined,
-                color: element.style.color,
-                backgroundColor: element.style.backgroundColor,
-                borderColor: element.style.borderColor,
-                zIndex: element.style.zIndex,
-              }}
-            >
-              <span
-                className='inline-block whitespace-nowrap'
-                style={{
-                  transformOrigin: element.style.transformOrigin,
-                  transform: `scaleX(${element.style.scaleX ?? 1})`,
-                  fontSize: element.style.fontSize !== undefined
-                    ? `${element.style.fontSize}px`
-                    : undefined,
-                  fontFamily: element.style.fontFamily,
-                }}
-              >
-                {element.content}
-              </span>
-            </div>
-          )
+          return <PreviewTextElement key={element.id} element={element} />
         }
 
         if (element.kind === 'image') {
@@ -183,4 +153,57 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
 
 function isDirectPreviewImageSource(source: string): boolean {
   return /^(data:|https?:|blob:)/i.test(source)
+}
+
+function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement }) {
+  const textRef = useRef<HTMLSpanElement | null>(null)
+  const scaleX = useScaleToFit({
+    availableWidth: element.style.width,
+    fitInBox: element.style.fitInBox,
+    minScaleX: element.style.minScaleX,
+    measureRef: textRef,
+    dependencies: [
+      element.content,
+      element.style.width,
+      element.style.fontSize,
+      element.style.fontFamily,
+    ],
+  })
+
+  return (
+    <div
+      className='absolute z-10 flex items-center overflow-hidden whitespace-nowrap font-semibold tracking-tight text-white'
+      style={{
+        left: `${element.style.left}px`,
+        top: `${element.style.top}px`,
+        width: `${element.style.width}px`,
+        height: `${element.style.height}px`,
+        borderRadius: element.style.borderRadius !== undefined
+          ? `${element.style.borderRadius}px`
+          : undefined,
+        color: element.style.color,
+        backgroundColor: element.style.backgroundColor,
+        borderColor: element.style.borderColor,
+        zIndex: element.style.zIndex,
+        justifyContent: element.style.textAlign === 'center' ? 'center' : 'flex-start',
+        textAlign: element.style.textAlign ?? 'left',
+      }}
+    >
+      <span
+        ref={textRef}
+        className='inline-block whitespace-nowrap'
+        style={{
+          transformOrigin: element.style.fitInBox ? 'center left' : element.style.transformOrigin,
+          transform: `scaleX(${scaleX})`,
+          fontSize: element.style.fontSize !== undefined
+            ? `${element.style.fontSize}px`
+            : undefined,
+          fontFamily: element.style.fontFamily,
+          textAlign: element.style.textAlign ?? 'left',
+        }}
+      >
+        {element.content}
+      </span>
+    </div>
+  )
 }

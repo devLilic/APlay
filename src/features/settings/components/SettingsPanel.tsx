@@ -380,7 +380,7 @@ function createDefaultBinding(): GraphicFieldBinding {
 }
 
 function createDefaultPreviewElement(index: number): PreviewElementDefinition {
-  const defaultBehavior = { fitInBox: true, minScaleX: 0.7, fontSize: 64, fontFamily: 'Arial' }
+  const defaultBehavior = { fitInBox: true, minScaleX: 0.7, fontSize: 64, fontFamily: 'Arial', textAlign: 'left' as const }
 
   return {
     id: `element-${index}`,
@@ -1259,6 +1259,18 @@ function PreviewTemplateSection({
                         placeholder='Arial, Helvetica, "My Local Font"'
                         className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
                       />
+                    </label>
+                    <label className='space-y-2'>
+                      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Text align</span>
+                      <select
+                        value={textBehavior?.textAlign ?? 'left'}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, textAlign: event.target.value as 'left' | 'center' })))}
+                        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      >
+                        <option value='left'>Left</option>
+                        <option value='center'>Center</option>
+                      </select>
                     </label>
                   </div>
                 ) : null}

@@ -1,6 +1,6 @@
 import type { ContentSourceDiagnostic } from '@/adapters/content-source/contracts'
 import type { CsvRow, CsvTable } from './types'
-import { isBlankLine } from './utils'
+import { detectCsvDelimiter, isBlankLine } from './utils'
 
 export function parseCsvRows(content: string): { table: CsvTable; diagnostics: ContentSourceDiagnostic[] } {
   const lines = content.split(/\r?\n/)
@@ -19,37 +19,21 @@ export function parseCsvRows(content: string): { table: CsvTable; diagnostics: C
   let header: string[] = []
   const rows: CsvRow[] = []
   let headerAssigned = false
+  const delimiter = detectCsvDelimiter(significantLines[0]?.line ?? '')
 
   for (const { line, lineNumber } of significantLines) {
-    if (!headerAssigned && line.trim().startsWith('---')) {
-      rows.push({
-        lineNumber,
-        values: [line.trim()],
-      })
-      continue
-    }
-
-    if (!headerAssigned && !line.trim().startsWith('---')) {
-      const parsedHeader = parseCsvLine(line)
+    if (!headerAssigned) {
+      const parsedHeader = parseCsvLine(line, delimiter)
       if (parsedHeader.ok) {
         header = parsedHeader.values
         headerAssigned = true
       } else {
         diagnostics.push(createMalformedRowDiagnostic(lineNumber))
       }
-
       continue
     }
 
-    if (line.trim().startsWith('---')) {
-      rows.push({
-        lineNumber,
-        values: [line.trim()],
-      })
-      continue
-    }
-
-    const parsedRow = parseCsvLine(line)
+    const parsedRow = parseCsvLine(line, delimiter)
     if (!parsedRow.ok) {
       diagnostics.push(createMalformedRowDiagnostic(lineNumber))
       continue
@@ -70,7 +54,10 @@ export function parseCsvRows(content: string): { table: CsvTable; diagnostics: C
   }
 }
 
-function parseCsvLine(line: string): { ok: true; values: string[] } | { ok: false } {
+function parseCsvLine(
+  line: string,
+  delimiter: ',' | ';',
+): { ok: true; values: string[] } | { ok: false } {
   const values: string[] = []
   let current = ''
   let inQuotes = false
@@ -90,7 +77,7 @@ function parseCsvLine(line: string): { ok: true; values: string[] } | { ok: fals
       continue
     }
 
-    if (character === ',' && !inQuotes) {
+    if (character === delimiter && !inQuotes) {
       values.push(current)
       current = ''
       continue

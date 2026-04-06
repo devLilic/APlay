@@ -129,12 +129,13 @@ describe('PreviewElementDefinition schema', () => {
           width: 840,
           height: 180,
         },
-        behavior: {
-          allCaps: true,
-          fitInBox: false,
-        },
-      }),
-    ).toEqual({
+      behavior: {
+        allCaps: true,
+        fitInBox: false,
+        textAlign: 'center',
+      },
+    }),
+  ).toEqual({
       id: 'headline',
       kind: 'text',
       sourceField: 'text',
@@ -148,6 +149,7 @@ describe('PreviewElementDefinition schema', () => {
       behavior: {
         allCaps: true,
         fitInBox: false,
+        textAlign: 'center',
       },
     })
   })
@@ -165,13 +167,14 @@ describe('PreviewElementDefinition schema', () => {
           width: 300,
           height: 80,
         },
-        behavior: {
-          fitInBox: true,
-          allCaps: true,
-          minScaleX: 0.6,
-        },
-      }),
-    ).toEqual({
+      behavior: {
+        fitInBox: true,
+        allCaps: true,
+        minScaleX: 0.6,
+        textAlign: 'left',
+      },
+    }),
+  ).toEqual({
       id: 'headline',
       kind: 'text',
       sourceField: 'text',
@@ -186,6 +189,7 @@ describe('PreviewElementDefinition schema', () => {
         fitInBox: true,
         allCaps: true,
         minScaleX: 0.6,
+        textAlign: 'left',
       },
     })
   })

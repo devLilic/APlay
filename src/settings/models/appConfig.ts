@@ -6,6 +6,7 @@ export type PreviewElementKind = 'text' | 'box' | 'image'
 export type PreviewBackgroundFitMode = 'contain' | 'cover'
 export type PreviewBackgroundPosition = 'center'
 export type ContentSourceType = 'csv'
+export type PreviewTextAlign = 'left' | 'center'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
@@ -13,6 +14,7 @@ export interface TextBehaviorConfig {
   minScaleX?: number
   fontSize?: number
   fontFamily?: string
+  textAlign?: PreviewTextAlign
 }
 
 export interface ReferenceImageAsset {

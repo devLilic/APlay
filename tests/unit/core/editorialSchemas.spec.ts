@@ -16,7 +16,7 @@ describe('EditorialDocument schema', () => {
       blocks: [
         {
           name: 'Opening',
-          titles: [{ text: 'Main title' }],
+          titles: [{ number: '1', text: 'Main title' }],
           supertitles: [{ text: 'Top line' }],
           persons: [{ name: 'Jane Doe', role: 'Anchor' }],
           locations: [{ value: 'Chisinau' }],
@@ -32,7 +32,7 @@ describe('EditorialDocument schema', () => {
       blocks: [
         {
           name: 'Opening',
-          titles: [{ text: 'Main title' }],
+          titles: [{ number: '1', text: 'Main title' }],
           supertitles: [{ text: 'Top line' }],
           persons: [{ name: 'Jane Doe', role: 'Anchor' }],
           locations: [{ value: 'Chisinau' }],
@@ -73,7 +73,7 @@ describe('EditorialBlock schema', () => {
   it('keeps entity collections independent and does not model row-level relationships', () => {
     const parsed = editorialBlockSchema.parse({
       name: 'Independent collections',
-      titles: [{ text: 'Title A' }, { text: 'Title B' }],
+      titles: [{ number: '1', text: 'Title A' }, { number: '2', text: 'Title B' }],
       persons: [{ name: 'Person A' }],
     })
 
@@ -100,7 +100,7 @@ describe('supported V1 entity types', () => {
 
 describe('entity schemas', () => {
   it('parses a title entity', () => {
-    expect(titleEntitySchema.parse({ text: 'Headline' })).toEqual({ text: 'Headline' })
+    expect(titleEntitySchema.parse({ number: '7', text: 'Headline' })).toEqual({ number: '7', text: 'Headline' })
   })
 
   it('requires title text', () => {
@@ -138,9 +138,9 @@ describe('entity schemas', () => {
   })
 
   it('does not introduce preview reference background fields into editorial entities', () => {
-    const parsed = titleEntitySchema.parse({ text: 'Headline' })
+    const parsed = titleEntitySchema.parse({ number: '7', text: 'Headline' })
 
-    expect(parsed).toEqual({ text: 'Headline' })
+    expect(parsed).toEqual({ number: '7', text: 'Headline' })
     expect(parsed).not.toHaveProperty('referenceImageId')
     expect(parsed).not.toHaveProperty('background')
   })

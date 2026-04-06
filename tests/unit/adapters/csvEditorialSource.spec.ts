@@ -4,44 +4,76 @@ import {
   parseCsvEditorialDocument,
 } from '@/adapters/content-source/csvEditorialSource'
 
-const validCsv = [
-  'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-  'title,1,Alpha Title,,,,,,,,',
-  'supertitle,,,Alpha Super,,,,,,,',
-  'person,,,,Alice Alpha,Anchor,,,,,,',
-  'location,,,,,,Chisinau,,,,,',
-  'breakingNews,,,,,,,Breaking First,,,,',
-  'waitingTitle,,,,,,,,Waiting First,,,',
-  'waitingLocation,,,,,,,,,Desk One,,',
-  'phone,,,,,,,,,,Studio,111',
-  'title,2,Beta Title,,,,,,,,',
-  'supertitle,,,Beta Super,,,,,,,',
-  'person,,,,Bob Beta,Reporter,,,,,,',
-  'location,,,,,,Balti,,,,,',
-  'breakingNews,,,,,,,Breaking Second,,,,',
-  'waitingTitle,,,,,,,,Waiting Second,,,',
-  'waitingLocation,,,,,,,,,Desk Two,,',
-  'phone,,,,,,,,,,Mobile,222',
+const sampleCsv = [
+  'Nr;Titlu;Nume;Functie;Locatie;Ultima Ora;Titlu Asteptare;Locatie Asteptare',
+  '--- beta 1 - Maia Sandu UE ---;;;;;;;',
+  '1.;MAIA SANDU FACE DECLARATII IN CONSILIUL UE;MAIA SANDU;presedinte RM;;;;',
+  ';;IGOR GROSU;presedintele Parlamentului;;;;',
+  '--- beta 2 - NATO ---;;;;;;;',
+  '1.;EXERCITII MILITARE NATO;MARK RUTTE;sef NATO;;;;',
+  '2.;MEMBRII NATO FAC ANTRENAMENTE COMUNE;;;;;;',
+  '--- INVITATI ---;;;;;;;',
+  '1.;INTRA PE CALEA INTEGRARII IN UE;IRINA BEJENARU;jurnalist TVR Moldova;CHISINAU;ULTIMA ORA;DECLARATII IMPORTANTE;PIATA MARII ADUNARI NATIONALE',
+  '2.;GROSU: CINE ESTE ACASA?;IGOR GROSU;presedintele Parlamentului;;;;',
+  '3.;PRIMA ZI LA SCOALA;;;;;;',
 ].join('\n')
 
 describe('CSV editorial parser', () => {
-  it('creates an EditorialDocument with blocks and independent entity collections', () => {
+  it('handles semicolon-delimited CSV and recognizes the header', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
+
+    expect(parsed.document.blocks).toHaveLength(3)
+    expect(parsed.diagnostics).toEqual([])
+  })
+
+  it('recognizes block delimiters from the first column', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
+
+    expect(parsed.document.blocks.map((block) => block.name)).toEqual([
+      'beta 1 - Maia Sandu UE',
+      'beta 2 - NATO',
+      'INVITATI',
+    ])
+  })
+
+  it('skips blank lines safely', () => {
     const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Opening Headlines---',
-      'title,1,Main Title,,,,,,,,',
-      'person,,,,Jane Doe,Anchor,,,,,,',
-      '---Second Block---',
-      'location,,,,,,Chisinau,,,,,',
+      'Nr;Titlu;Nume;Functie;Locatie;Ultima Ora;Titlu Asteptare;Locatie Asteptare',
+      '',
+      '--- Block ---;;;;;;;',
+      '',
+      '1.;Alpha Title;Alice Alpha;Anchor;;;;',
+      '',
     ].join('\n'))
+
+    expect(parsed.document.blocks).toEqual([
+      {
+        name: 'Block',
+        titles: [{ number: '1.', text: 'Alpha Title' }],
+        supertitles: [],
+        persons: [{ name: 'Alice Alpha', role: 'Anchor' }],
+        locations: [],
+        breakingNews: [],
+        waitingTitles: [],
+        waitingLocations: [],
+        phones: [],
+      },
+    ])
+  })
+
+  it('creates an EditorialDocument with EditorialBlock objects', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
     expect(parsed.document).toEqual({
       blocks: [
         {
-          name: 'Opening Headlines',
-          titles: [{ text: '1 Main Title' }],
+          name: 'beta 1 - Maia Sandu UE',
+          titles: [{ number: '1.', text: 'MAIA SANDU FACE DECLARATII IN CONSILIUL UE' }],
           supertitles: [],
-          persons: [{ name: 'Jane Doe', role: 'Anchor' }],
+          persons: [
+            { name: 'MAIA SANDU', role: 'presedinte RM' },
+            { name: 'IGOR GROSU', role: 'presedintele Parlamentului' },
+          ],
           locations: [],
           breakingNews: [],
           waitingTitles: [],
@@ -49,305 +81,141 @@ describe('CSV editorial parser', () => {
           phones: [],
         },
         {
-          name: 'Second Block',
-          titles: [],
+          name: 'beta 2 - NATO',
+          titles: [
+            { number: '1.', text: 'EXERCITII MILITARE NATO' },
+            { number: '2.', text: 'MEMBRII NATO FAC ANTRENAMENTE COMUNE' },
+          ],
           supertitles: [],
-          persons: [],
-          locations: [{ value: 'Chisinau' }],
+          persons: [{ name: 'MARK RUTTE', role: 'sef NATO' }],
+          locations: [],
           breakingNews: [],
           waitingTitles: [],
           waitingLocations: [],
+          phones: [],
+        },
+        {
+          name: 'INVITATI',
+          titles: [
+            { number: '1.', text: 'INTRA PE CALEA INTEGRARII IN UE' },
+            { number: '2.', text: 'GROSU: CINE ESTE ACASA?' },
+            { number: '3.', text: 'PRIMA ZI LA SCOALA' },
+          ],
+          supertitles: [],
+          persons: [
+            { name: 'IRINA BEJENARU', role: 'jurnalist TVR Moldova' },
+            { name: 'IGOR GROSU', role: 'presedintele Parlamentului' },
+          ],
+          locations: [{ value: 'CHISINAU' }],
+          breakingNews: [{ value: 'ULTIMA ORA' }],
+          waitingTitles: [{ value: 'DECLARATII IMPORTANTE' }],
+          waitingLocations: [{ value: 'PIATA MARII ADUNARI NATIONALE' }],
           phones: [],
         },
       ],
     })
   })
 
-  it('detects block delimiters using the ---Block Name--- format', () => {
-    const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Block One---',
-      'title,1,Alpha,,,,,,,,',
-      '---Block Two---',
-      'title,2,Beta,,,,,,,,',
-    ].join('\n'))
+  it('extracts titles[] from Nr + Titlu', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks.map((block) => block.name)).toEqual(['Block One', 'Block Two'])
-  })
-
-  it('ignores blank lines around headers, blocks, and content', () => {
-    const parsed = parseCsvEditorialDocument([
-      '',
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '',
-      '---Block One---',
-      '',
-      'title,1,Alpha,,,,,,,,',
-      '',
-      'person,,,,Alice Alpha,Anchor,,,,,,',
-      '',
-    ].join('\n'))
-
-    expect(parsed.document.blocks).toHaveLength(1)
-    expect(parsed.document.blocks[0]?.titles).toEqual([{ text: '1 Alpha' }])
-    expect(parsed.document.blocks[0]?.persons).toEqual([{ name: 'Alice Alpha', role: 'Anchor' }])
-  })
-
-  it('builds titles[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
-
-    expect(parsed.document.blocks[0]?.titles).toEqual([
-      { text: '1 Alpha Title' },
-      { text: '2 Beta Title' },
+    expect(parsed.document.blocks[2]?.titles).toEqual([
+      { number: '1.', text: 'INTRA PE CALEA INTEGRARII IN UE' },
+      { number: '2.', text: 'GROSU: CINE ESTE ACASA?' },
+      { number: '3.', text: 'PRIMA ZI LA SCOALA' },
     ])
   })
 
-  it('builds supertitles[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
-
-    expect(parsed.document.blocks[0]?.supertitles).toEqual([
-      { text: 'Alpha Super' },
-      { text: 'Beta Super' },
-    ])
-  })
-
-  it('builds persons[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
+  it('extracts persons[] from Nume + Functie', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
     expect(parsed.document.blocks[0]?.persons).toEqual([
-      { name: 'Alice Alpha', role: 'Anchor' },
-      { name: 'Bob Beta', role: 'Reporter' },
+      { name: 'MAIA SANDU', role: 'presedinte RM' },
+      { name: 'IGOR GROSU', role: 'presedintele Parlamentului' },
     ])
   })
 
-  it('builds locations[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
+  it('extracts locations[] from Locatie', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks[0]?.locations).toEqual([
-      { value: 'Chisinau' },
-      { value: 'Balti' },
+    expect(parsed.document.blocks[2]?.locations).toEqual([
+      { value: 'CHISINAU' },
     ])
   })
 
-  it('builds breakingNews[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
+  it('extracts breakingNews[] from Ultima Ora', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks[0]?.breakingNews).toEqual([
-      { value: 'Breaking First' },
-      { value: 'Breaking Second' },
+    expect(parsed.document.blocks[2]?.breakingNews).toEqual([
+      { value: 'ULTIMA ORA' },
     ])
   })
 
-  it('builds waitingTitles[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
+  it('extracts waitingTitles[] from Titlu Asteptare', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks[0]?.waitingTitles).toEqual([
-      { value: 'Waiting First' },
-      { value: 'Waiting Second' },
+    expect(parsed.document.blocks[2]?.waitingTitles).toEqual([
+      { value: 'DECLARATII IMPORTANTE' },
     ])
   })
 
-  it('builds waitingLocations[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
+  it('extracts waitingLocations[] from Locatie Asteptare', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks[0]?.waitingLocations).toEqual([
-      { value: 'Desk One' },
-      { value: 'Desk Two' },
+    expect(parsed.document.blocks[2]?.waitingLocations).toEqual([
+      { value: 'PIATA MARII ADUNARI NATIONALE' },
     ])
   })
 
-  it('builds phones[] in source order', () => {
-    const parsed = parseCsvEditorialDocument(['---Opening---', validCsv].join('\n'))
+  it('preserves source order inside each collection', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks[0]?.phones).toEqual([
-      { label: 'Studio', number: '111' },
-      { label: 'Mobile', number: '222' },
+    expect(parsed.document.blocks[1]?.titles).toEqual([
+      { number: '1.', text: 'EXERCITII MILITARE NATO' },
+      { number: '2.', text: 'MEMBRII NATO FAC ANTRENAMENTE COMUNE' },
     ])
   })
 
-  it('builds a person entity from name + role columns', () => {
-    const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Guests---',
-      'person,,,,Maria Ionescu,Producer,,,,,,',
-    ].join('\n'))
+  it('does not create false relationships between titles[] and persons[] from the same row', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
 
-    expect(parsed.document.blocks[0]?.persons[0]).toEqual({
-      name: 'Maria Ionescu',
-      role: 'Producer',
-    })
+    expect(parsed.document.blocks[2]?.titles[0]).not.toHaveProperty('person')
+    expect(parsed.document.blocks[2]?.persons[0]).not.toHaveProperty('title')
   })
 
-  it('builds a title entity from number + title columns', () => {
+  it('handles partially empty rows safely', () => {
     const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Titles---',
-      'title,7,Market Update,,,,,,,,',
-    ].join('\n'))
-
-    expect(parsed.document.blocks[0]?.titles[0]).toEqual({
-      text: '7 Market Update',
-    })
-  })
-
-  it('does not fail when optional values are missing', () => {
-    const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Block---',
-      'person,,,,Solo Guest,,,,,,,',
-      'title,,Standalone Title,,,,,,,,',
-    ].join('\n'))
-
-    expect(parsed.document.blocks[0]?.persons).toEqual([{ name: 'Solo Guest' }])
-    expect(parsed.document.blocks[0]?.titles).toEqual([{ text: 'Standalone Title' }])
-    expect(parsed.diagnostics).toEqual([])
-  })
-
-  it('surfaces missing expected columns as structured diagnostics', () => {
-    const parsed = parseCsvEditorialDocument([
-      'type,title',
-      '---Block---',
-      'title,Main Title',
-    ].join('\n'), {
-      expectedColumnsByGraphicId: {
-        titleMain: ['number', 'title'],
-        personLowerThird: ['name', 'role'],
-      },
-    })
-
-    expect(parsed.diagnostics).toEqual([
-      {
-        severity: 'warning',
-        code: 'missing-column',
-        message: 'Missing expected columns for graphic "titleMain": number',
-        details: {
-          graphicId: 'titleMain',
-          missingColumns: ['number'],
-        },
-      },
-      {
-        severity: 'warning',
-        code: 'missing-column',
-        message: 'Missing expected columns for graphic "personLowerThird": name, role',
-        details: {
-          graphicId: 'personLowerThird',
-          missingColumns: ['name', 'role'],
-        },
-      },
-    ])
-  })
-
-  it('handles malformed CSV safely without throwing uncaught errors', () => {
-    expect(() =>
-      parseCsvEditorialDocument([
-        'type,number,title',
-        '---Block---',
-        '"unterminated,title row',
-      ].join('\n')),
-    ).not.toThrow()
-
-    const parsed = parseCsvEditorialDocument([
-      'type,number,title',
-      '---Block---',
-      '"unterminated,title row',
-    ].join('\n'))
-
-    expect(parsed.document.blocks[0]?.titles).toEqual([])
-    expect(parsed.diagnostics[0]).toMatchObject({
-      severity: 'error',
-      code: 'malformed-csv-row',
-    })
-  })
-
-  it('does not create false relationships between entity types from adjacent rows', () => {
-    const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Block---',
-      'title,1,Main Title,,,,,,,,',
-      'person,,,,Jane Doe,Anchor,,,,,,',
-    ].join('\n'))
-
-    expect(parsed.document.blocks[0]?.titles[0]).not.toHaveProperty('person')
-    expect(parsed.document.blocks[0]?.persons[0]).not.toHaveProperty('title')
-  })
-
-  it('preserves empty collections on blocks that only contain some entity types', () => {
-    const parsed = parseCsvEditorialDocument([
-      'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-      '---Locations---',
-      'location,,,,,,Chisinau,,,,,',
+      'Nr;Titlu;Nume;Functie;Locatie;Ultima Ora;Titlu Asteptare;Locatie Asteptare',
+      '--- Block ---;;;;;;;',
+      '1.;Standalone Title;;;;;;',
+      ';;Solo Guest;Analyst;;;;',
     ].join('\n'))
 
     expect(parsed.document.blocks[0]).toEqual({
-      name: 'Locations',
-      titles: [],
+      name: 'Block',
+      titles: [{ number: '1.', text: 'Standalone Title' }],
       supertitles: [],
-      persons: [],
-      locations: [{ value: 'Chisinau' }],
+      persons: [{ name: 'Solo Guest', role: 'Analyst' }],
+      locations: [],
       breakingNews: [],
       waitingTitles: [],
       waitingLocations: [],
       phones: [],
     })
   })
-})
 
-describe('CSV content source adapter', () => {
-  it('wraps the CSV parser behind the source adapter contract', () => {
-    const adapter = createCsvEditorialSourceAdapter()
-    const result = adapter.load({
-      fileName: 'editorial.csv',
-      content: [
-        'type,number,title,supertitle,name,role,location,breakingNews,waitingTitle,waitingLocation,phoneLabel,phoneNumber',
-        '---Block---',
-        'title,1,Alpha,,,,,,,,',
-      ].join('\n'),
-    })
+  it('preserves blocks with empty collections', () => {
+    const parsed = parseCsvEditorialDocument([
+      'Nr;Titlu;Nume;Functie;Locatie;Ultima Ora;Titlu Asteptare;Locatie Asteptare',
+      '--- Empty Block ---;;;;;;;',
+      ';;; ;;;;',
+      '--- Titles ---;;;;;;;',
+      '1.;Only Title;;;;;;',
+    ].join('\n'))
 
-    expect(adapter.format).toBe('csv')
-    expect(result.document.blocks[0]?.titles).toEqual([{ text: '1 Alpha' }])
-  })
-
-  it('reloads source data after external file changes without reusing stale content', () => {
-    const adapter = createCsvEditorialSourceAdapter()
-
-    const initial = adapter.load({
-      fileName: 'editorial.csv',
-      content: [
-        'type,number,title',
-        '---Block---',
-        'title,1,Alpha',
-      ].join('\n'),
-    })
-
-    const reloaded = adapter.load({
-      fileName: 'editorial.csv',
-      content: [
-        'type,number,title',
-        '---Block---',
-        'title,2,Beta',
-      ].join('\n'),
-    })
-
-    expect(initial.document.blocks[0]?.titles).toEqual([{ text: '1 Alpha' }])
-    expect(reloaded.document.blocks[0]?.titles).toEqual([{ text: '2 Beta' }])
-  })
-
-  it('handles source data with missing supported columns by keeping empty collections', () => {
-    const adapter = createCsvEditorialSourceAdapter()
-    const result = adapter.load({
-      fileName: 'editorial.csv',
-      content: [
-        'type,title',
-        '---Block---',
-        'person,Ignored Person',
-        'title,Main Title',
-      ].join('\n'),
-    })
-
-    expect(result.document.blocks[0]).toEqual({
-      name: 'Block',
-      titles: [{ text: 'Main Title' }],
+    expect(parsed.document.blocks[0]).toEqual({
+      name: 'Empty Block',
+      titles: [],
       supertitles: [],
       persons: [],
       locations: [],
@@ -358,41 +226,76 @@ describe('CSV content source adapter', () => {
     })
   })
 
-  it('preserves empty blocks and empty entity collections', () => {
+  it('handles malformed CSV safely', () => {
+    const parsed = parseCsvEditorialDocument([
+      'Nr;Titlu;Nume;Functie;Locatie;Ultima Ora;Titlu Asteptare;Locatie Asteptare',
+      '--- Block ---;;;;;;;',
+      '"unterminated;title;row',
+    ].join('\n'))
+
+    expect(parsed.document).toEqual({
+      blocks: [{ name: 'Block', titles: [], supertitles: [], persons: [], locations: [], breakingNews: [], waitingTitles: [], waitingLocations: [], phones: [] }],
+    })
+    expect(parsed.diagnostics[0]).toMatchObject({
+      severity: 'error',
+      code: 'malformed-csv-row',
+    })
+  })
+
+  it('returns internal domain format, not raw rows', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv)
+
+    expect(parsed.document.blocks[0]).toHaveProperty('titles')
+    expect(parsed.document).not.toHaveProperty('rows')
+  })
+})
+
+describe('CSV content source adapter', () => {
+  it('loads the CSV through the adapter contract and returns domain output', () => {
     const adapter = createCsvEditorialSourceAdapter()
     const result = adapter.load({
       fileName: 'editorial.csv',
-      content: [
-        'type,number,title',
-        '---Empty Block---',
-        '',
-        '---Titles---',
-        'title,,',
-      ].join('\n'),
+      content: sampleCsv,
     })
 
-    expect(result.document.blocks).toEqual([
+    expect(adapter.format).toBe('csv')
+    expect(result.document.blocks.map((block) => block.name)).toEqual([
+      'beta 1 - Maia Sandu UE',
+      'beta 2 - NATO',
+      'INVITATI',
+    ])
+  })
+
+  it('surfaces missing expected columns clearly while remaining safe', () => {
+    const parsed = parseCsvEditorialDocument([
+      'Nr;Titlu;Nume;Functie',
+      '--- Block ---;;;',
+      '1.;Alpha;Alice;Anchor',
+    ].join('\n'), {
+      expectedColumnsByGraphicId: {
+        locationGraphic: ['Locatie'],
+        waitingGraphic: ['Titlu Asteptare', 'Locatie Asteptare'],
+      },
+    })
+
+    expect(parsed.diagnostics).toEqual([
       {
-        name: 'Empty Block',
-        titles: [],
-        supertitles: [],
-        persons: [],
-        locations: [],
-        breakingNews: [],
-        waitingTitles: [],
-        waitingLocations: [],
-        phones: [],
+        severity: 'warning',
+        code: 'missing-column',
+        message: 'Missing expected columns for graphic "locationGraphic": Locatie',
+        details: {
+          graphicId: 'locationGraphic',
+          missingColumns: ['Locatie'],
+        },
       },
       {
-        name: 'Titles',
-        titles: [],
-        supertitles: [],
-        persons: [],
-        locations: [],
-        breakingNews: [],
-        waitingTitles: [],
-        waitingLocations: [],
-        phones: [],
+        severity: 'warning',
+        code: 'missing-column',
+        message: 'Missing expected columns for graphic "waitingGraphic": Titlu Asteptare, Locatie Asteptare',
+        details: {
+          graphicId: 'waitingGraphic',
+          missingColumns: ['Titlu Asteptare', 'Locatie Asteptare'],
+        },
       },
     ])
   })

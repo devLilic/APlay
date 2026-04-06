@@ -220,6 +220,59 @@ describe('text behavior calculations', () => {
     expect(layout.elements[0]?.style.transformOrigin).toBe('bottom-right')
   })
 
+  it('applies left text alignment by default', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            box: {
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 80,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { text: 'Headline' },
+    )
+
+    expect(layout.elements[0]?.style.textAlign).toBe('left')
+  })
+
+  it('applies custom center text alignment from behavior config', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        ...previewTemplate,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            box: {
+              x: 0,
+              y: 0,
+              width: 200,
+              height: 80,
+            },
+            behavior: {
+              textAlign: 'center',
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { text: 'Headline' },
+    )
+
+    expect(layout.elements[0]?.style.textAlign).toBe('center')
+  })
+
   it('respects minScaleX from element behavior config', () => {
     const layout = calculatePreviewTemplateLayout(
       {

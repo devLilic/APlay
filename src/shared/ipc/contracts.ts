@@ -31,6 +31,7 @@ export const ipcInvokeChannels = {
   settingsPickReferenceImage: 'settings:pick-reference-image',
   settingsPickSourceCsvFile: 'settings:pick-source-csv-file',
   settingsReadReferenceImage: 'settings:read-reference-image',
+  settingsReadSourceFile: 'settings:read-source-file',
 } as const
 
 export const ipcEventChannels = {
@@ -113,6 +114,9 @@ export interface SourceCsvPickerResponse {
 export interface ReferenceImageDataResponse {
   dataUrl: string | null
 }
+export interface SourceFileReadResponse {
+  content: string | null
+}
 
 export interface IpcInvokeContract {
   [ipcInvokeChannels.appGetInfo]: {
@@ -194,6 +198,10 @@ export interface IpcInvokeContract {
   [ipcInvokeChannels.settingsReadReferenceImage]: {
     request: { filePath: string }
     response: ReferenceImageDataResponse
+  }
+  [ipcInvokeChannels.settingsReadSourceFile]: {
+    request: { filePath: string }
+    response: SourceFileReadResponse
   }
 }
 

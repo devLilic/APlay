@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { app, dialog, ipcMain } from 'electron'
@@ -87,6 +88,25 @@ export function registerSettingsModule() {
         }
       } catch {
         return { dataUrl: null }
+      }
+    },
+  )
+
+  ipcMain.on(
+    ipcInvokeChannels.settingsReadSourceFile,
+    (event, payload: { filePath: string }) => {
+      try {
+        const filePath = payload.filePath.trim()
+        if (filePath.length === 0) {
+          event.returnValue = { content: null }
+          return
+        }
+
+        event.returnValue = {
+          content: readFileSync(filePath, 'utf8'),
+        }
+      } catch {
+        event.returnValue = { content: null }
       }
     },
   )

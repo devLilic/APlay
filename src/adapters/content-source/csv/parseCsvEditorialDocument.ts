@@ -3,17 +3,32 @@ import type {
   ContentSourceLoadResult,
 } from '@/adapters/content-source/contracts'
 import type { EditorialBlock, EditorialDocument } from '@/core/models/editorial'
-import { supportedEntityTypes, type SupportedEntityType } from '@/core/entities/entityTypes'
-import type { CsvParseOptions } from './types'
+import type { CsvParseOptions, CsvRow } from './types'
 import { parseCsvRows } from './parseCsvRows'
 import {
-  combineTitleParts,
   isBlockDelimiter,
   normalizeCellValue,
+  normalizeHeaderValue,
   parseBlockName,
 } from './utils'
 
 const defaultBlockName = 'Imported Block'
+
+const csvColumnAliases = {
+  number: ['nr', 'number'],
+  title: ['titlu', 'title'],
+  supertitle: ['supertitle', 'supratitlu', 'supertitlu'],
+  name: ['nume', 'name'],
+  role: ['functie', 'funcție', 'role'],
+  location: ['locatie', 'locație', 'location'],
+  breakingNews: ['ultima ora', 'ultima oră', 'breaking news', 'breakingnews'],
+  waitingTitle: ['titlu asteptare', 'titlu așteptare', 'waiting title', 'waitingtitle'],
+  waitingLocation: ['locatie asteptare', 'locație așteptare', 'waiting location', 'waitinglocation'],
+  phoneLabel: ['telefon label', 'phone label', 'phonelabel'],
+  phoneNumber: ['telefon', 'numar telefon', 'număr telefon', 'phone number', 'phonenumber'],
+} as const
+
+type CsvCanonicalColumn = keyof typeof csvColumnAliases
 
 export function parseCsvEditorialDocument(
   content: string,
@@ -21,17 +36,17 @@ export function parseCsvEditorialDocument(
 ): Omit<ContentSourceLoadResult, 'source'> {
   const { table, diagnostics } = parseCsvRows(content)
   const columnIndexByName = createColumnIndexByName(table.header)
-  const blockDiagnostics = createMissingColumnDiagnostics(table.header, options)
   const blocks: EditorialBlock[] = []
   let currentBlock: EditorialBlock | null = null
 
   for (const row of table.rows) {
-    const firstValue = row.values[0]?.trim()
-    if (!firstValue) {
+    const firstValue = normalizeCellValue(row.values[0])
+    const hasContent = row.values.some((value) => normalizeCellValue(value) !== undefined)
+    if (!hasContent) {
       continue
     }
 
-    if (isBlockDelimiter(firstValue)) {
+    if (firstValue && isBlockDelimiter(firstValue)) {
       currentBlock = createEmptyBlock(parseBlockName(firstValue))
       blocks.push(currentBlock)
       continue
@@ -42,34 +57,17 @@ export function parseCsvEditorialDocument(
       blocks.push(currentBlock)
     }
 
-    const typeValue = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'type'))
-    if (!typeValue) {
-      continue
-    }
-
-    if (!isSupportedEntityType(typeValue)) {
-      diagnostics.push({
-        severity: 'warning',
-        code: 'unknown-type',
-        message: `Unsupported content type "${typeValue}" on line ${row.lineNumber}`,
-        details: {
-          lineNumber: row.lineNumber,
-          type: typeValue,
-        },
-      })
-      continue
-    }
-
-    pushEntityIntoBlock(currentBlock, typeValue, row.values, columnIndexByName)
-  }
-
-  const document: EditorialDocument = {
-    blocks,
+    pushEntitiesIntoBlock(currentBlock, row, columnIndexByName)
   }
 
   return {
-    document,
-    diagnostics: [...blockDiagnostics, ...diagnostics],
+    document: {
+      blocks,
+    },
+    diagnostics: [
+      ...createMissingColumnDiagnostics(columnIndexByName, options),
+      ...diagnostics,
+    ],
   }
 }
 
@@ -87,103 +85,97 @@ function createEmptyBlock(name: string): EditorialBlock {
   }
 }
 
-function createColumnIndexByName(header: string[]): Record<string, number> {
-  return Object.fromEntries(
-    header.map((columnName, index) => [columnName.trim(), index]),
-  )
+function createColumnIndexByName(header: string[]): Partial<Record<CsvCanonicalColumn, number>> {
+  const normalizedHeader = header.map((columnName) => normalizeHeaderValue(columnName))
+  const result: Partial<Record<CsvCanonicalColumn, number>> = {}
+
+  for (const [columnName, aliases] of Object.entries(csvColumnAliases) as [CsvCanonicalColumn, readonly string[]][]) {
+    const index = normalizedHeader.findIndex((headerValue) => headerValue !== undefined && aliases.includes(headerValue))
+    if (index >= 0) {
+      result[columnName] = index
+    }
+  }
+
+  return result
 }
 
 function resolveCellValue(
   values: string[],
-  columnIndexByName: Record<string, number>,
-  columnName: string,
+  columnIndexByName: Partial<Record<CsvCanonicalColumn, number>>,
+  columnName: CsvCanonicalColumn,
 ): string | undefined {
   const index = columnIndexByName[columnName]
   return index === undefined ? undefined : values[index]
 }
 
-function pushEntityIntoBlock(
+function pushEntitiesIntoBlock(
   block: EditorialBlock,
-  entityType: SupportedEntityType,
-  values: string[],
-  columnIndexByName: Record<string, number>,
+  row: CsvRow,
+  columnIndexByName: Partial<Record<CsvCanonicalColumn, number>>,
 ): void {
-  switch (entityType) {
-    case 'title': {
-      const text = combineTitleParts(
-        normalizeCellValue(resolveCellValue(values, columnIndexByName, 'number')),
-        normalizeCellValue(resolveCellValue(values, columnIndexByName, 'title')),
-      )
-      if (text) {
-        block.titles.push({ text })
-      }
-      return
-    }
-    case 'supertitle': {
-      const text = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'supertitle'))
-      if (text) {
-        block.supertitles.push({ text })
-      }
-      return
-    }
-    case 'person': {
-      const name = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'name'))
-      const role = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'role'))
-      if (name) {
-        block.persons.push(role ? { name, role } : { name })
-      }
-      return
-    }
-    case 'location': {
-      const value = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'location'))
-      if (value) {
-        block.locations.push({ value })
-      }
-      return
-    }
-    case 'breakingNews': {
-      const value = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'breakingNews'))
-      if (value) {
-        block.breakingNews.push({ value })
-      }
-      return
-    }
-    case 'waitingTitle': {
-      const value = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'waitingTitle'))
-      if (value) {
-        block.waitingTitles.push({ value })
-      }
-      return
-    }
-    case 'waitingLocation': {
-      const value = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'waitingLocation'))
-      if (value) {
-        block.waitingLocations.push({ value })
-      }
-      return
-    }
-    case 'phone': {
-      const label = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'phoneLabel'))
-      const number = normalizeCellValue(resolveCellValue(values, columnIndexByName, 'phoneNumber'))
-      if (label && number) {
-        block.phones.push({ label, number })
-      }
-      return
-    }
+  const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'number'))
+  const title = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'title'))
+  const supertitle = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'supertitle'))
+  const name = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'name'))
+  const role = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'role'))
+  const location = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'location'))
+  const breakingNews = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'breakingNews'))
+  const waitingTitle = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'waitingTitle'))
+  const waitingLocation = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'waitingLocation'))
+  const phoneLabel = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'phoneLabel'))
+  const phoneNumber = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'phoneNumber'))
+
+  if (title) {
+    block.titles.push(number ? { number, text: title } : { text: title })
+  }
+
+  if (supertitle) {
+    block.supertitles.push({ text: supertitle })
+  }
+
+  if (name) {
+    block.persons.push(role ? { name, role } : { name })
+  }
+
+  if (location) {
+    block.locations.push({ value: location })
+  }
+
+  if (breakingNews) {
+    block.breakingNews.push({ value: breakingNews })
+  }
+
+  if (waitingTitle) {
+    block.waitingTitles.push({ value: waitingTitle })
+  }
+
+  if (waitingLocation) {
+    block.waitingLocations.push({ value: waitingLocation })
+  }
+
+  if (phoneLabel && phoneNumber) {
+    block.phones.push({ label: phoneLabel, number: phoneNumber })
   }
 }
 
 function createMissingColumnDiagnostics(
-  header: string[],
+  columnIndexByName: Partial<Record<CsvCanonicalColumn, number>>,
   options: CsvParseOptions,
 ): ContentSourceDiagnostic[] {
-  const availableColumns = new Set(header.map((column) => column.trim()).filter(Boolean))
   const expectedColumnsByGraphicId = options.expectedColumnsByGraphicId ?? {}
+  const availableColumns = new Set(
+    Object.entries(columnIndexByName)
+      .filter((entry): entry is [CsvCanonicalColumn, number] => entry[1] !== undefined)
+      .map(([columnName]) => columnName),
+  )
 
   const diagnostics: ContentSourceDiagnostic[] = []
 
   for (const [graphicId, expectedColumns] of Object.entries(expectedColumnsByGraphicId)) {
-    const missingColumns = expectedColumns.filter((column) => !availableColumns.has(column))
+    const missingColumns = expectedColumns.filter((column) => {
+      const mappedColumn = mapExpectedColumnName(column)
+      return mappedColumn === undefined || !availableColumns.has(mappedColumn)
+    })
     if (missingColumns.length === 0) {
       continue
     }
@@ -202,6 +194,17 @@ function createMissingColumnDiagnostics(
   return diagnostics
 }
 
-function isSupportedEntityType(value: string): value is SupportedEntityType {
-  return supportedEntityTypes.includes(value as SupportedEntityType)
+function mapExpectedColumnName(columnName: string): CsvCanonicalColumn | undefined {
+  const normalized = normalizeHeaderValue(columnName)
+  if (!normalized) {
+    return undefined
+  }
+
+  for (const [canonicalName, aliases] of Object.entries(csvColumnAliases) as [CsvCanonicalColumn, readonly string[]][]) {
+    if (aliases.includes(normalized)) {
+      return canonicalName
+    }
+  }
+
+  return undefined
 }

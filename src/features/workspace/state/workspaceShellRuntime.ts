@@ -40,6 +40,13 @@ export function loadWorkspaceShellData(
       createJsonEditorialSourceAdapter(),
     ],
     readSourceFile(filePath) {
+      const runtimeSourceContent = typeof window !== 'undefined'
+        ? window.settingsApi?.readSourceFileSync?.(filePath)
+        : null
+      if (typeof runtimeSourceContent === 'string') {
+        return runtimeSourceContent
+      }
+
       const sourceContent = sampleSourceFiles[filePath]
       if (sourceContent === undefined) {
         throw new Error(`Source file not found: ${filePath}`)

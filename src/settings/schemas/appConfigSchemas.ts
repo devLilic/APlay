@@ -40,6 +40,7 @@ const previewElementKinds = ['text', 'box', 'image'] as const
 const previewBackgroundFitModes = ['contain', 'cover'] as const
 const previewBackgroundPositions = ['center'] as const
 const contentSourceTypes = ['csv'] as const
+const previewTextAlignValues = ['left', 'center'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
   const value = assertRecord(input, 'referenceImageAsset')
@@ -140,6 +141,16 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
       ...(parseOptionalString(behaviorSettings, 'fontFamily', 'previewElementDefinition.behavior')
         ? { fontFamily: parseOptionalString(behaviorSettings, 'fontFamily', 'previewElementDefinition.behavior') }
         : {}),
+      ...(behaviorSettings.textAlign !== undefined
+        ? {
+          textAlign: parseEnumValue(
+            behaviorSettings.textAlign,
+            previewTextAlignValues,
+            'previewElementDefinition.behavior',
+            'textAlign',
+          ),
+        }
+        : {}),
     }
     : undefined
 
@@ -206,6 +217,16 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
             : {}),
           ...(parseOptionalString(legacyTextSettings, 'fontFamily', 'previewElementDefinition.text')
             ? { fontFamily: parseOptionalString(legacyTextSettings, 'fontFamily', 'previewElementDefinition.text') }
+            : {}),
+          ...(legacyTextSettings.textAlign !== undefined
+            ? {
+              textAlign: parseEnumValue(
+                legacyTextSettings.textAlign,
+                previewTextAlignValues,
+                'previewElementDefinition.text',
+                'textAlign',
+              ),
+            }
             : {}),
         },
       }
