@@ -4,9 +4,9 @@ import { parseCsvEditorialDocument } from '@/adapters/content-source/csvEditoria
 import { createOscGraphicOutputAdapter } from '@/adapters/graphic-output/oscGraphicOutput'
 import { createJsonDatasourcePublishTargetAdapter } from '@/adapters/publish-target/jsonDatasourcePublishTarget'
 import { createInMemoryGraphicConfigStorage, createProfileGraphicConfigLoader } from '@/settings/storage/profileGraphicConfigLoader'
-import { createInMemorySettingsStorage, createSettingsRepository } from '@/settings/storage/settingsRepository'
-import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
-import { graphicBindingsByEntityType, sampleGraphicFiles, sampleSettings } from '@/features/workspace/data/sampleWorkspaceConfig'
+import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
+import type { WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
+import { sampleGraphicFiles, sampleSettings } from '@/features/workspace/data/sampleWorkspaceConfig'
 import { sampleEditorialCsv } from '@/features/workspace/data/sampleEditorialCsv'
 import {
   createSelectedEntityControlOrchestrator,
@@ -22,16 +22,24 @@ export interface WorkspaceShellData {
   diagnostics: string[]
 }
 
-export function loadWorkspaceShellData(): WorkspaceShellData {
+export function createDefaultWorkspaceConfigSnapshot(): WorkspaceConfigSnapshot {
+  return {
+    settings: sampleSettings,
+    graphicFiles: sampleGraphicFiles,
+  }
+}
+
+export function loadWorkspaceShellData(
+  snapshot: WorkspaceConfigSnapshot = createDefaultWorkspaceConfigSnapshot(),
+): WorkspaceShellData {
   const parsedDocument = parseCsvEditorialDocument(sampleEditorialCsv)
-  const settingsRepository = createSettingsRepository(
-    createInMemorySettingsStorage(JSON.stringify(sampleSettings)),
-  )
-  const settings = settingsRepository.load()
   const profileLoader = createProfileGraphicConfigLoader(
-    createInMemoryGraphicConfigStorage(sampleGraphicFiles),
+    createInMemoryGraphicConfigStorage(snapshot.graphicFiles),
   )
-  const profileResult = profileLoader.loadForProfile(settings, settings.selectedProfileId)
+  const profileResult = profileLoader.loadForProfile(
+    snapshot.settings,
+    snapshot.settings.selectedProfileId,
+  )
 
   return {
     document: parsedDocument.document,
@@ -49,31 +57,6 @@ export function loadWorkspaceShellData(): WorkspaceShellData {
 const datasourceFiles = new Map<string, string>()
 const sentOscAddresses: string[] = []
 
-export const workspaceControlOrchestrator = createSelectedEntityControlOrchestrator({
-  graphicsByEntityType: Object.fromEntries(sampleSettings.graphics.map((graphic) => [graphic.entityType, graphic])),
-  bindingsByEntityType: graphicBindingsByEntityType,
-  publishTarget: {
-    publishEntity(input) {
-      const publisher = createJsonDatasourcePublishTargetAdapter()
-      return publisher.publishEntity(input, {
-        write(targetFile, content) {
-          datasourceFiles.set(targetFile, content)
-        },
-      })
-    },
-  },
-  graphicOutput: {
-    sendForGraphic(input) {
-      const output = createOscGraphicOutputAdapter()
-      return output.sendForGraphic(input, {
-        send(command) {
-          sentOscAddresses.push(command.address)
-        },
-      })
-    },
-  },
-})
-
 export const createEntityPreviewContent = createSelectedEntityPreviewData
 
 export function resolveGraphicForSelection(
@@ -86,13 +69,59 @@ export function resolveGraphicForSelection(
 export function runWorkspaceGraphicAction(
   actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   selectedEntity: SelectedEntityContext | undefined,
+  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
 ): SelectedEntityControlFeedback {
+  const orchestrator = createWorkspaceControlOrchestrator(graphicsByEntityType)
+
   switch (actionType) {
     case 'playGraphic':
-      return workspaceControlOrchestrator.play(selectedEntity)
+      return orchestrator.play(selectedEntity)
     case 'stopGraphic':
-      return workspaceControlOrchestrator.stop(selectedEntity)
+      return orchestrator.stop(selectedEntity)
     case 'resumeGraphic':
-      return workspaceControlOrchestrator.resume(selectedEntity)
+      return orchestrator.resume(selectedEntity)
+  }
+}
+
+function createWorkspaceControlOrchestrator(
+  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+) {
+  return createSelectedEntityControlOrchestrator({
+    graphicsByEntityType,
+    bindingsByEntityType: Object.fromEntries(
+      Object.entries(graphicsByEntityType).map(([entityType, graphic]) => [
+        entityType,
+        graphic?.bindings ?? [],
+      ]),
+    ),
+    publishTarget: {
+      publishEntity(input) {
+        const publisher = createJsonDatasourcePublishTargetAdapter()
+        return publisher.publishEntity(input, {
+          write(targetFile, content) {
+            datasourceFiles.set(targetFile, content)
+          },
+        })
+      },
+    },
+    graphicOutput: {
+      sendForGraphic(input) {
+        const output = createOscGraphicOutputAdapter()
+        return output.sendForGraphic(input, {
+          send(command) {
+            sentOscAddresses.push(command.address)
+          },
+        })
+      },
+    },
+  })
+}
+
+export function createWorkspaceSnapshotFromSettings(settings: AppSettings): WorkspaceConfigSnapshot {
+  return {
+    settings,
+    graphicFiles: Object.fromEntries(
+      settings.graphics.map((graphic) => [`${graphic.id}.json`, JSON.stringify(graphic)]),
+    ),
   }
 }

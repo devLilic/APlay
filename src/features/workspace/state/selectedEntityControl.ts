@@ -96,11 +96,13 @@ function runAction(
   }
 
   if (actionType === 'playGraphic') {
+    const bindings = graphic.bindings ?? dependencies.bindingsByEntityType[entityType] ?? []
+    const targetFile = graphic.datasourcePath ?? `datasources/${graphic.dataFileName}`
     const publishResult = dependencies.publishTarget.publishEntity({
       entityType,
       entity: selectedEntity.entity as never,
-      targetFile: `datasources/${graphic.dataFileName}`,
-      bindings: dependencies.bindingsByEntityType[entityType] ?? [],
+      targetFile,
+      bindings,
     })
 
     if (!publishResult.success) {
@@ -129,7 +131,9 @@ function runAction(
     kind: 'success',
     title: `${actionType} completed`,
     details: [
-      ...(actionType === 'playGraphic' ? [`Datasource updated: datasources/${graphic.dataFileName}`] : []),
+      ...(actionType === 'playGraphic'
+        ? [`Datasource updated: ${graphic.datasourcePath ?? `datasources/${graphic.dataFileName}`}`]
+        : []),
       `OSC sent: ${outputResult.command.address}`,
     ],
   }

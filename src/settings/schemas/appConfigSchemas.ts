@@ -4,6 +4,7 @@ import type {
   ActionButtonConfig,
   AppConfig,
   AppSettings,
+  GraphicFieldBinding,
   GraphicControlConfig,
   GraphicInstanceConfig,
   PreviewElementDefinition,
@@ -18,6 +19,7 @@ import {
   createSchema,
   parseEnumValue,
   parseOptionalBoolean,
+  parseOptionalString,
   parseRequiredArray,
   parseRequiredNumber,
   parseRequiredString,
@@ -87,6 +89,15 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
       width: parseRequiredNumber(box, 'width', 'previewElementDefinition.box'),
       height: parseRequiredNumber(box, 'height', 'previewElementDefinition.box'),
     },
+    ...(parseOptionalString(value, 'textColor', 'previewElementDefinition')
+      ? { textColor: parseOptionalString(value, 'textColor', 'previewElementDefinition') }
+      : {}),
+    ...(parseOptionalString(value, 'backgroundColor', 'previewElementDefinition')
+      ? { backgroundColor: parseOptionalString(value, 'backgroundColor', 'previewElementDefinition') }
+      : {}),
+    ...(parseOptionalString(value, 'borderColor', 'previewElementDefinition')
+      ? { borderColor: parseOptionalString(value, 'borderColor', 'previewElementDefinition') }
+      : {}),
     ...(textSettings
       ? {
         text: {
@@ -101,6 +112,18 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
             : {}),
         },
       }
+      : {}),
+  }
+})
+
+export const graphicFieldBindingSchema = createSchema<GraphicFieldBinding>((input) => {
+  const value = assertRecord(input, 'graphicFieldBinding')
+
+  return {
+    sourceField: parseRequiredString(value, 'sourceField', 'graphicFieldBinding'),
+    targetField: parseRequiredString(value, 'targetField', 'graphicFieldBinding'),
+    ...(parseOptionalBoolean(value, 'required', 'graphicFieldBinding') !== undefined
+      ? { required: parseOptionalBoolean(value, 'required', 'graphicFieldBinding') }
       : {}),
   }
 })
@@ -128,6 +151,11 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
   const actions = parseRequiredArray(value, 'actions', 'graphicInstanceConfig').map((action) =>
     actionButtonConfigSchema.parse(action),
   )
+  const bindings = value.bindings === undefined
+    ? undefined
+    : parseRequiredArray(value, 'bindings', 'graphicInstanceConfig').map((binding) =>
+      graphicFieldBindingSchema.parse(binding),
+    )
 
   return {
     id: parseRequiredString(value, 'id', 'graphicInstanceConfig'),
@@ -138,7 +166,11 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
       'entityType',
     ),
     dataFileName: parseRequiredString(value, 'dataFileName', 'graphicInstanceConfig'),
+    ...(parseOptionalString(value, 'datasourcePath', 'graphicInstanceConfig')
+      ? { datasourcePath: parseOptionalString(value, 'datasourcePath', 'graphicInstanceConfig') }
+      : {}),
     control: graphicControlConfigSchema.parse(value.control),
+    ...(bindings ? { bindings } : {}),
     preview: previewTemplateDefinitionSchema.parse(value.preview),
     actions,
   }

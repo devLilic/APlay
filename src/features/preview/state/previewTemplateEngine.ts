@@ -27,6 +27,9 @@ export interface PreviewTemplateLayoutElement {
     width: number
     height: number
     transformOrigin: TransformOrigin
+    color?: string
+    backgroundColor?: string
+    borderColor?: string
     scaleX?: number
     whiteSpace?: 'nowrap'
   }
@@ -129,6 +132,9 @@ function calculatePreviewElementLayout(
     width: element.box.width * scale.scaleX,
     height: element.box.height * scale.scaleY,
     transformOrigin,
+    ...(element.textColor ? { color: element.textColor } : {}),
+    ...(element.backgroundColor ? { backgroundColor: element.backgroundColor } : {}),
+    ...(element.borderColor ? { borderColor: element.borderColor } : {}),
   }
 
   if (element.kind === 'text') {

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { actionTypes } from '@/core/actions/actionTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
+import { SettingsPanel, type SettingsFeedback } from '@/features/settings/components/SettingsPanel'
 import { Panel } from '@/shared/ui/panel'
 import {
   createWorkspaceSelectionState,
@@ -11,17 +12,20 @@ import {
 } from '@/features/workspace/state/workspaceSelectionState'
 import {
   createEntityPreviewContent,
+  createDefaultWorkspaceConfigSnapshot,
+  createWorkspaceSnapshotFromSettings,
   loadWorkspaceShellData,
   resolveGraphicForSelection,
   runWorkspaceGraphicAction,
   type WorkspaceShellData,
 } from '@/features/workspace/state/workspaceShellRuntime'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
+import { createWorkspaceConfigRepository, type WorkspaceConfigRepository, type WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 
 type ShellLoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; data: WorkspaceShellData }
+  | { status: 'ready'; snapshot: WorkspaceConfigSnapshot }
 
 const entityGroupLabels: Record<EntityGroupKey, string> = {
   titles: 'Titles',
@@ -38,12 +42,21 @@ export function WorkspaceShell() {
   const [loadState, setLoadState] = useState<ShellLoadState>({ status: 'loading' })
   const [selection, setSelection] = useState<WorkspaceSelection>({})
   const [feedback, setFeedback] = useState<WorkspaceActionFeedback | null>(null)
+  const [settingsFeedback, setSettingsFeedback] = useState<SettingsFeedback | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
 
   useEffect(() => {
     try {
-      const data = loadWorkspaceShellData()
+      const repository = createWorkspaceConfigRepository(
+        window.localStorage,
+        createDefaultWorkspaceConfigSnapshot(),
+      )
+      repositoryRef.current = repository
+      const snapshot = repository.load()
+      const data = loadWorkspaceShellData(snapshot)
       const initialState = createWorkspaceSelectionState(data.document)
-      setLoadState({ status: 'ready', data })
+      setLoadState({ status: 'ready', snapshot })
       setSelection(initialState.selection)
     } catch (error) {
       setLoadState({
@@ -70,11 +83,12 @@ export function WorkspaceShell() {
     )
   }
 
-  const workspace = createWorkspaceSelectionState(loadState.data.document, selection)
+  const workspaceData = loadWorkspaceShellData(loadState.snapshot)
+  const workspace = createWorkspaceSelectionState(workspaceData.document, selection)
   const selectedBlock = workspace.getSelectedBlock()
   const groupedLists = resolveGroupedEntityLists(workspace.document, workspace.selection)
   const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection)
-  const selectedGraphic = resolveGraphicForSelection(loadState.data.graphicsByEntityType, selectedEntity)
+  const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsByEntityType, selectedEntity)
   const previewContent = createEntityPreviewContent(selectedEntity)
 
   const handleBlockSelect = (blockIndex: number) => {
@@ -94,7 +108,59 @@ export function WorkspaceShell() {
   }
 
   const handleAction = (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    setFeedback(runWorkspaceGraphicAction(actionType, selectedEntity))
+    setFeedback(runWorkspaceGraphicAction(actionType, selectedEntity, workspaceData.graphicsByEntityType))
+  }
+
+  const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
+    setLoadState({
+      status: 'ready',
+      snapshot: createWorkspaceSnapshotFromSettings(settings),
+    })
+    setSettingsFeedback(null)
+    setFeedback(null)
+  }
+
+  const handleSettingsSave = () => {
+    try {
+      const repository = repositoryRef.current
+      if (!repository) {
+        throw new Error('Settings repository is unavailable.')
+      }
+
+      const savedSnapshot = repository.save(loadState.snapshot.settings)
+      setLoadState({ status: 'ready', snapshot: savedSnapshot })
+      setSettingsFeedback({
+        kind: 'success',
+        message: 'Settings saved. Updated profile and graphic config files were persisted for the current workstation.',
+      })
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Settings save failed.',
+      })
+    }
+  }
+
+  const handleSettingsReload = () => {
+    try {
+      const repository = repositoryRef.current
+      if (!repository) {
+        throw new Error('Settings repository is unavailable.')
+      }
+
+      const snapshot = repository.load()
+      setLoadState({ status: 'ready', snapshot })
+      setSettingsFeedback({
+        kind: 'success',
+        message: 'Persisted settings reloaded.',
+      })
+      setFeedback(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Settings reload failed.',
+      })
+    }
   }
 
   return (
@@ -110,15 +176,36 @@ export function WorkspaceShell() {
           </div>
         </div>
         <div className='grid gap-2 text-sm text-slate-200 sm:grid-cols-3'>
-          <StatCard label='Profile' value={loadState.data.activeProfileLabel} />
+          <StatCard label='Profile' value={workspaceData.activeProfileLabel} />
           <StatCard label='Blocks' value={String(workspace.document.blocks.length)} />
-          <StatCard label='Diagnostics' value={String(loadState.data.diagnostics.length)} />
+          <StatCard label='Diagnostics' value={String(workspaceData.diagnostics.length)} />
         </div>
       </header>
 
-      {loadState.data.diagnostics.length > 0 ? (
+      <div className='flex justify-end'>
+        <button
+          type='button'
+          onClick={() => setShowSettings((current) => !current)}
+          className='rounded-2xl border border-border bg-panel px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+        >
+          {showSettings ? 'Hide settings' : 'Open settings'}
+        </button>
+      </div>
+
+      {showSettings ? (
+        <SettingsPanel
+          settings={loadState.snapshot.settings}
+          diagnostics={workspaceData.diagnostics}
+          feedback={settingsFeedback}
+          onSettingsChange={handleSettingsChange}
+          onSave={handleSettingsSave}
+          onReload={handleSettingsReload}
+        />
+      ) : null}
+
+      {workspaceData.diagnostics.length > 0 ? (
         <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
-          {loadState.data.diagnostics.join(' | ')}
+          {workspaceData.diagnostics.join(' | ')}
         </div>
       ) : null}
 

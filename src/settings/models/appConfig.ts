@@ -10,6 +10,12 @@ export interface TextBehaviorConfig {
   minScaleX?: number
 }
 
+export interface GraphicFieldBinding {
+  sourceField: string
+  targetField: string
+  required?: boolean
+}
+
 export interface GraphicControlConfig {
   play: string
   stop: string
@@ -32,6 +38,9 @@ export interface PreviewElementDefinition {
     width: number
     height: number
   }
+  textColor?: string
+  backgroundColor?: string
+  borderColor?: string
   text?: TextBehaviorConfig
 }
 
@@ -49,7 +58,9 @@ export interface GraphicInstanceConfig {
   id: string
   entityType: SupportedEntityType
   dataFileName: string
+  datasourcePath?: string
   control: GraphicControlConfig
+  bindings?: GraphicFieldBinding[]
   preview: PreviewTemplateDefinition
   actions: ActionButtonConfig[]
 }

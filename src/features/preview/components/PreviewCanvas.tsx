@@ -57,6 +57,9 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
                 transformOrigin: element.style.transformOrigin,
                 transform: `scaleX(${element.style.scaleX ?? 1})`,
                 whiteSpace: element.style.whiteSpace,
+                color: element.style.color,
+                backgroundColor: element.style.backgroundColor,
+                borderColor: element.style.borderColor,
               }}
             >
               {element.content}
@@ -75,6 +78,8 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
                 width: `${element.style.width}px`,
                 height: `${element.style.height}px`,
                 transformOrigin: element.style.transformOrigin,
+                backgroundColor: element.style.backgroundColor,
+                borderColor: element.style.borderColor,
               }}
             >
               {element.content ? (
@@ -98,6 +103,8 @@ export function PreviewCanvas({ template, content }: PreviewCanvasProps) {
               width: `${element.style.width}px`,
               height: `${element.style.height}px`,
               transformOrigin: element.style.transformOrigin,
+              backgroundColor: element.style.backgroundColor,
+              borderColor: element.style.borderColor,
             }}
           />
         )
