@@ -14,9 +14,9 @@ import {
   loadWorkspaceShellData,
   resolveGraphicForSelection,
   runWorkspaceGraphicAction,
-  type WorkspaceActionFeedback,
   type WorkspaceShellData,
 } from '@/features/workspace/state/workspaceShellRuntime'
+import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
 
 type ShellLoadState =
   | { status: 'loading' }
@@ -94,7 +94,7 @@ export function WorkspaceShell() {
   }
 
   const handleAction = (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    setFeedback(runWorkspaceGraphicAction(actionType, selectedGraphic, selectedEntity))
+    setFeedback(runWorkspaceGraphicAction(actionType, selectedEntity))
   }
 
   return (
