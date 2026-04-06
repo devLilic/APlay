@@ -18,7 +18,7 @@ export function createSettingsRepository(storage: SettingsStorage): SettingsRepo
       const rawContent = storage.read()
       const parsedContent = rawContent === null
         ? createDefaultSettingsDocument()
-        : normalizePersistedSettings(JSON.parse(rawContent) as unknown)
+        : normalizePersistedSettings(parseSettingsRootDocument(rawContent))
 
       return appSettingsSchema.parse(parsedContent)
     },
@@ -29,6 +29,16 @@ export function createSettingsRepository(storage: SettingsStorage): SettingsRepo
     getProfile(profileId: string): ShowProfileConfig | undefined {
       return this.load().profiles.find((profile) => profile.id === profileId)
     },
+  }
+}
+
+function parseSettingsRootDocument(rawContent: string): unknown {
+  try {
+    return JSON.parse(rawContent) as unknown
+  } catch (error) {
+    throw new Error(
+      `Invalid settings root file: ${error instanceof Error ? error.message : 'Unable to parse JSON'}`,
+    )
   }
 }
 

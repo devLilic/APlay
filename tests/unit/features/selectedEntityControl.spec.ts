@@ -121,6 +121,49 @@ describe('selected entity publish and command orchestration', () => {
     expect(publishCalls).toEqual([{ targetFile: 'datasources/title-main.json' }])
   })
 
+  it('uses the fallback datasource file when no datasource JSON path is configured', () => {
+    const publishCalls: Array<{ targetFile: string }> = []
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: {
+        title: {
+          ...titleGraphic,
+          datasourcePath: undefined,
+        },
+      },
+      bindingsByEntityType: {
+        title: [{ sourceField: 'text', targetField: 'text', required: true }],
+      },
+      publishTarget: {
+        publishEntity(input) {
+          publishCalls.push({ targetFile: input.targetFile })
+          return {
+            success: true,
+            targetFile: input.targetFile,
+            payload: { text: 'Morning Briefing' },
+            diagnostics: [],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic() {
+          return {
+            success: true,
+            command: {
+              actionType: 'playGraphic',
+              address: '/aplay/title/play',
+              args: [],
+            },
+            diagnostics: [],
+          }
+        },
+      },
+    })
+
+    orchestrator.play(titleSelection)
+
+    expect(publishCalls).toEqual([{ targetFile: 'datasources/title-main.json' }])
+  })
+
   it('orchestrates the play action', () => {
     const calls: string[] = []
     const orchestrator = createSelectedEntityControlOrchestrator({
@@ -337,6 +380,100 @@ describe('selected entity publish and command orchestration', () => {
       kind: 'error',
       title: 'Output failed',
       details: ['Failed to send OSC command for action "playGraphic"'],
+    })
+  })
+
+  it('behaves safely when an OSC mapping is missing', () => {
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: {
+        title: {
+          ...titleGraphic,
+          control: {
+            play: '',
+            stop: '/aplay/title/stop',
+            resume: '/aplay/title/resume',
+          },
+        },
+      },
+      bindingsByEntityType: {
+        title: [{ sourceField: 'text', targetField: 'text', required: true }],
+      },
+      publishTarget: {
+        publishEntity() {
+          return {
+            success: true,
+            targetFile: 'datasources/title-main.json',
+            payload: { text: 'Morning Briefing' },
+            diagnostics: [],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic() {
+          return {
+            success: false,
+            command: {
+              actionType: 'playGraphic',
+              address: '',
+              args: [],
+            },
+            diagnostics: [
+              {
+                severity: 'error',
+                code: 'missing-osc-address',
+                message: 'Missing OSC address for action "playGraphic" on graphic "title-main"',
+              },
+            ],
+          }
+        },
+      },
+    })
+
+    expect(orchestrator.play(titleSelection)).toEqual({
+      kind: 'error',
+      title: 'Output failed',
+      details: ['Missing OSC address for action "playGraphic" on graphic "title-main"'],
+    })
+  })
+
+  it('behaves safely when required source fields for the selected graphic are missing', () => {
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: {
+        title: {
+          ...titleGraphic,
+          bindings: [{ sourceField: 'headline', targetField: 'text', required: true }],
+        },
+      },
+      bindingsByEntityType: {
+        title: [{ sourceField: 'headline', targetField: 'text', required: true }],
+      },
+      publishTarget: {
+        publishEntity() {
+          return {
+            success: false,
+            targetFile: 'datasources/title-main.json',
+            payload: {},
+            diagnostics: [
+              {
+                severity: 'error',
+                code: 'missing-source-field',
+                message: 'Missing required source field "headline" for target field "text"',
+              },
+            ],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic() {
+          throw new Error('should not send when required fields are missing')
+        },
+      },
+    })
+
+    expect(orchestrator.play(titleSelection)).toEqual({
+      kind: 'error',
+      title: 'Publish failed',
+      details: ['Missing required source field "headline" for target field "text"'],
     })
   })
 })

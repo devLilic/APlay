@@ -36,10 +36,7 @@ export function loadWorkspaceShellData(
   const profileLoader = createProfileGraphicConfigLoader(
     createInMemoryGraphicConfigStorage(snapshot.graphicFiles),
   )
-  const profileResult = profileLoader.loadForProfile(
-    snapshot.settings,
-    snapshot.settings.selectedProfileId,
-  )
+  const profileResult = loadProfileResult(profileLoader, snapshot)
 
   return {
     document: parsedDocument.document,
@@ -123,5 +120,50 @@ export function createWorkspaceSnapshotFromSettings(settings: AppSettings): Work
     graphicFiles: Object.fromEntries(
       settings.graphics.map((graphic) => [`${graphic.id}.json`, JSON.stringify(graphic)]),
     ),
+  }
+}
+
+function loadProfileResult(
+  profileLoader: ReturnType<typeof createProfileGraphicConfigLoader>,
+  snapshot: WorkspaceConfigSnapshot,
+) {
+  try {
+    return profileLoader.loadForProfile(
+      snapshot.settings,
+      snapshot.settings.selectedProfileId,
+    )
+  } catch (error) {
+    const fallbackProfile = snapshot.settings.profiles[0]
+    if (!fallbackProfile) {
+      throw error
+    }
+
+    warnWorkspaceRuntime(
+      `Selected profile "${snapshot.settings.selectedProfileId}" is unavailable. Falling back to "${fallbackProfile.id}".`,
+    )
+
+    const fallbackResult = profileLoader.loadForProfile(snapshot.settings, fallbackProfile.id)
+    return {
+      ...fallbackResult,
+      diagnostics: [
+        {
+          severity: 'error' as const,
+          code: 'missing-graphic-config' as const,
+          message: `Selected profile "${snapshot.settings.selectedProfileId}" is unavailable. Loaded fallback profile "${fallbackProfile.label}".`,
+          details: {
+            selectedProfileId: snapshot.settings.selectedProfileId,
+            fallbackProfileId: fallbackProfile.id,
+            reason: error instanceof Error ? error.message : 'Unknown profile loading error',
+          },
+        },
+        ...fallbackResult.diagnostics,
+      ],
+    }
+  }
+}
+
+function warnWorkspaceRuntime(message: string): void {
+  if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+    console.warn(`[APlay runtime] ${message}`)
   }
 }

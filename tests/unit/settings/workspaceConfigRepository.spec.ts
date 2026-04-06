@@ -41,4 +41,33 @@ describe('workspaceConfigRepository', () => {
       .toBe('datasources/custom-title.json')
     expect(reloaded.graphicFiles['title-main.json']).toContain('datasources/custom-title.json')
   })
+
+  it('fails clearly when the persisted settings root file is invalid', () => {
+    const storage = createMemoryKeyValueStorage({
+      'aplay.settings.v1': '{invalid-json',
+    })
+    const repository = createWorkspaceConfigRepository(storage, {
+      settings: sampleSettings,
+      graphicFiles: sampleGraphicFiles,
+    })
+
+    expect(() => repository.load()).toThrow()
+  })
+
+  it('falls back to root settings when a separate graphic config file is invalid', () => {
+    const storage = createMemoryKeyValueStorage({
+      'aplay.graphic-config-files.v1': JSON.stringify({
+        'title-main.json': '{invalid-json',
+      }),
+    })
+    const repository = createWorkspaceConfigRepository(storage, {
+      settings: sampleSettings,
+      graphicFiles: sampleGraphicFiles,
+    })
+
+    const snapshot = repository.load()
+
+    expect(snapshot.settings.graphics.find((graphic) => graphic.id === 'title-main')?.datasourcePath)
+      .toBe('datasources/title-main.json')
+  })
 })

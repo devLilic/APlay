@@ -307,4 +307,93 @@ describe('CSV content source adapter', () => {
     expect(adapter.format).toBe('csv')
     expect(result.document.blocks[0]?.titles).toEqual([{ text: '1 Alpha' }])
   })
+
+  it('reloads source data after external file changes without reusing stale content', () => {
+    const adapter = createCsvEditorialSourceAdapter()
+
+    const initial = adapter.load({
+      fileName: 'editorial.csv',
+      content: [
+        'type,number,title',
+        '---Block---',
+        'title,1,Alpha',
+      ].join('\n'),
+    })
+
+    const reloaded = adapter.load({
+      fileName: 'editorial.csv',
+      content: [
+        'type,number,title',
+        '---Block---',
+        'title,2,Beta',
+      ].join('\n'),
+    })
+
+    expect(initial.document.blocks[0]?.titles).toEqual([{ text: '1 Alpha' }])
+    expect(reloaded.document.blocks[0]?.titles).toEqual([{ text: '2 Beta' }])
+  })
+
+  it('handles source data with missing supported columns by keeping empty collections', () => {
+    const adapter = createCsvEditorialSourceAdapter()
+    const result = adapter.load({
+      fileName: 'editorial.csv',
+      content: [
+        'type,title',
+        '---Block---',
+        'person,Ignored Person',
+        'title,Main Title',
+      ].join('\n'),
+    })
+
+    expect(result.document.blocks[0]).toEqual({
+      name: 'Block',
+      titles: [{ text: 'Main Title' }],
+      supertitles: [],
+      persons: [],
+      locations: [],
+      breakingNews: [],
+      waitingTitles: [],
+      waitingLocations: [],
+      phones: [],
+    })
+  })
+
+  it('preserves empty blocks and empty entity collections', () => {
+    const adapter = createCsvEditorialSourceAdapter()
+    const result = adapter.load({
+      fileName: 'editorial.csv',
+      content: [
+        'type,number,title',
+        '---Empty Block---',
+        '',
+        '---Titles---',
+        'title,,',
+      ].join('\n'),
+    })
+
+    expect(result.document.blocks).toEqual([
+      {
+        name: 'Empty Block',
+        titles: [],
+        supertitles: [],
+        persons: [],
+        locations: [],
+        breakingNews: [],
+        waitingTitles: [],
+        waitingLocations: [],
+        phones: [],
+      },
+      {
+        name: 'Titles',
+        titles: [],
+        supertitles: [],
+        persons: [],
+        locations: [],
+        breakingNews: [],
+        waitingTitles: [],
+        waitingLocations: [],
+        phones: [],
+      },
+    ])
+  })
 })

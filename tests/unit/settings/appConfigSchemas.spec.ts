@@ -175,6 +175,28 @@ describe('PreviewTemplateDefinition schema', () => {
       }),
     ).toThrow('elements')
   })
+
+  it('rejects invalid preview template definitions with missing required dimensions', () => {
+    expect(() =>
+      previewTemplateDefinitionSchema.parse({
+        id: 'broken-template',
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'headline',
+            kind: 'text',
+            sourceField: 'text',
+            box: {
+              x: 120,
+              y: 180,
+              width: 900,
+              height: 160,
+            },
+          },
+        ],
+      }),
+    ).toThrow('designWidth')
+  })
 })
 
 describe('GraphicInstanceConfig schema', () => {

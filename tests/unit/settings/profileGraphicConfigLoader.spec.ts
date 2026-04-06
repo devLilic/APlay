@@ -256,4 +256,43 @@ describe('profile-based graphic config loading', () => {
       },
     ])
   })
+
+  it('fails clearly when the selected show profile does not exist', () => {
+    const loader = createProfileGraphicConfigLoader(
+      createInMemoryGraphicConfigStorage(graphicFiles),
+    )
+
+    expect(() => loader.loadForProfile(settings, 'missing-profile')).toThrow('Unknown show profile')
+  })
+
+  it('reports an invalid profile that references a non-existing graphic config file', () => {
+    const loader = createProfileGraphicConfigLoader(
+      createInMemoryGraphicConfigStorage(graphicFiles),
+    )
+
+    const result = loader.loadForProfile({
+      ...settings,
+      selectedProfileId: 'broken',
+      profiles: [
+        {
+          id: 'broken',
+          label: 'Broken Profile',
+          graphicConfigIds: ['does-not-exist'],
+        },
+      ],
+    }, 'broken')
+
+    expect(result.graphics).toEqual([])
+    expect(result.diagnostics).toEqual([
+      {
+        severity: 'error',
+        code: 'missing-graphic-config',
+        message: 'Graphic config file not found for "does-not-exist"',
+        details: {
+          graphicConfigId: 'does-not-exist',
+          fileName: 'does-not-exist.json',
+        },
+      },
+    ])
+  })
 })

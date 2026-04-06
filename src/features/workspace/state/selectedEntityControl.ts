@@ -95,9 +95,18 @@ function runAction(
     }
   }
 
+  const bindings = graphic.bindings ?? dependencies.bindingsByEntityType[entityType] ?? []
+  const targetFile = resolveDatasourceTargetPath(graphic)
+
   if (actionType === 'playGraphic') {
-    const bindings = graphic.bindings ?? dependencies.bindingsByEntityType[entityType] ?? []
-    const targetFile = graphic.datasourcePath ?? `datasources/${graphic.dataFileName}`
+    if (bindings.length === 0) {
+      return {
+        kind: 'error',
+        title: 'Publish failed',
+        details: [`No datasource bindings are configured for graphic "${graphic.id}".`],
+      }
+    }
+
     const publishResult = dependencies.publishTarget.publishEntity({
       entityType,
       entity: selectedEntity.entity as never,
@@ -132,7 +141,7 @@ function runAction(
     title: `${actionType} completed`,
     details: [
       ...(actionType === 'playGraphic'
-        ? [`Datasource updated: ${graphic.datasourcePath ?? `datasources/${graphic.dataFileName}`}`]
+        ? [`Datasource updated: ${targetFile}`]
         : []),
       `OSC sent: ${outputResult.command.address}`,
     ],
@@ -158,4 +167,13 @@ function entityGroupToEntityType(group: SelectedEntityContext['entityGroup']) {
     case 'phones':
       return 'phone'
   }
+}
+
+function resolveDatasourceTargetPath(graphic: GraphicInstanceConfig): string {
+  const configuredPath = graphic.datasourcePath?.trim()
+  if (configuredPath) {
+    return configuredPath
+  }
+
+  return `datasources/${graphic.dataFileName}`
 }

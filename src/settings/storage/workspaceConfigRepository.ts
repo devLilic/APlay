@@ -89,6 +89,7 @@ function loadGraphicFiles(
   try {
     const parsed = JSON.parse(rawContent) as unknown
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      warnWorkspaceConfig('Persisted graphic config file map is invalid. Falling back to validated settings graphics.')
       return createGraphicFileMap(graphics)
     }
 
@@ -98,6 +99,7 @@ function loadGraphicFiles(
       ),
     )
   } catch {
+    warnWorkspaceConfig('Persisted graphic config file map could not be parsed. Falling back to validated settings graphics.')
     return createGraphicFileMap(graphics)
   }
 }
@@ -115,6 +117,9 @@ function resolvePersistedGraphics(
     try {
       return graphicInstanceConfigSchema.parse(JSON.parse(persistedContent) as unknown)
     } catch {
+      warnWorkspaceConfig(
+        `Graphic config file "${resolveGraphicConfigFileName(graphic.id)}" is invalid. Falling back to the root settings version.`,
+      )
       return graphic
     }
   })
@@ -143,5 +148,11 @@ export function createMemoryKeyValueStorage(seed: Record<string, string> = {}): 
     setItem(key, value) {
       values.set(key, value)
     },
+  }
+}
+
+function warnWorkspaceConfig(message: string): void {
+  if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+    console.warn(`[APlay settings] ${message}`)
   }
 }
