@@ -7,6 +7,18 @@ import {
 
 const baseSettings = {
   selectedProfileId: 'news-am',
+  referenceImages: [
+    {
+      id: 'ref-title',
+      name: 'Title Reference',
+      filePath: 'C:\\APlay\\references\\title.png',
+    },
+    {
+      id: 'ref-person',
+      name: 'Person Reference',
+      filePath: 'C:\\APlay\\references\\person.png',
+    },
+  ],
   profiles: [
     {
       id: 'news-am',
@@ -33,6 +45,9 @@ const baseSettings = {
         id: 'title-preview',
         designWidth: 1920,
         designHeight: 1080,
+        background: {
+          referenceImageId: 'ref-title',
+        },
         elements: [
           {
             id: 'headline',
@@ -62,6 +77,11 @@ const baseSettings = {
         id: 'person-preview',
         designWidth: 1920,
         designHeight: 1080,
+        background: {
+          referenceImageId: 'ref-person',
+          opacity: 0.5,
+          fitMode: 'cover',
+        },
         elements: [
           {
             id: 'person-name',
@@ -118,6 +138,41 @@ describe('settings storage load/save', () => {
     repository.save(baseSettings)
 
     expect(repository.load()).toEqual(appSettingsSchema.parse(baseSettings))
+  })
+
+  it('stores reusable reference images in the settings document', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().referenceImages).toEqual([
+      {
+        id: 'ref-title',
+        name: 'Title Reference',
+        filePath: 'C:\\APlay\\references\\title.png',
+      },
+      {
+        id: 'ref-person',
+        name: 'Person Reference',
+        filePath: 'C:\\APlay\\references\\person.png',
+      },
+    ])
+  })
+
+  it('stores preview background config per graphic config', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().graphics.find((graphic) => graphic.id === 'title-main')?.preview.background)
+      .toEqual({
+        referenceImageId: 'ref-title',
+        opacity: 1,
+        fitMode: 'contain',
+        position: 'center',
+      })
   })
 })
 

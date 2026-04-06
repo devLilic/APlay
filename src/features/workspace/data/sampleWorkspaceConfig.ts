@@ -14,6 +14,7 @@ const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
 
 export const sampleSettings: AppSettings = {
   selectedProfileId: 'default-news',
+  referenceImages: [],
   profiles: [
     {
       id: 'default-news',

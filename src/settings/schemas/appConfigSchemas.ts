@@ -7,9 +7,11 @@ import type {
   GraphicFieldBinding,
   GraphicControlConfig,
   GraphicInstanceConfig,
+  PreviewBackgroundConfig,
   PreviewElementDefinition,
   PreviewElementKind,
   PreviewTemplateDefinition,
+  ReferenceImageAsset,
   ShowProfileConfig,
   TransformOrigin,
 } from '@/settings/models/appConfig'
@@ -34,6 +36,57 @@ const transformOrigins = [
 ] as const
 
 const previewElementKinds = ['text', 'box', 'image'] as const
+const previewBackgroundFitModes = ['contain', 'cover'] as const
+const previewBackgroundPositions = ['center'] as const
+
+export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
+  const value = assertRecord(input, 'referenceImageAsset')
+  const filePath = parseRequiredString(value, 'filePath', 'referenceImageAsset')
+
+  if (!isSafeReferenceImagePath(filePath)) {
+    throw new SchemaValidationError('referenceImageAsset.filePath must be a valid non-empty file path')
+  }
+
+  return {
+    id: parseRequiredString(value, 'id', 'referenceImageAsset'),
+    name: parseRequiredString(value, 'name', 'referenceImageAsset'),
+    filePath,
+  }
+})
+
+export const previewBackgroundConfigSchema = createSchema<PreviewBackgroundConfig>((input) => {
+  const value = input === undefined ? {} : assertRecord(input, 'previewBackgroundConfig')
+  const opacity = value.opacity === undefined
+    ? 1
+    : parseRequiredNumber(value, 'opacity', 'previewBackgroundConfig')
+
+  if (opacity < 0 || opacity > 1) {
+    throw new SchemaValidationError('previewBackgroundConfig.opacity must be between 0 and 1')
+  }
+
+  return {
+    ...(parseOptionalString(value, 'referenceImageId', 'previewBackgroundConfig')
+      ? { referenceImageId: parseOptionalString(value, 'referenceImageId', 'previewBackgroundConfig') }
+      : {}),
+    opacity,
+    fitMode: value.fitMode === undefined
+      ? 'contain'
+      : parseEnumValue(
+        value.fitMode,
+        previewBackgroundFitModes,
+        'previewBackgroundConfig',
+        'fitMode',
+      ),
+    position: value.position === undefined
+      ? 'center'
+      : parseEnumValue(
+        value.position,
+        previewBackgroundPositions,
+        'previewBackgroundConfig',
+        'position',
+      ),
+  }
+})
 
 export const graphicControlConfigSchema = createSchema<GraphicControlConfig>((input) => {
   const value = assertRecord(input, 'graphicControlConfig')
@@ -142,6 +195,9 @@ export const previewTemplateDefinitionSchema = createSchema<PreviewTemplateDefin
     id: parseRequiredString(value, 'id', 'previewTemplateDefinition'),
     designWidth: parseRequiredNumber(value, 'designWidth', 'previewTemplateDefinition'),
     designHeight: parseRequiredNumber(value, 'designHeight', 'previewTemplateDefinition'),
+    ...(value.background !== undefined
+      ? { background: previewBackgroundConfigSchema.parse(value.background) }
+      : {}),
     elements,
   }
 })
@@ -199,6 +255,11 @@ export const showProfileConfigSchema = createSchema<ShowProfileConfig>((input) =
 
 export const appSettingsSchema = createSchema<AppSettings>((input) => {
   const value = assertRecord(input, 'appSettings')
+  const referenceImages = (value.referenceImages === undefined
+    ? []
+    : parseRequiredArray(value, 'referenceImages', 'appSettings').map((referenceImage) =>
+      referenceImageAssetSchema.parse(referenceImage),
+    )) as ReferenceImageAsset[]
   const profiles = parseRequiredArray(value, 'profiles', 'appSettings').map((profile) =>
     showProfileConfigSchema.parse(profile),
   )
@@ -225,6 +286,7 @@ export const appSettingsSchema = createSchema<AppSettings>((input) => {
 
   return {
     selectedProfileId,
+    referenceImages,
     profiles,
     graphics,
   }
@@ -234,4 +296,13 @@ export const appConfigSchema = {
   parse(input: unknown): AppConfig {
     return appSettingsSchema.parse(input)
   },
+}
+
+function isSafeReferenceImagePath(filePath: string): boolean {
+  const normalizedPath = filePath.trim()
+  if (normalizedPath.length === 0) {
+    return false
+  }
+
+  return !/[<>:"|?*]/.test(normalizedPath.replace(/^[a-zA-Z]:\\/, ''))
 }

@@ -3,11 +3,26 @@ import type { SupportedEntityType } from '@/core/entities/entityTypes'
 
 export type TransformOrigin = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
 export type PreviewElementKind = 'text' | 'box' | 'image'
+export type PreviewBackgroundFitMode = 'contain' | 'cover'
+export type PreviewBackgroundPosition = 'center'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
   fitInBox?: boolean
   minScaleX?: number
+}
+
+export interface ReferenceImageAsset {
+  id: string
+  name: string
+  filePath: string
+}
+
+export interface PreviewBackgroundConfig {
+  referenceImageId?: string
+  opacity?: number
+  fitMode?: PreviewBackgroundFitMode
+  position?: PreviewBackgroundPosition
 }
 
 export interface GraphicFieldBinding {
@@ -48,6 +63,7 @@ export interface PreviewTemplateDefinition {
   id: string
   designWidth: number
   designHeight: number
+  background?: PreviewBackgroundConfig
   elements: PreviewElementDefinition[]
 }
 
@@ -75,6 +91,7 @@ export interface ShowProfileConfig {
 
 export interface AppSettings {
   selectedProfileId: string
+  referenceImages: ReferenceImageAsset[]
   profiles: ShowProfileConfig[]
   graphics: GraphicInstanceConfig[]
 }

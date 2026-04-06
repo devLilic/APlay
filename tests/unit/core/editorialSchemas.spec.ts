@@ -136,4 +136,12 @@ describe('entity schemas', () => {
   it('requires phone number', () => {
     expect(() => phoneEntitySchema.parse({ label: 'Desk' })).toThrow('number')
   })
+
+  it('does not introduce preview reference background fields into editorial entities', () => {
+    const parsed = titleEntitySchema.parse({ text: 'Headline' })
+
+    expect(parsed).toEqual({ text: 'Headline' })
+    expect(parsed).not.toHaveProperty('referenceImageId')
+    expect(parsed).not.toHaveProperty('background')
+  })
 })

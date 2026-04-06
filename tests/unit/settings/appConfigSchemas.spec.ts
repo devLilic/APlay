@@ -5,9 +5,73 @@ import {
   graphicControlConfigSchema,
   graphicInstanceConfigSchema,
   previewElementDefinitionSchema,
+  previewBackgroundConfigSchema,
   previewTemplateDefinitionSchema,
+  referenceImageAssetSchema,
   showProfileConfigSchema,
 } from '@/settings/schemas/appConfigSchemas'
+
+describe('ReferenceImageAsset schema', () => {
+  it('parses a reusable reference background image asset', () => {
+    expect(referenceImageAssetSchema.parse({
+      id: 'lb-title-reference',
+      name: 'Title Graphic Reference',
+      filePath: 'C:\\APlay\\references\\title.png',
+    })).toEqual({
+      id: 'lb-title-reference',
+      name: 'Title Graphic Reference',
+      filePath: 'C:\\APlay\\references\\title.png',
+    })
+  })
+
+  it('handles invalid image paths safely', () => {
+    expect(() => referenceImageAssetSchema.parse({
+      id: 'broken-reference',
+      name: 'Broken Reference',
+      filePath: '',
+    })).toThrow('filePath')
+  })
+})
+
+describe('PreviewBackgroundConfig schema', () => {
+  it('defaults to no selected background, opacity 1, contain fit mode, and center position', () => {
+    expect(previewBackgroundConfigSchema.parse({})).toEqual({
+      opacity: 1,
+      fitMode: 'contain',
+      position: 'center',
+    })
+  })
+
+  it('parses an explicit preview background configuration', () => {
+    expect(previewBackgroundConfigSchema.parse({
+      referenceImageId: 'lb-title-reference',
+      opacity: 0.45,
+      fitMode: 'cover',
+      position: 'center',
+    })).toEqual({
+      referenceImageId: 'lb-title-reference',
+      opacity: 0.45,
+      fitMode: 'cover',
+      position: 'center',
+    })
+  })
+
+  it('does not break preview when referenceImageId is missing', () => {
+    expect(previewBackgroundConfigSchema.parse({
+      opacity: 0.6,
+    })).toEqual({
+      opacity: 0.6,
+      fitMode: 'contain',
+      position: 'center',
+    })
+  })
+
+  it('rejects invalid opacity values', () => {
+    expect(() => previewBackgroundConfigSchema.parse({
+      opacity: 2,
+    })).toThrow('opacity')
+  })
+})
 
 describe('GraphicControlConfig schema', () => {
   it('parses OSC graphic control configuration', () => {
@@ -130,6 +194,10 @@ describe('PreviewTemplateDefinition schema', () => {
         id: 'title-template',
         designWidth: 1920,
         designHeight: 1080,
+        background: {
+          referenceImageId: 'lb-title-reference',
+          opacity: 0.35,
+        },
         elements: [
           {
             id: 'headline',
@@ -148,6 +216,12 @@ describe('PreviewTemplateDefinition schema', () => {
       id: 'title-template',
       designWidth: 1920,
       designHeight: 1080,
+      background: {
+        referenceImageId: 'lb-title-reference',
+        opacity: 0.35,
+        fitMode: 'contain',
+        position: 'center',
+      },
       elements: [
         {
           id: 'headline',
@@ -215,6 +289,12 @@ describe('GraphicInstanceConfig schema', () => {
           id: 'title-preview',
           designWidth: 1920,
           designHeight: 1080,
+          background: {
+            referenceImageId: 'lb-title-reference',
+            opacity: 0.5,
+            fitMode: 'cover',
+            position: 'center',
+          },
           elements: [
             {
               id: 'headline',
@@ -252,6 +332,12 @@ describe('GraphicInstanceConfig schema', () => {
         id: 'title-preview',
         designWidth: 1920,
         designHeight: 1080,
+        background: {
+          referenceImageId: 'lb-title-reference',
+          opacity: 0.5,
+          fitMode: 'cover',
+          position: 'center',
+        },
         elements: [
           {
             id: 'headline',
@@ -334,6 +420,13 @@ describe('AppSettings/AppConfig schema', () => {
   it('loads multiple graphic element configs through the selected profile', () => {
     const parsed = appSettingsSchema.parse({
       selectedProfileId: 'news-evening',
+      referenceImages: [
+        {
+          id: 'lb-title-reference',
+          name: 'Title Reference',
+          filePath: 'C:\\APlay\\references\\title.png',
+        },
+      ],
       profiles: [
         {
           id: 'news-evening',
@@ -355,6 +448,9 @@ describe('AppSettings/AppConfig schema', () => {
             id: 'title-preview',
             designWidth: 1920,
             designHeight: 1080,
+            background: {
+              referenceImageId: 'lb-title-reference',
+            },
             elements: [
               {
                 id: 'headline',
@@ -408,8 +504,21 @@ describe('AppSettings/AppConfig schema', () => {
     })
 
     expect(parsed.selectedProfileId).toBe('news-evening')
+    expect(parsed.referenceImages).toEqual([
+      {
+        id: 'lb-title-reference',
+        name: 'Title Reference',
+        filePath: 'C:\\APlay\\references\\title.png',
+      },
+    ])
     expect(parsed.profiles[0]?.graphicConfigIds).toEqual(['title-main', 'person-lower-third'])
     expect(parsed.graphics.map((graphic) => graphic.id)).toEqual(['title-main', 'person-lower-third'])
+    expect(parsed.graphics[0]?.preview.background).toEqual({
+      referenceImageId: 'lb-title-reference',
+      opacity: 1,
+      fitMode: 'contain',
+      position: 'center',
+    })
   })
 
   it('rejects a selected profile id that does not exist', () => {

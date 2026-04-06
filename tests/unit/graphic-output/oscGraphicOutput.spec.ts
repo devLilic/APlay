@@ -226,6 +226,33 @@ describe('OSC graphic output', () => {
     ])
     expect(result).not.toHaveProperty('preview')
   })
+
+  it('does not let preview reference background config affect OSC mapping', () => {
+    const adapter = createOscGraphicOutputAdapter()
+    const graphicWithBackground: GraphicInstanceConfig = {
+      ...graphicConfig,
+      preview: {
+        ...graphicConfig.preview,
+        background: {
+          referenceImageId: 'lb-title-reference',
+          opacity: 0.4,
+          fitMode: 'contain',
+          position: 'center',
+        },
+      },
+    }
+
+    expect(
+      adapter.buildCommand({
+        actionType: 'playGraphic',
+        graphic: graphicWithBackground,
+      }),
+    ).toEqual({
+      actionType: 'playGraphic',
+      address: '/lb/title/play',
+      args: [],
+    })
+  })
 })
 
 function createInMemoryOscTransport(shouldFail = false) {

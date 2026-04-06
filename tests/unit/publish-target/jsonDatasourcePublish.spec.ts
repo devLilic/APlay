@@ -272,6 +272,24 @@ describe('JSON datasource publishing', () => {
     expect(result).not.toHaveProperty('preview')
     expect(result).not.toHaveProperty('component')
   })
+
+  it('does not include preview reference background config in the JSON publish payload', () => {
+    const adapter = createJsonDatasourcePublishTargetAdapter()
+
+    const result = adapter.publishEntity(
+      {
+        entityType: 'title',
+        entity: titleEntity,
+        targetFile: 'graphics/title-main.json',
+        bindings: [{ sourceField: 'text', targetField: 'headline' }],
+      },
+      createInMemoryTargetFileWriter(),
+    )
+
+    expect(result.payload).toEqual({ headline: 'Main Title' })
+    expect(result.payload).not.toHaveProperty('referenceImageId')
+    expect(result.payload).not.toHaveProperty('background')
+  })
 })
 
 function createInMemoryTargetFileWriter(

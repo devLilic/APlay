@@ -58,6 +58,7 @@ export function createInMemorySettingsStorage(initialContent: string | null = nu
 function createDefaultSettingsDocument(): AppSettings {
   return {
     selectedProfileId: 'default',
+    referenceImages: [],
     profiles: [
       {
         id: 'default',
@@ -77,6 +78,7 @@ function normalizePersistedSettings(input: unknown): unknown {
   const value = input as Record<string, unknown>
 
   return {
+    referenceImages: [],
     profiles: [],
     graphics: [],
     ...value,

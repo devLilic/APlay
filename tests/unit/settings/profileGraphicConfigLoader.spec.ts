@@ -6,6 +6,7 @@ import {
 
 const settings = {
   selectedProfileId: 'morning',
+  referenceImages: [],
   profiles: [
     {
       id: 'morning',
