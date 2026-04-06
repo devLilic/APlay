@@ -2,8 +2,10 @@ import { contextBridge } from 'electron'
 import type { AppLanguage } from '../../../config/types'
 import {
   ipcInvokeChannels,
+  type ReferenceImageDataResponse,
   type ReferenceImagePickerResponse,
   type SettingsGetResponse,
+  type SourceCsvPickerResponse,
 } from '../../../src/shared/ipc/contracts'
 import type { UpdatePreferences, UiPreferences } from '../../../src/shared/settings/types'
 import { invoke } from './shared'
@@ -38,6 +40,14 @@ export function registerSettingsApi() {
       const response = await invoke(ipcInvokeChannels.settingsPickReferenceImage)
       return extractFilePath(response)
     },
+    async pickSourceCsvFile(): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsPickSourceCsvFile)
+      return extractCsvFilePath(response)
+    },
+    async readReferenceImage(filePath: string): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsReadReferenceImage, { filePath })
+      return extractDataUrl(response)
+    },
   })
 }
 
@@ -46,5 +56,13 @@ function extractValue<TValue>(payload: SettingsGetResponse): TValue {
 }
 
 function extractFilePath(payload: ReferenceImagePickerResponse): string | null {
+  return payload.filePath
+}
+
+function extractDataUrl(payload: ReferenceImageDataResponse): string | null {
+  return payload.dataUrl
+}
+
+function extractCsvFilePath(payload: SourceCsvPickerResponse): string | null {
   return payload.filePath
 }

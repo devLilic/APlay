@@ -8,6 +8,7 @@ import type {
   GraphicControlConfig,
   GraphicInstanceConfig,
   PreviewBackgroundConfig,
+  ShowProfileSourceConfig,
   PreviewElementDefinition,
   PreviewElementKind,
   PreviewTemplateDefinition,
@@ -38,6 +39,7 @@ const transformOrigins = [
 const previewElementKinds = ['text', 'box', 'image'] as const
 const previewBackgroundFitModes = ['contain', 'cover'] as const
 const previewBackgroundPositions = ['center'] as const
+const contentSourceTypes = ['csv'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
   const value = assertRecord(input, 'referenceImageAsset')
@@ -274,6 +276,25 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
   }
 })
 
+export const showProfileSourceConfigSchema = createSchema<ShowProfileSourceConfig>((input) => {
+  const value = assertRecord(input, 'showProfileConfig.source')
+  const filePath = parseOptionalString(value, 'filePath', 'showProfileConfig.source')
+
+  if (filePath && !isSafeContentSourcePath(filePath)) {
+    throw new SchemaValidationError('showProfileConfig.source.filePath must be a valid non-empty file path when provided')
+  }
+
+  return {
+    type: parseEnumValue(
+      value.type,
+      contentSourceTypes,
+      'showProfileConfig.source',
+      'type',
+    ),
+    ...(filePath ? { filePath } : {}),
+  }
+})
+
 export const showProfileConfigSchema = createSchema<ShowProfileConfig>((input) => {
   const value = assertRecord(input, 'showProfileConfig')
   const graphicConfigIds = parseRequiredArray(value, 'graphicConfigIds', 'showProfileConfig').map(
@@ -291,6 +312,9 @@ export const showProfileConfigSchema = createSchema<ShowProfileConfig>((input) =
   return {
     id: parseRequiredString(value, 'id', 'showProfileConfig'),
     label: parseRequiredString(value, 'label', 'showProfileConfig'),
+    ...(value.source !== undefined
+      ? { source: showProfileSourceConfigSchema.parse(value.source) }
+      : {}),
     graphicConfigIds,
   }
 })
@@ -341,6 +365,15 @@ export const appConfigSchema = {
 }
 
 function isSafeReferenceImagePath(filePath: string): boolean {
+  const normalizedPath = filePath.trim()
+  if (normalizedPath.length === 0) {
+    return false
+  }
+
+  return !/[<>:"|?*]/.test(normalizedPath.replace(/^[a-zA-Z]:\\/, ''))
+}
+
+function isSafeContentSourcePath(filePath: string): boolean {
   const normalizedPath = filePath.trim()
   if (normalizedPath.length === 0) {
     return false

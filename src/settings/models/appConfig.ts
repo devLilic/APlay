@@ -5,6 +5,7 @@ export type TransformOrigin = 'top-left' | 'top-right' | 'bottom-left' | 'bottom
 export type PreviewElementKind = 'text' | 'box' | 'image'
 export type PreviewBackgroundFitMode = 'contain' | 'cover'
 export type PreviewBackgroundPosition = 'center'
+export type ContentSourceType = 'csv'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
@@ -88,11 +89,19 @@ export interface GraphicInstanceConfig {
   actions: ActionButtonConfig[]
 }
 
+export interface ShowProfileSourceConfig {
+  type: ContentSourceType
+  filePath?: string
+}
+
 // A show/emission profile determines which separately stored graphic configs
-// are active for the selected production context.
+// are active for the selected production context. Source file selection also
+// belongs to the profile so switching shows can swap the working source without
+// changing graphic definitions.
 export interface ShowProfileConfig {
   id: string
   label: string
+  source?: ShowProfileSourceConfig
   graphicConfigIds: string[]
 }
 

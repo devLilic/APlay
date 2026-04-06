@@ -23,11 +23,18 @@ const baseSettings = {
     {
       id: 'news-am',
       label: 'Morning News',
+      source: {
+        type: 'csv',
+        filePath: 'C:\\APlay\\sources\\morning.csv',
+      },
       graphicConfigIds: ['title-main', 'person-lower-third'],
     },
     {
       id: 'news-pm',
       label: 'Evening News',
+      source: {
+        type: 'csv',
+      },
       graphicConfigIds: ['breaking-main'],
     },
   ],
@@ -185,6 +192,9 @@ describe('show profile definition and lookup', () => {
     expect(repository.getProfile('news-pm')).toEqual({
       id: 'news-pm',
       label: 'Evening News',
+      source: {
+        type: 'csv',
+      },
       graphicConfigIds: ['breaking-main'],
     })
   })
@@ -214,6 +224,48 @@ describe('last selected profile persistence', () => {
     })
 
     expect(repository.load().selectedProfileId).toBe('news-pm')
+  })
+})
+
+describe('profile source file persistence', () => {
+  it('stores and reloads the source file path per profile', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().profiles.find((profile) => profile.id === 'news-am')?.source).toEqual({
+      type: 'csv',
+      filePath: 'C:\\APlay\\sources\\morning.csv',
+    })
+  })
+
+  it('switching the active profile changes the active source file path', () => {
+    const storage = createInMemorySettingsStorage(JSON.stringify(baseSettings))
+    const repository = createSettingsRepository(storage)
+
+    repository.save({
+      ...baseSettings,
+      selectedProfileId: 'news-pm',
+    })
+
+    const loaded = repository.load()
+
+    expect(loaded.selectedProfileId).toBe('news-pm')
+    expect(loaded.profiles.find((profile) => profile.id === loaded.selectedProfileId)?.source).toEqual({
+      type: 'csv',
+    })
+  })
+
+  it('handles a missing source file path safely', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().profiles.find((profile) => profile.id === 'news-pm')?.source).toEqual({
+      type: 'csv',
+    })
   })
 })
 

@@ -63,6 +63,8 @@ declare global {
       getUiPreferences: () => Promise<UiPreferences>
       setUiPreferences: (value: UiPreferences) => Promise<UiPreferences>
       pickReferenceImage: () => Promise<string | null>
+      pickSourceCsvFile: () => Promise<string | null>
+      readReferenceImage: (filePath: string) => Promise<string | null>
     }
   }
 }

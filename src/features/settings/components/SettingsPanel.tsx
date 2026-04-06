@@ -48,6 +48,7 @@ export function SettingsPanel({
   const [draftReferenceImageName, setDraftReferenceImageName] = useState('')
   const [draftReferenceImagePath, setDraftReferenceImagePath] = useState('')
   const [isPickingReferenceImage, setIsPickingReferenceImage] = useState(false)
+  const [isPickingSourceFile, setIsPickingSourceFile] = useState(false)
 
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
@@ -173,6 +174,31 @@ export function SettingsPanel({
     }
   }
 
+  const handlePickSourceFile = async () => {
+    if (!window.settingsApi?.pickSourceCsvFile || !selectedProfile) {
+      return
+    }
+
+    setIsPickingSourceFile(true)
+
+    try {
+      const filePath = await window.settingsApi.pickSourceCsvFile()
+      if (!filePath) {
+        return
+      }
+
+      updateProfile((profile) => ({
+        ...profile,
+        source: {
+          type: 'csv',
+          filePath,
+        },
+      }))
+    } finally {
+      setIsPickingSourceFile(false)
+    }
+  }
+
   return (
     <Panel
       title='Settings'
@@ -221,8 +247,10 @@ export function SettingsPanel({
             <ProfileSection
               settings={settings}
               selectedProfile={selectedProfile}
+              isPickingSourceFile={isPickingSourceFile}
               onSettingsChange={onSettingsChange}
               onProfileUpdate={updateProfile}
+              onPickSourceFile={handlePickSourceFile}
             />
 
             <GraphicSelectionSection
@@ -297,7 +325,14 @@ function NumberField({
       <input
         type='number'
         value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        onChange={(event) => {
+          const nextValue = Number(event.target.value)
+          if (!Number.isFinite(nextValue)) {
+            return
+          }
+
+          onChange(nextValue)
+        }}
         className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
       />
     </label>
@@ -311,7 +346,7 @@ function ColorField({
 }: {
   label: string
   value: string | undefined
-  onChange: (value: string) => void
+  onChange: (value: string | undefined) => void
 }) {
   const normalizedValue = normalizeHexColor(value)
 
@@ -328,7 +363,7 @@ function ColorField({
         <input
           value={value ?? ''}
           placeholder='#ffffff'
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => onChange(normalizeOptionalInput(event.target.value))}
           className='w-full bg-transparent text-sm text-ink outline-none'
         />
       </div>
@@ -345,6 +380,8 @@ function createDefaultBinding(): GraphicFieldBinding {
 }
 
 function createDefaultPreviewElement(index: number): PreviewElementDefinition {
+  const defaultBehavior = { fitInBox: true, minScaleX: 0.7, fontSize: 64, fontFamily: 'Arial' }
+
   return {
     id: `element-${index}`,
     kind: 'text',
@@ -355,7 +392,8 @@ function createDefaultPreviewElement(index: number): PreviewElementDefinition {
     borderRadius: 0,
     box: { x: 120, y: 120, width: 640, height: 80 },
     textColor: '#ffffff',
-    text: { fitInBox: true, minScaleX: 0.7, fontSize: 64, fontFamily: 'Arial' },
+    behavior: defaultBehavior,
+    text: defaultBehavior,
   }
 }
 
@@ -402,27 +440,70 @@ function normalizeHexColor(value: string | undefined): string {
   return '#000000'
 }
 
+function normalizeOptionalInput(value: string): string | undefined {
+  const normalized = value.trim()
+  return normalized.length > 0 ? value : undefined
+}
+
 function getFileNameFromPath(filePath: string): string {
   const segments = filePath.split(/[\\/]/)
   return segments[segments.length - 1] ?? filePath
 }
 
+function isValidCsvFilePath(filePath: string): boolean {
+  const normalized = filePath.trim()
+  if (normalized.length === 0) {
+    return false
+  }
+
+  if (!normalized.toLowerCase().endsWith('.csv')) {
+    return false
+  }
+
+  return !/[<>:"|?*]/.test(normalized.replace(/^[a-zA-Z]:\\/, ''))
+}
+
+function getElementBehavior(element: PreviewElementDefinition) {
+  return element.behavior ?? element.text
+}
+
+function updateElementBehavior(
+  element: PreviewElementDefinition,
+  updater: (behavior: NonNullable<PreviewElementDefinition['behavior']>) => NonNullable<PreviewElementDefinition['behavior']>,
+): PreviewElementDefinition {
+  const currentBehavior = getElementBehavior(element) ?? {}
+  const nextBehavior = updater(currentBehavior)
+
+  return {
+    ...element,
+    behavior: nextBehavior,
+    text: nextBehavior,
+  }
+}
+
 function ProfileSection({
   settings,
   selectedProfile,
+  isPickingSourceFile,
   onSettingsChange,
   onProfileUpdate,
+  onPickSourceFile,
 }: {
   settings: AppSettings
   selectedProfile: ShowProfileConfig | undefined
+  isPickingSourceFile: boolean
   onSettingsChange: (settings: AppSettings) => void
   onProfileUpdate: (updater: (profile: ShowProfileConfig) => ShowProfileConfig) => void
+  onPickSourceFile: () => Promise<void>
 }) {
   const addProfile = () => {
     const nextId = createUniqueProfileId(settings)
     const nextProfile: ShowProfileConfig = {
       id: nextId,
       label: `Profile ${settings.profiles.length + 1}`,
+      source: {
+        type: 'csv',
+      },
       graphicConfigIds: selectedProfile?.graphicConfigIds ?? [],
     }
 
@@ -492,6 +573,63 @@ function ProfileSection({
         </button>
       </div>
 
+      <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+        <div>
+          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Working source file</p>
+          <p className='mt-1 text-sm text-muted'>
+            The working source file belongs to the active show profile and is independent from graphic config files.
+          </p>
+        </div>
+
+        <div className='grid gap-3 sm:grid-cols-[10rem,minmax(0,1fr)]'>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source type</span>
+            <select
+              value={selectedProfile?.source?.type ?? 'csv'}
+              disabled
+              className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm font-medium text-muted'
+            >
+              <option value='csv'>CSV</option>
+            </select>
+          </label>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>CSV file path</span>
+            <input
+              value={selectedProfile?.source?.filePath ?? ''}
+              readOnly
+              placeholder='No CSV file selected for this profile'
+              className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm text-muted'
+            />
+          </label>
+        </div>
+
+        <div className='flex flex-wrap gap-2'>
+          <button
+            type='button'
+            onClick={() => void onPickSourceFile()}
+            disabled={!selectedProfile || isPickingSourceFile}
+            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isPickingSourceFile ? 'Selecting CSV...' : 'Choose CSV file'}
+          </button>
+          <button
+            type='button'
+            onClick={() => onProfileUpdate((profile) => ({
+              ...profile,
+              source: {
+                type: 'csv',
+              },
+            }))}
+            disabled={!selectedProfile?.source?.filePath}
+            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Clear file
+          </button>
+        </div>
+
+        <ProfileSourceStatus profile={selectedProfile} />
+      </div>
+
       <div className='space-y-3'>
         <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Loaded graphic configs</p>
         {settings.graphics.map((graphic) => {
@@ -518,6 +656,38 @@ function ProfileSection({
         })}
       </div>
     </FormSection>
+  )
+}
+
+function ProfileSourceStatus({ profile }: { profile: ShowProfileConfig | undefined }) {
+  if (!profile?.source) {
+    return (
+      <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+        This profile has no source configuration yet.
+      </div>
+    )
+  }
+
+  if (!profile.source.filePath) {
+    return (
+      <div className='rounded-2xl border border-dashed border-border bg-surface/30 px-4 py-3 text-sm text-muted'>
+        No CSV file selected for this profile.
+      </div>
+    )
+  }
+
+  if (!isValidCsvFilePath(profile.source.filePath)) {
+    return (
+      <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+        The selected source path is invalid. Choose a valid `.csv` file.
+      </div>
+    )
+  }
+
+  return (
+    <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+      Active source file: {profile.source.filePath}
+    </div>
   )
 }
 
@@ -952,8 +1122,11 @@ function PreviewTemplateSection({
               </button>
             </div>
 
-            {graphic.preview.elements.map((element, elementIndex) => (
-              <div key={element.id} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
+            {graphic.preview.elements.map((element, elementIndex) => {
+              const textBehavior = getElementBehavior(element)
+
+              return (
+                <div key={element.id} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
                 <div className='flex items-center justify-between gap-3'>
                   <p className='text-sm font-semibold text-ink'>{element.id}</p>
                   <button
@@ -1001,7 +1174,7 @@ function PreviewTemplateSection({
                     <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
                     <input
                       value={element.previewText ?? ''}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: event.target.value }))}
+                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
                       placeholder='Write the exact text you want to arrange in preview'
                       className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
                     />
@@ -1056,8 +1229,9 @@ function PreviewTemplateSection({
                     <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
                       <input
                         type='checkbox'
-                        checked={element.text?.allCaps ?? false}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, allCaps: event.target.checked } }))}
+                        checked={textBehavior?.allCaps ?? false}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, allCaps: event.target.checked })))}
                         className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
                       />
                       ALL CAPS
@@ -1065,31 +1239,36 @@ function PreviewTemplateSection({
                     <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
                       <input
                         type='checkbox'
-                        checked={element.text?.fitInBox ?? false}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fitInBox: event.target.checked } }))}
+                        checked={textBehavior?.fitInBox ?? false}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, fitInBox: event.target.checked })))}
                         className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
                       />
                       Fit in box
                     </label>
-                    <NumberField label='Min scaleX' value={element.text?.minScaleX ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, minScaleX: value } }))} />
-                    <NumberField label='Font size' value={element.text?.fontSize ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fontSize: value } }))} />
+                    <NumberField label='Min scaleX' value={textBehavior?.minScaleX ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                      updateElementBehavior(current, (behavior) => ({ ...behavior, minScaleX: value })))} />
+                    <NumberField label='Font size' value={textBehavior?.fontSize ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                      updateElementBehavior(current, (behavior) => ({ ...behavior, fontSize: value })))} />
                     <label className='space-y-2 md:col-span-2'>
                       <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
                       <input
-                        value={element.text?.fontFamily ?? ''}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, text: { ...current.text, fontFamily: event.target.value } }))}
+                        value={textBehavior?.fontFamily ?? ''}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, fontFamily: normalizeOptionalInput(event.target.value) })))}
                         placeholder='Arial, Helvetica, "My Local Font"'
                         className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
                       />
                     </label>
                   </div>
                 ) : null}
-              </div>
-            ))}
+                </div>
+              )
+            })}
           </div>
         </div>
 
-        <aside className='space-y-4 rounded-3xl border border-border bg-slate-950 p-5 text-white shadow-panel'>
+        <aside className='space-y-4 self-start rounded-3xl border border-border bg-slate-950 p-5 text-white shadow-panel 2xl:sticky 2xl:top-6'>
           <div className='flex items-center justify-between gap-3'>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300'>Preview</p>

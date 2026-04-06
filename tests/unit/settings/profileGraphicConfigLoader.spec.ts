@@ -3,19 +3,28 @@ import {
   createInMemoryGraphicConfigStorage,
   createProfileGraphicConfigLoader,
 } from '@/settings/storage/profileGraphicConfigLoader'
+import type { AppSettings } from '@/settings/models/appConfig'
 
-const settings = {
+const settings: AppSettings = {
   selectedProfileId: 'morning',
   referenceImages: [],
   profiles: [
     {
       id: 'morning',
       label: 'Morning Show',
+      source: {
+        type: 'csv',
+        filePath: 'C:\\APlay\\sources\\morning.csv',
+      },
       graphicConfigIds: ['title-main', 'person-main'],
     },
     {
       id: 'special',
       label: 'Special Edition',
+      source: {
+        type: 'csv',
+        filePath: 'C:\\APlay\\sources\\special.csv',
+      },
       graphicConfigIds: ['breaking-main', 'phone-main'],
     },
   ],
@@ -156,6 +165,10 @@ describe('profile-based graphic config loading', () => {
       'title-main',
       'person-main',
     ])
+    expect(result.profile.source).toEqual({
+      type: 'csv',
+      filePath: 'C:\\APlay\\sources\\morning.csv',
+    })
   })
 
   it('behaves safely when a referenced graphic config file is missing', () => {
@@ -227,6 +240,38 @@ describe('profile-based graphic config loading', () => {
     expect(special.graphics.map((graphic) => graphic.id)).toEqual([
       'breaking-main',
       'phone-main',
+    ])
+    expect(morning.profile.source?.filePath).toBe('C:\\APlay\\sources\\morning.csv')
+    expect(special.profile.source?.filePath).toBe('C:\\APlay\\sources\\special.csv')
+  })
+
+  it('keeps source file configuration independent from graphic config loading', () => {
+    const loader = createProfileGraphicConfigLoader(
+      createInMemoryGraphicConfigStorage(graphicFiles),
+    )
+
+    const result = loader.loadForProfile({
+      ...settings,
+      profiles: [
+        {
+          id: 'morning',
+          label: 'Morning Show',
+          source: {
+            type: 'csv',
+            filePath: 'C:\\APlay\\sources\\updated-morning.csv',
+          },
+          graphicConfigIds: ['title-main', 'person-main'],
+        },
+      ],
+    }, 'morning')
+
+    expect(result.profile.source).toEqual({
+      type: 'csv',
+      filePath: 'C:\\APlay\\sources\\updated-morning.csv',
+    })
+    expect(result.graphics.map((graphic) => graphic.id)).toEqual([
+      'title-main',
+      'person-main',
     ])
   })
 

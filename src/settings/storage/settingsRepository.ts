@@ -63,6 +63,9 @@ function createDefaultSettingsDocument(): AppSettings {
       {
         id: 'default',
         label: 'Default',
+        source: {
+          type: 'csv',
+        },
         graphicConfigIds: [],
       },
     ],

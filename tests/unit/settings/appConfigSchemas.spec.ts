@@ -444,13 +444,69 @@ describe('ShowProfileConfig schema', () => {
       showProfileConfigSchema.parse({
         id: 'news-evening',
         label: 'Evening News',
+        source: {
+          type: 'csv',
+          filePath: 'C:\\APlay\\sources\\evening.csv',
+        },
         graphicConfigIds: ['title-main', 'person-lower-third'],
       }),
     ).toEqual({
       id: 'news-evening',
       label: 'Evening News',
+      source: {
+        type: 'csv',
+        filePath: 'C:\\APlay\\sources\\evening.csv',
+      },
       graphicConfigIds: ['title-main', 'person-lower-third'],
     })
+  })
+
+  it('allows a profile to start without a selected source file', () => {
+    expect(
+      showProfileConfigSchema.parse({
+        id: 'news-morning',
+        label: 'Morning News',
+        source: {
+          type: 'csv',
+        },
+        graphicConfigIds: ['title-main'],
+      }),
+    ).toEqual({
+      id: 'news-morning',
+      label: 'Morning News',
+      source: {
+        type: 'csv',
+      },
+      graphicConfigIds: ['title-main'],
+    })
+  })
+
+  it('rejects invalid source type values for V1', () => {
+    expect(() =>
+      showProfileConfigSchema.parse({
+        id: 'json-profile',
+        label: 'JSON Profile',
+        source: {
+          type: 'json',
+          filePath: 'C:\\APlay\\sources\\profile.json',
+        },
+        graphicConfigIds: ['title-main'],
+      }),
+    ).toThrow('source.type')
+  })
+
+  it('rejects blank source file paths when provided', () => {
+    expect(() =>
+      showProfileConfigSchema.parse({
+        id: 'broken-profile',
+        label: 'Broken Profile',
+        source: {
+          type: 'csv',
+          filePath: '',
+        },
+        graphicConfigIds: ['title-main'],
+      }),
+    ).toThrow('source.filePath')
   })
 })
 
@@ -469,6 +525,10 @@ describe('AppSettings/AppConfig schema', () => {
         {
           id: 'news-evening',
           label: 'Evening News',
+          source: {
+            type: 'csv',
+            filePath: 'C:\\APlay\\sources\\evening.csv',
+          },
           graphicConfigIds: ['title-main', 'person-lower-third'],
         },
       ],
@@ -549,6 +609,10 @@ describe('AppSettings/AppConfig schema', () => {
         filePath: 'C:\\APlay\\references\\title.png',
       },
     ])
+    expect(parsed.profiles[0]?.source).toEqual({
+      type: 'csv',
+      filePath: 'C:\\APlay\\sources\\evening.csv',
+    })
     expect(parsed.profiles[0]?.graphicConfigIds).toEqual(['title-main', 'person-lower-third'])
     expect(parsed.graphics.map((graphic) => graphic.id)).toEqual(['title-main', 'person-lower-third'])
     expect(parsed.graphics[0]?.preview.background).toEqual({
@@ -567,6 +631,10 @@ describe('AppSettings/AppConfig schema', () => {
           {
             id: 'news-evening',
             label: 'Evening News',
+            source: {
+              type: 'csv',
+              filePath: 'C:\\APlay\\sources\\evening.csv',
+            },
             graphicConfigIds: ['title-main'],
           },
         ],

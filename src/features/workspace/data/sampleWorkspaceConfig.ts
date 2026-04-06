@@ -19,6 +19,10 @@ export const sampleSettings: AppSettings = {
     {
       id: 'default-news',
       label: 'Default News',
+      source: {
+        type: 'csv',
+        filePath: 'C:\\APlay\\sources\\default-news.csv',
+      },
       graphicConfigIds: [
         'title-main',
         'supertitle-main',

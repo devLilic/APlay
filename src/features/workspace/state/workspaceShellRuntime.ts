@@ -6,6 +6,7 @@ import { createJsonDatasourcePublishTargetAdapter } from '@/adapters/publish-tar
 import { createInMemoryGraphicConfigStorage, createProfileGraphicConfigLoader } from '@/settings/storage/profileGraphicConfigLoader'
 import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
 import type { WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
+import { resolveActiveProfileSource } from '@/settings/utils/profileSources'
 import { sampleGraphicFiles, sampleSettings } from '@/features/workspace/data/sampleWorkspaceConfig'
 import { sampleEditorialCsv } from '@/features/workspace/data/sampleEditorialCsv'
 import {
@@ -18,6 +19,7 @@ import {
 export interface WorkspaceShellData {
   document: EditorialDocument
   activeProfileLabel: string
+  activeSourceFilePath?: string
   graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>
   diagnostics: string[]
 }
@@ -37,16 +39,19 @@ export function loadWorkspaceShellData(
     createInMemoryGraphicConfigStorage(snapshot.graphicFiles),
   )
   const profileResult = loadProfileResult(profileLoader, snapshot)
+  const sourceResult = resolveActiveProfileSource(snapshot.settings)
 
   return {
     document: parsedDocument.document,
     activeProfileLabel: profileResult.profile.label,
+    activeSourceFilePath: sourceResult.activeSourceFilePath,
     graphicsByEntityType: Object.fromEntries(
       profileResult.graphics.map((graphic) => [graphic.entityType, graphic]),
     ),
     diagnostics: [
       ...parsedDocument.diagnostics.map((diagnostic) => diagnostic.message),
-      ...profileResult.diagnostics.map((diagnostic) => diagnostic.message),
+      ...sourceResult.diagnostics,
+      ...profileResult.diagnostics.map(formatGraphicConfigDiagnostic),
     ],
   }
 }
@@ -166,4 +171,14 @@ function warnWorkspaceRuntime(message: string): void {
   if (typeof console !== 'undefined' && typeof console.warn === 'function') {
     console.warn(`[APlay runtime] ${message}`)
   }
+}
+
+function formatGraphicConfigDiagnostic(
+  diagnostic: ReturnType<typeof loadProfileResult>['diagnostics'][number],
+): string {
+  const reason = diagnostic.details.reason
+
+  return typeof reason === 'string' && reason.length > 0
+    ? `${diagnostic.message}: ${reason}`
+    : diagnostic.message
 }
