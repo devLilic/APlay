@@ -1,8 +1,11 @@
 import type { ContentSourceDiagnostic } from '@/adapters/content-source/contracts'
-import type { CsvRow, CsvTable } from './types'
+import type { CsvParseOptions, CsvRow, CsvTable } from './types'
 import { detectCsvDelimiter, isBlankLine } from './utils'
 
-export function parseCsvRows(content: string): { table: CsvTable; diagnostics: ContentSourceDiagnostic[] } {
+export function parseCsvRows(
+  content: string,
+  options: Pick<CsvParseOptions, 'schema'> = {},
+): { table: CsvTable; diagnostics: ContentSourceDiagnostic[] } {
   const lines = content.split(/\r?\n/)
   const diagnostics: ContentSourceDiagnostic[] = []
   const significantLines = lines
@@ -18,8 +21,9 @@ export function parseCsvRows(content: string): { table: CsvTable; diagnostics: C
 
   let header: string[] = []
   const rows: CsvRow[] = []
-  let headerAssigned = false
-  const delimiter = detectCsvDelimiter(significantLines[0]?.line ?? '')
+  const hasHeader = options.schema?.hasHeader ?? true
+  let headerAssigned = !hasHeader
+  const delimiter = normalizeDelimiter(options.schema?.delimiter) ?? detectCsvDelimiter(significantLines[0]?.line ?? '')
 
   for (const { line, lineNumber } of significantLines) {
     if (!headerAssigned) {
@@ -103,4 +107,8 @@ function createMalformedRowDiagnostic(lineNumber: number): ContentSourceDiagnost
       lineNumber,
     },
   }
+}
+
+function normalizeDelimiter(value: string | undefined): ',' | ';' | undefined {
+  return value === ',' || value === ';' ? value : undefined
 }

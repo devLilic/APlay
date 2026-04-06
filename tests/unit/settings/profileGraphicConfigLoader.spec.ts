@@ -8,6 +8,7 @@ import type { AppSettings } from '@/settings/models/appConfig'
 const settings: AppSettings = {
   selectedProfileId: 'morning',
   referenceImages: [],
+  sourceSchemas: [],
   profiles: [
     {
       id: 'morning',

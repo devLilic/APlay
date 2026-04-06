@@ -7,6 +7,8 @@ export type PreviewBackgroundFitMode = 'contain' | 'cover'
 export type PreviewBackgroundPosition = 'center'
 export type ContentSourceType = 'csv'
 export type PreviewTextAlign = 'left' | 'center'
+export type SourceSchemaType = 'csv'
+export type CsvBlockDetectionMode = 'columnRegex'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
@@ -91,9 +93,75 @@ export interface GraphicInstanceConfig {
   actions: ActionButtonConfig[]
 }
 
+export interface CsvBlockDetectionConfig {
+  mode: CsvBlockDetectionMode
+  sourceColumn: string
+  pattern: string
+}
+
+export interface CsvEntityTitleMappingConfig {
+  enabled: boolean
+  fields?: {
+    number: string
+    title: string
+  }
+}
+
+export interface CsvEntitySupertitleMappingConfig {
+  enabled: boolean
+  fields?: {
+    text: string
+  }
+}
+
+export interface CsvEntityPersonMappingConfig {
+  enabled: boolean
+  fields?: {
+    name: string
+    role: string
+  }
+}
+
+export interface CsvEntityValueMappingConfig {
+  enabled: boolean
+  fields?: {
+    value: string
+  }
+}
+
+export interface CsvEntityPhoneMappingConfig {
+  enabled: boolean
+  fields?: {
+    label: string
+    number: string
+  }
+}
+
+export interface CsvEntityMappingConfig {
+  title: CsvEntityTitleMappingConfig
+  supertitle: CsvEntitySupertitleMappingConfig
+  person: CsvEntityPersonMappingConfig
+  location: CsvEntityValueMappingConfig
+  breakingNews: CsvEntityValueMappingConfig
+  waitingTitle: CsvEntityValueMappingConfig
+  waitingLocation: CsvEntityValueMappingConfig
+  phone: CsvEntityPhoneMappingConfig
+}
+
+export interface CsvSourceSchemaConfig {
+  id: string
+  name: string
+  type: SourceSchemaType
+  delimiter: string
+  hasHeader: boolean
+  blockDetection: CsvBlockDetectionConfig
+  entityMappings: CsvEntityMappingConfig
+}
+
 export interface ShowProfileSourceConfig {
   type: ContentSourceType
   filePath?: string
+  schemaId?: string
 }
 
 // A show/emission profile determines which separately stored graphic configs
@@ -110,6 +178,7 @@ export interface ShowProfileConfig {
 export interface AppSettings {
   selectedProfileId: string
   referenceImages: ReferenceImageAsset[]
+  sourceSchemas: CsvSourceSchemaConfig[]
   profiles: ShowProfileConfig[]
   graphics: GraphicInstanceConfig[]
 }

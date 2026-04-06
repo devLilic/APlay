@@ -3,6 +3,7 @@ import { supportedEntityTypes } from '@/core/entities/entityTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import type {
   AppSettings,
+  CsvSourceSchemaConfig,
   GraphicFieldBinding,
   GraphicInstanceConfig,
   PreviewElementDefinition,
@@ -11,6 +12,7 @@ import type {
   ShowProfileConfig,
   TransformOrigin,
 } from '@/settings/models/appConfig'
+import { csvSourceSchemaConfigSchema } from '@/settings/schemas/appConfigSchemas'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 import { Panel } from '@/shared/ui/panel'
 
@@ -192,6 +194,7 @@ export function SettingsPanel({
         source: {
           type: 'csv',
           filePath,
+          schemaId: profile.source?.schemaId,
         },
       }))
     } finally {
@@ -251,6 +254,12 @@ export function SettingsPanel({
               onSettingsChange={onSettingsChange}
               onProfileUpdate={updateProfile}
               onPickSourceFile={handlePickSourceFile}
+            />
+
+            <CsvSchemaSection
+              settings={settings}
+              selectedProfile={selectedProfile}
+              onSettingsChange={onSettingsChange}
             />
 
             <GraphicSelectionSection
@@ -409,6 +418,81 @@ function createUniqueProfileId(settings: AppSettings): string {
   return candidate
 }
 
+function createUniqueSourceSchemaId(settings: AppSettings): string {
+  let index = settings.sourceSchemas.length + 1
+  let candidate = `csv-schema-${index}`
+
+  while (settings.sourceSchemas.some((schema) => schema.id === candidate)) {
+    index += 1
+    candidate = `csv-schema-${index}`
+  }
+
+  return candidate
+}
+
+function createDefaultCsvSourceSchema(settings: AppSettings): CsvSourceSchemaConfig {
+  const index = settings.sourceSchemas.length + 1
+
+  return {
+    id: createUniqueSourceSchemaId(settings),
+    name: `CSV Schema ${index}`,
+    type: 'csv',
+    delimiter: ';',
+    hasHeader: true,
+    blockDetection: {
+      mode: 'columnRegex',
+      sourceColumn: 'Nr',
+      pattern: '^---\\s*(.+?)\\s*---$',
+    },
+    entityMappings: {
+      title: {
+        enabled: true,
+        fields: {
+          number: 'Nr',
+          title: 'Titlu',
+        },
+      },
+      supertitle: {
+        enabled: false,
+      },
+      person: {
+        enabled: true,
+        fields: {
+          name: 'Nume',
+          role: 'Functie',
+        },
+      },
+      location: {
+        enabled: true,
+        fields: {
+          value: 'Locatie',
+        },
+      },
+      breakingNews: {
+        enabled: true,
+        fields: {
+          value: 'Ultima Ora',
+        },
+      },
+      waitingTitle: {
+        enabled: true,
+        fields: {
+          value: 'Titlu Asteptare',
+        },
+      },
+      waitingLocation: {
+        enabled: true,
+        fields: {
+          value: 'Locatie Asteptare',
+        },
+      },
+      phone: {
+        enabled: false,
+      },
+    },
+  }
+}
+
 function createUniqueReferenceImageId(settings: AppSettings, name: string): string {
   const base = name
     .trim()
@@ -448,6 +532,93 @@ function normalizeOptionalInput(value: string): string | undefined {
 function getFileNameFromPath(filePath: string): string {
   const segments = filePath.split(/[\\/]/)
   return segments[segments.length - 1] ?? filePath
+}
+
+function getSelectedSourceSchema(
+  settings: AppSettings,
+  selectedProfile: ShowProfileConfig | undefined,
+): CsvSourceSchemaConfig | undefined {
+  const schemaId = selectedProfile?.source?.schemaId
+  if (schemaId) {
+    return settings.sourceSchemas.find((schema) => schema.id === schemaId)
+  }
+
+  return settings.sourceSchemas[0]
+}
+
+function validateCsvSchemaMessages(schema: CsvSourceSchemaConfig | undefined): string[] {
+  if (!schema) {
+    return ['No CSV schema is selected for the active profile.']
+  }
+
+  try {
+    csvSourceSchemaConfigSchema.parse(schema)
+    return []
+  } catch (error) {
+    return [error instanceof Error ? error.message : 'CSV schema is invalid.']
+  }
+}
+
+function detectCsvHeaderColumns(
+  filePath: string | undefined,
+  delimiter: string,
+  hasHeader: boolean,
+): string[] {
+  if (!filePath || !hasHeader) {
+    return []
+  }
+
+  const content = window.settingsApi?.readSourceFileSync?.(filePath)
+  if (!content) {
+    return []
+  }
+
+  const firstSignificantLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0)
+
+  if (!firstSignificantLine) {
+    return []
+  }
+
+  return splitCsvLine(firstSignificantLine, delimiter)
+    .map((column) => column.trim())
+    .filter((column) => column.length > 0)
+}
+
+function splitCsvLine(line: string, delimiter: string): string[] {
+  const effectiveDelimiter = delimiter === ',' ? ',' : ';'
+  const values: string[] = []
+  let current = ''
+  let inQuotes = false
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]
+
+    if (character === '"') {
+      const nextCharacter = line[index + 1]
+      if (inQuotes && nextCharacter === '"') {
+        current += '"'
+        index += 1
+        continue
+      }
+
+      inQuotes = !inQuotes
+      continue
+    }
+
+    if (character === effectiveDelimiter && !inQuotes) {
+      values.push(current)
+      current = ''
+      continue
+    }
+
+    current += character
+  }
+
+  values.push(current)
+  return values
 }
 
 function isValidCsvFilePath(filePath: string): boolean {
@@ -656,6 +827,645 @@ function ProfileSection({
         })}
       </div>
     </FormSection>
+  )
+}
+
+function CsvSchemaSection({
+  settings,
+  selectedProfile,
+  onSettingsChange,
+}: {
+  settings: AppSettings
+  selectedProfile: ShowProfileConfig | undefined
+  onSettingsChange: (settings: AppSettings) => void
+}) {
+  const selectedSchema = getSelectedSourceSchema(settings, selectedProfile)
+  const [detectedColumns, setDetectedColumns] = useState<string[]>([])
+
+  useEffect(() => {
+    setDetectedColumns(
+      detectCsvHeaderColumns(
+        selectedProfile?.source?.filePath,
+        selectedSchema?.delimiter ?? ';',
+        selectedSchema?.hasHeader ?? true,
+      ),
+    )
+  }, [
+    selectedProfile?.source?.filePath,
+    selectedSchema?.delimiter,
+    selectedSchema?.hasHeader,
+  ])
+
+  const validationMessages = validateCsvSchemaMessages(selectedSchema)
+
+  const updateSelectedSchema = (updater: (schema: CsvSourceSchemaConfig) => CsvSourceSchemaConfig) => {
+    if (!selectedSchema) {
+      return
+    }
+
+    onSettingsChange({
+      ...settings,
+      sourceSchemas: settings.sourceSchemas.map((schema) =>
+        schema.id === selectedSchema.id ? updater(schema) : schema),
+    })
+  }
+
+  const attachSchemaToProfile = (schemaId: string | undefined) => {
+    if (!selectedProfile) {
+      return
+    }
+
+    onSettingsChange({
+      ...settings,
+      profiles: settings.profiles.map((profile) => profile.id === selectedProfile.id
+        ? {
+          ...profile,
+          source: {
+            type: profile.source?.type ?? 'csv',
+            ...(profile.source?.filePath ? { filePath: profile.source.filePath } : {}),
+            ...(schemaId ? { schemaId } : {}),
+          },
+        }
+        : profile),
+    })
+  }
+
+  const addSchema = () => {
+    const nextSchema = createDefaultCsvSourceSchema(settings)
+
+    onSettingsChange({
+      ...settings,
+      sourceSchemas: [...settings.sourceSchemas, nextSchema],
+      profiles: selectedProfile
+        ? settings.profiles.map((profile) => profile.id === selectedProfile.id
+          ? {
+            ...profile,
+            source: {
+              type: profile.source?.type ?? 'csv',
+              ...(profile.source?.filePath ? { filePath: profile.source.filePath } : {}),
+              schemaId: nextSchema.id,
+            },
+          }
+          : profile)
+        : settings.profiles,
+    })
+  }
+
+  const removeSchema = () => {
+    if (!selectedSchema || settings.sourceSchemas.length <= 1) {
+      return
+    }
+
+    const nextSchemas = settings.sourceSchemas.filter((schema) => schema.id !== selectedSchema.id)
+    const fallbackSchemaId = nextSchemas[0]?.id
+
+    onSettingsChange({
+      ...settings,
+      sourceSchemas: nextSchemas,
+      profiles: settings.profiles.map((profile) => profile.source?.schemaId === selectedSchema.id
+        ? {
+          ...profile,
+          source: {
+            type: profile.source?.type ?? 'csv',
+            ...(profile.source?.filePath ? { filePath: profile.source.filePath } : {}),
+            ...(fallbackSchemaId ? { schemaId: fallbackSchemaId } : {}),
+          },
+        }
+        : profile),
+    })
+  }
+
+  return (
+    <FormSection title='CSV schema' description='Define how APlay should understand the working CSV: delimiter, block detection, and entity column mappings.'>
+      <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr),auto,auto]'>
+        <label className='space-y-2'>
+          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile schema</span>
+          <select
+            value={selectedProfile?.source?.schemaId ?? selectedSchema?.id ?? ''}
+            onChange={(event) => attachSchemaToProfile(normalizeOptionalInput(event.target.value))}
+            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+          >
+            <option value=''>No schema selected</option>
+            {settings.sourceSchemas.map((schema) => (
+              <option key={schema.id} value={schema.id}>
+                {schema.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type='button'
+          onClick={addSchema}
+          className='self-end rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+        >
+          Add schema
+        </button>
+        <button
+          type='button'
+          onClick={removeSchema}
+          disabled={!selectedSchema || settings.sourceSchemas.length <= 1}
+          className='self-end rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+        >
+          Remove schema
+        </button>
+      </div>
+
+      {!selectedSchema ? (
+        <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+          No CSV schema is attached to the active profile.
+        </div>
+      ) : (
+        <>
+          <div className='grid gap-3 md:grid-cols-3'>
+            <label className='space-y-2 md:col-span-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Schema name</span>
+              <input
+                value={selectedSchema.name}
+                onChange={(event) => updateSelectedSchema((schema) => ({ ...schema, name: event.target.value }))}
+                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              />
+            </label>
+            <label className='space-y-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Delimiter</span>
+              <select
+                value={selectedSchema.delimiter}
+                onChange={(event) => updateSelectedSchema((schema) => ({ ...schema, delimiter: event.target.value }))}
+                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              >
+                <option value=';'>Semicolon (;)</option>
+                <option value=','>Comma (,)</option>
+              </select>
+            </label>
+          </div>
+
+          <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+            <input
+              type='checkbox'
+              checked={selectedSchema.hasHeader}
+              onChange={(event) => updateSelectedSchema((schema) => ({ ...schema, hasHeader: event.target.checked }))}
+              className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+            />
+            CSV has header row
+          </label>
+
+          <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Block detection</p>
+              <p className='mt-1 text-sm text-muted'>
+                Use one source column and a regex pattern to detect editorial block delimiters.
+              </p>
+            </div>
+            <div className='grid gap-3 md:grid-cols-2'>
+              <SchemaColumnField
+                label='Block source column'
+                value={selectedSchema.blockDetection.sourceColumn}
+                detectedColumns={detectedColumns}
+                onChange={(value) => updateSelectedSchema((schema) => ({
+                  ...schema,
+                  blockDetection: {
+                    ...schema.blockDetection,
+                    sourceColumn: value,
+                  },
+                }))}
+              />
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Block regex</span>
+                <input
+                  value={selectedSchema.blockDetection.pattern}
+                  onChange={(event) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    blockDetection: {
+                      ...schema.blockDetection,
+                      pattern: event.target.value,
+                    },
+                  }))}
+                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Detected header columns</p>
+              <p className='mt-1 text-sm text-muted'>
+                {detectedColumns.length > 0
+                  ? detectedColumns.join(' | ')
+                  : 'No readable header row detected yet. Column fields remain editable for manual input.'}
+              </p>
+            </div>
+          </div>
+
+          <div className='space-y-4'>
+            <CsvEntityMappingCard
+              title='Title'
+              enabled={selectedSchema.entityMappings.title.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  title: enabled
+                    ? {
+                      enabled: true,
+                      fields: schema.entityMappings.title.fields ?? { number: '', title: '' },
+                    }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <div className='grid gap-3 md:grid-cols-2'>
+                <SchemaColumnField
+                  label='Title number column'
+                  value={selectedSchema.entityMappings.title.fields?.number ?? ''}
+                  detectedColumns={detectedColumns}
+                  disabled={!selectedSchema.entityMappings.title.enabled}
+                  onChange={(value) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    entityMappings: {
+                      ...schema.entityMappings,
+                      title: {
+                        enabled: true,
+                        fields: {
+                          number: value,
+                          title: schema.entityMappings.title.fields?.title ?? '',
+                        },
+                      },
+                    },
+                  }))}
+                />
+                <SchemaColumnField
+                  label='Title text column'
+                  value={selectedSchema.entityMappings.title.fields?.title ?? ''}
+                  detectedColumns={detectedColumns}
+                  disabled={!selectedSchema.entityMappings.title.enabled}
+                  onChange={(value) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    entityMappings: {
+                      ...schema.entityMappings,
+                      title: {
+                        enabled: true,
+                        fields: {
+                          number: schema.entityMappings.title.fields?.number ?? '',
+                          title: value,
+                        },
+                      },
+                    },
+                  }))}
+                />
+              </div>
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Supertitle'
+              enabled={selectedSchema.entityMappings.supertitle.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  supertitle: enabled
+                    ? {
+                      enabled: true,
+                      fields: { text: schema.entityMappings.supertitle.fields?.text ?? '' },
+                    }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <SchemaColumnField
+                label='Supertitle value column'
+                value={selectedSchema.entityMappings.supertitle.fields?.text ?? ''}
+                detectedColumns={detectedColumns}
+                disabled={!selectedSchema.entityMappings.supertitle.enabled}
+                onChange={(value) => updateSelectedSchema((schema) => ({
+                  ...schema,
+                  entityMappings: {
+                    ...schema.entityMappings,
+                    supertitle: {
+                      enabled: true,
+                      fields: { text: value },
+                    },
+                  },
+                }))}
+              />
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Person'
+              enabled={selectedSchema.entityMappings.person.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  person: enabled
+                    ? {
+                      enabled: true,
+                      fields: schema.entityMappings.person.fields ?? { name: '', role: '' },
+                    }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <div className='grid gap-3 md:grid-cols-2'>
+                <SchemaColumnField
+                  label='Person name column'
+                  value={selectedSchema.entityMappings.person.fields?.name ?? ''}
+                  detectedColumns={detectedColumns}
+                  disabled={!selectedSchema.entityMappings.person.enabled}
+                  onChange={(value) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    entityMappings: {
+                      ...schema.entityMappings,
+                      person: {
+                        enabled: true,
+                        fields: {
+                          name: value,
+                          role: schema.entityMappings.person.fields?.role ?? '',
+                        },
+                      },
+                    },
+                  }))}
+                />
+                <SchemaColumnField
+                  label='Person role column'
+                  value={selectedSchema.entityMappings.person.fields?.role ?? ''}
+                  detectedColumns={detectedColumns}
+                  disabled={!selectedSchema.entityMappings.person.enabled}
+                  onChange={(value) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    entityMappings: {
+                      ...schema.entityMappings,
+                      person: {
+                        enabled: true,
+                        fields: {
+                          name: schema.entityMappings.person.fields?.name ?? '',
+                          role: value,
+                        },
+                      },
+                    },
+                  }))}
+                />
+              </div>
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Location'
+              enabled={selectedSchema.entityMappings.location.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  location: enabled
+                    ? { enabled: true, fields: { value: schema.entityMappings.location.fields?.value ?? '' } }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <SchemaColumnField
+                label='Location value column'
+                value={selectedSchema.entityMappings.location.fields?.value ?? ''}
+                detectedColumns={detectedColumns}
+                disabled={!selectedSchema.entityMappings.location.enabled}
+                onChange={(value) => updateSelectedSchema((schema) => ({
+                  ...schema,
+                  entityMappings: {
+                    ...schema.entityMappings,
+                    location: { enabled: true, fields: { value } },
+                  },
+                }))}
+              />
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Breaking News'
+              enabled={selectedSchema.entityMappings.breakingNews.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  breakingNews: enabled
+                    ? { enabled: true, fields: { value: schema.entityMappings.breakingNews.fields?.value ?? '' } }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <SchemaColumnField
+                label='BreakingNews value column'
+                value={selectedSchema.entityMappings.breakingNews.fields?.value ?? ''}
+                detectedColumns={detectedColumns}
+                disabled={!selectedSchema.entityMappings.breakingNews.enabled}
+                onChange={(value) => updateSelectedSchema((schema) => ({
+                  ...schema,
+                  entityMappings: {
+                    ...schema.entityMappings,
+                    breakingNews: { enabled: true, fields: { value } },
+                  },
+                }))}
+              />
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Waiting Title'
+              enabled={selectedSchema.entityMappings.waitingTitle.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  waitingTitle: enabled
+                    ? { enabled: true, fields: { value: schema.entityMappings.waitingTitle.fields?.value ?? '' } }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <SchemaColumnField
+                label='WaitingTitle value column'
+                value={selectedSchema.entityMappings.waitingTitle.fields?.value ?? ''}
+                detectedColumns={detectedColumns}
+                disabled={!selectedSchema.entityMappings.waitingTitle.enabled}
+                onChange={(value) => updateSelectedSchema((schema) => ({
+                  ...schema,
+                  entityMappings: {
+                    ...schema.entityMappings,
+                    waitingTitle: { enabled: true, fields: { value } },
+                  },
+                }))}
+              />
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Waiting Location'
+              enabled={selectedSchema.entityMappings.waitingLocation.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  waitingLocation: enabled
+                    ? { enabled: true, fields: { value: schema.entityMappings.waitingLocation.fields?.value ?? '' } }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <SchemaColumnField
+                label='WaitingLocation value column'
+                value={selectedSchema.entityMappings.waitingLocation.fields?.value ?? ''}
+                detectedColumns={detectedColumns}
+                disabled={!selectedSchema.entityMappings.waitingLocation.enabled}
+                onChange={(value) => updateSelectedSchema((schema) => ({
+                  ...schema,
+                  entityMappings: {
+                    ...schema.entityMappings,
+                    waitingLocation: { enabled: true, fields: { value } },
+                  },
+                }))}
+              />
+            </CsvEntityMappingCard>
+
+            <CsvEntityMappingCard
+              title='Phone'
+              enabled={selectedSchema.entityMappings.phone.enabled}
+              onToggle={(enabled) => updateSelectedSchema((schema) => ({
+                ...schema,
+                entityMappings: {
+                  ...schema.entityMappings,
+                  phone: enabled
+                    ? {
+                      enabled: true,
+                      fields: schema.entityMappings.phone.fields ?? { label: '', number: '' },
+                    }
+                    : { enabled: false },
+                },
+              }))}
+            >
+              <div className='grid gap-3 md:grid-cols-2'>
+                <SchemaColumnField
+                  label='Phone label column'
+                  value={selectedSchema.entityMappings.phone.fields?.label ?? ''}
+                  detectedColumns={detectedColumns}
+                  disabled={!selectedSchema.entityMappings.phone.enabled}
+                  onChange={(value) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    entityMappings: {
+                      ...schema.entityMappings,
+                      phone: {
+                        enabled: true,
+                        fields: {
+                          label: value,
+                          number: schema.entityMappings.phone.fields?.number ?? '',
+                        },
+                      },
+                    },
+                  }))}
+                />
+                <SchemaColumnField
+                  label='Phone value column'
+                  value={selectedSchema.entityMappings.phone.fields?.number ?? ''}
+                  detectedColumns={detectedColumns}
+                  disabled={!selectedSchema.entityMappings.phone.enabled}
+                  onChange={(value) => updateSelectedSchema((schema) => ({
+                    ...schema,
+                    entityMappings: {
+                      ...schema.entityMappings,
+                      phone: {
+                        enabled: true,
+                        fields: {
+                          label: schema.entityMappings.phone.fields?.label ?? '',
+                          number: value,
+                        },
+                      },
+                    },
+                  }))}
+                />
+              </div>
+            </CsvEntityMappingCard>
+          </div>
+
+          {validationMessages.length > 0 ? (
+            <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+              {validationMessages.join(' | ')}
+            </div>
+          ) : (
+            <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+              CSV schema is structurally valid.
+            </div>
+          )}
+        </>
+      )}
+    </FormSection>
+  )
+}
+
+function CsvEntityMappingCard({
+  title,
+  enabled,
+  onToggle,
+  children,
+}: PropsWithChildren<{
+  title: string
+  enabled: boolean
+  onToggle: (enabled: boolean) => void
+}>) {
+  return (
+    <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+      <div className='flex items-center justify-between gap-3'>
+        <div>
+          <p className='text-sm font-semibold text-ink'>{title}</p>
+          <p className='mt-1 text-xs uppercase tracking-[0.18em] text-muted'>
+            {enabled ? 'Mapping enabled' : 'Mapping disabled'}
+          </p>
+        </div>
+        <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
+          <input
+            type='checkbox'
+            checked={enabled}
+            onChange={(event) => onToggle(event.target.checked)}
+            className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+          />
+          Enable
+        </label>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function SchemaColumnField({
+  label,
+  value,
+  detectedColumns,
+  disabled,
+  onChange,
+}: {
+  label: string
+  value: string
+  detectedColumns: string[]
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <label className='space-y-2'>
+      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
+      {detectedColumns.length > 0 ? (
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
+        >
+          <option value=''>Select column</option>
+          {detectedColumns.map((column) => (
+            <option key={column} value={column}>
+              {column}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
+        />
+      )}
+    </label>
   )
 }
 

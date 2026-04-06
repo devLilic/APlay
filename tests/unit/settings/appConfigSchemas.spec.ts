@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   actionButtonConfigSchema,
   appSettingsSchema,
+  csvBlockDetectionConfigSchema,
+  csvSourceSchemaConfigSchema,
   graphicControlConfigSchema,
   graphicInstanceConfigSchema,
   previewElementDefinitionSchema,
@@ -10,6 +12,247 @@ import {
   referenceImageAssetSchema,
   showProfileConfigSchema,
 } from '@/settings/schemas/appConfigSchemas'
+
+describe('CsvSourceSchemaConfig schema', () => {
+  it('parses a configurable CSV source schema with delimiter, header, block detection, and entity mappings', () => {
+    expect(
+      csvSourceSchemaConfigSchema.parse({
+        id: 'csv-news-default',
+        name: 'News rundown CSV',
+        type: 'csv',
+        delimiter: ';',
+        hasHeader: true,
+        blockDetection: {
+          mode: 'columnRegex',
+          sourceColumn: 'Nr',
+          pattern: '^---\\s*(.+?)\\s*---$',
+        },
+        entityMappings: {
+          title: {
+            enabled: true,
+            fields: {
+              number: 'Nr',
+              title: 'Titlu',
+            },
+          },
+          supertitle: {
+            enabled: false,
+          },
+          person: {
+            enabled: true,
+            fields: {
+              name: 'Nume',
+              role: 'Functie',
+            },
+          },
+          location: {
+            enabled: true,
+            fields: {
+              value: 'Locatie',
+            },
+          },
+          breakingNews: {
+            enabled: true,
+            fields: {
+              value: 'Ultima Ora',
+            },
+          },
+          waitingTitle: {
+            enabled: true,
+            fields: {
+              value: 'Titlu Asteptare',
+            },
+          },
+          waitingLocation: {
+            enabled: true,
+            fields: {
+              value: 'Locatie Asteptare',
+            },
+          },
+          phone: {
+            enabled: false,
+          },
+        },
+      }),
+    ).toEqual({
+      id: 'csv-news-default',
+      name: 'News rundown CSV',
+      type: 'csv',
+      delimiter: ';',
+      hasHeader: true,
+      blockDetection: {
+        mode: 'columnRegex',
+        sourceColumn: 'Nr',
+        pattern: '^---\\s*(.+?)\\s*---$',
+      },
+      entityMappings: {
+        title: {
+          enabled: true,
+          fields: {
+            number: 'Nr',
+            title: 'Titlu',
+          },
+        },
+        supertitle: {
+          enabled: false,
+        },
+        person: {
+          enabled: true,
+          fields: {
+            name: 'Nume',
+            role: 'Functie',
+          },
+        },
+        location: {
+          enabled: true,
+          fields: {
+            value: 'Locatie',
+          },
+        },
+        breakingNews: {
+          enabled: true,
+          fields: {
+            value: 'Ultima Ora',
+          },
+        },
+        waitingTitle: {
+          enabled: true,
+          fields: {
+            value: 'Titlu Asteptare',
+          },
+        },
+        waitingLocation: {
+          enabled: true,
+          fields: {
+            value: 'Locatie Asteptare',
+          },
+        },
+        phone: {
+          enabled: false,
+        },
+      },
+    })
+  })
+})
+
+describe('CSV block detection config', () => {
+  it('parses block detection using a source column plus regex', () => {
+    expect(
+      csvBlockDetectionConfigSchema.parse({
+        mode: 'columnRegex',
+        sourceColumn: 'Nr',
+        pattern: '^---\\s*(.+?)\\s*---$',
+      }),
+    ).toEqual({
+      mode: 'columnRegex',
+      sourceColumn: 'Nr',
+      pattern: '^---\\s*(.+?)\\s*---$',
+    })
+  })
+
+  it('rejects invalid regex patterns safely', () => {
+    expect(() =>
+      csvBlockDetectionConfigSchema.parse({
+        mode: 'columnRegex',
+        sourceColumn: 'Nr',
+        pattern: '[',
+      }),
+    ).toThrow('pattern')
+  })
+})
+
+describe('CSV entity mapping config', () => {
+  it('allows optional disabled entity mappings without field definitions', () => {
+    expect(
+      csvSourceSchemaConfigSchema.parse({
+        id: 'csv-disabled-mappings',
+        name: 'Disabled mappings',
+        type: 'csv',
+        delimiter: ';',
+        hasHeader: true,
+        blockDetection: {
+          mode: 'columnRegex',
+          sourceColumn: 'Nr',
+          pattern: '^---\\s*(.+?)\\s*---$',
+        },
+        entityMappings: {
+          title: {
+            enabled: false,
+          },
+          supertitle: {
+            enabled: false,
+          },
+          person: {
+            enabled: false,
+          },
+          location: {
+            enabled: false,
+          },
+          breakingNews: {
+            enabled: false,
+          },
+          waitingTitle: {
+            enabled: false,
+          },
+          waitingLocation: {
+            enabled: false,
+          },
+          phone: {
+            enabled: false,
+          },
+        },
+      }).entityMappings.phone,
+    ).toEqual({
+      enabled: false,
+    })
+  })
+
+  it('requires required source columns when an entity mapping is enabled', () => {
+    expect(() =>
+      csvSourceSchemaConfigSchema.parse({
+        id: 'csv-invalid-title-mapping',
+        name: 'Invalid title mapping',
+        type: 'csv',
+        delimiter: ';',
+        hasHeader: true,
+        blockDetection: {
+          mode: 'columnRegex',
+          sourceColumn: 'Nr',
+          pattern: '^---\\s*(.+?)\\s*---$',
+        },
+        entityMappings: {
+          title: {
+            enabled: true,
+            fields: {
+              number: 'Nr',
+            },
+          },
+          supertitle: {
+            enabled: false,
+          },
+          person: {
+            enabled: false,
+          },
+          location: {
+            enabled: false,
+          },
+          breakingNews: {
+            enabled: false,
+          },
+          waitingTitle: {
+            enabled: false,
+          },
+          waitingLocation: {
+            enabled: false,
+          },
+          phone: {
+            enabled: false,
+          },
+        },
+      }),
+    ).toThrow('title')
+  })
+})
 
 describe('ReferenceImageAsset schema', () => {
   it('parses a reusable reference background image asset', () => {
@@ -451,6 +694,7 @@ describe('ShowProfileConfig schema', () => {
         source: {
           type: 'csv',
           filePath: 'C:\\APlay\\sources\\evening.csv',
+          schemaId: 'csv-news-default',
         },
         graphicConfigIds: ['title-main', 'person-lower-third'],
       }),
@@ -460,6 +704,7 @@ describe('ShowProfileConfig schema', () => {
       source: {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\evening.csv',
+        schemaId: 'csv-news-default',
       },
       graphicConfigIds: ['title-main', 'person-lower-third'],
     })
@@ -472,6 +717,7 @@ describe('ShowProfileConfig schema', () => {
         label: 'Morning News',
         source: {
           type: 'csv',
+          schemaId: 'csv-news-default',
         },
         graphicConfigIds: ['title-main'],
       }),
@@ -480,6 +726,7 @@ describe('ShowProfileConfig schema', () => {
       label: 'Morning News',
       source: {
         type: 'csv',
+        schemaId: 'csv-news-default',
       },
       graphicConfigIds: ['title-main'],
     })
@@ -525,6 +772,66 @@ describe('AppSettings/AppConfig schema', () => {
           filePath: 'C:\\APlay\\references\\title.png',
         },
       ],
+      sourceSchemas: [
+        {
+          id: 'csv-news-default',
+          name: 'News rundown CSV',
+          type: 'csv',
+          delimiter: ';',
+          hasHeader: true,
+          blockDetection: {
+            mode: 'columnRegex',
+            sourceColumn: 'Nr',
+            pattern: '^---\\s*(.+?)\\s*---$',
+          },
+          entityMappings: {
+            title: {
+              enabled: true,
+              fields: {
+                number: 'Nr',
+                title: 'Titlu',
+              },
+            },
+            supertitle: {
+              enabled: false,
+            },
+            person: {
+              enabled: true,
+              fields: {
+                name: 'Nume',
+                role: 'Functie',
+              },
+            },
+            location: {
+              enabled: true,
+              fields: {
+                value: 'Locatie',
+              },
+            },
+            breakingNews: {
+              enabled: true,
+              fields: {
+                value: 'Ultima Ora',
+              },
+            },
+            waitingTitle: {
+              enabled: true,
+              fields: {
+                value: 'Titlu Asteptare',
+              },
+            },
+            waitingLocation: {
+              enabled: true,
+              fields: {
+                value: 'Locatie Asteptare',
+              },
+            },
+            phone: {
+              enabled: false,
+            },
+          },
+        },
+      ],
       profiles: [
         {
           id: 'news-evening',
@@ -532,6 +839,7 @@ describe('AppSettings/AppConfig schema', () => {
           source: {
             type: 'csv',
             filePath: 'C:\\APlay\\sources\\evening.csv',
+            schemaId: 'csv-news-default',
           },
           graphicConfigIds: ['title-main', 'person-lower-third'],
         },
@@ -613,9 +921,11 @@ describe('AppSettings/AppConfig schema', () => {
         filePath: 'C:\\APlay\\references\\title.png',
       },
     ])
+    expect(parsed.sourceSchemas[0]?.id).toBe('csv-news-default')
     expect(parsed.profiles[0]?.source).toEqual({
       type: 'csv',
       filePath: 'C:\\APlay\\sources\\evening.csv',
+      schemaId: 'csv-news-default',
     })
     expect(parsed.profiles[0]?.graphicConfigIds).toEqual(['title-main', 'person-lower-third'])
     expect(parsed.graphics.map((graphic) => graphic.id)).toEqual(['title-main', 'person-lower-third'])
@@ -631,6 +941,7 @@ describe('AppSettings/AppConfig schema', () => {
     expect(() =>
       appSettingsSchema.parse({
         selectedProfileId: 'missing',
+        sourceSchemas: [],
         profiles: [
           {
             id: 'news-evening',
@@ -681,6 +992,7 @@ describe('AppSettings/AppConfig schema', () => {
     expect(() =>
       appSettingsSchema.parse({
         selectedProfileId: 'news-evening',
+        sourceSchemas: [],
         profiles: [
           {
             id: 'news-evening',
@@ -691,5 +1003,90 @@ describe('AppSettings/AppConfig schema', () => {
         graphics: [],
       }),
     ).toThrow('missing-graphic')
+  })
+
+  it('keeps CSV schema association separate from preview, OSC, and publish config', () => {
+    const parsed = appSettingsSchema.parse({
+      selectedProfileId: 'news-evening',
+      sourceSchemas: [
+        {
+          id: 'csv-news-default',
+          name: 'News rundown CSV',
+          type: 'csv',
+          delimiter: ';',
+          hasHeader: true,
+          blockDetection: {
+            mode: 'columnRegex',
+            sourceColumn: 'Nr',
+            pattern: '^---\\s*(.+?)\\s*---$',
+          },
+          entityMappings: {
+            title: {
+              enabled: true,
+              fields: {
+                number: 'Nr',
+                title: 'Titlu',
+              },
+            },
+            supertitle: { enabled: false },
+            person: { enabled: false },
+            location: { enabled: false },
+            breakingNews: { enabled: false },
+            waitingTitle: { enabled: false },
+            waitingLocation: { enabled: false },
+            phone: { enabled: false },
+          },
+        },
+      ],
+      profiles: [
+        {
+          id: 'news-evening',
+          label: 'Evening News',
+          source: {
+            type: 'csv',
+            filePath: 'C:\\APlay\\sources\\evening.csv',
+            schemaId: 'csv-news-default',
+          },
+          graphicConfigIds: ['title-main'],
+        },
+      ],
+      graphics: [
+        {
+          id: 'title-main',
+          entityType: 'title',
+          dataFileName: 'title.json',
+          datasourcePath: 'datasources/title.json',
+          control: {
+            play: '/graphics/title/play',
+            stop: '/graphics/title/stop',
+            resume: '/graphics/title/resume',
+          },
+          preview: {
+            id: 'title-preview',
+            designWidth: 1920,
+            designHeight: 1080,
+            elements: [
+              {
+                id: 'headline',
+                kind: 'text',
+                sourceField: 'text',
+                box: {
+                  x: 100,
+                  y: 100,
+                  width: 800,
+                  height: 180,
+                },
+              },
+            ],
+          },
+          bindings: [{ sourceField: 'text', targetField: 'headline', required: true }],
+          actions: [{ actionType: 'playGraphic', label: 'Play' }],
+        },
+      ],
+    })
+
+    expect(parsed.sourceSchemas[0]).not.toHaveProperty('preview')
+    expect(parsed.sourceSchemas[0]).not.toHaveProperty('control')
+    expect(parsed.sourceSchemas[0]).not.toHaveProperty('bindings')
   })
 })

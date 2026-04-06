@@ -1,4 +1,5 @@
 import type { EditorialDocument } from '@/core/models/editorial'
+import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
 import {
   SchemaValidationError,
   assertRecord,
@@ -16,6 +17,7 @@ export type ContentSourceDiagnosticCode = 'missing-column' | 'malformed-csv-row'
 export interface ContentSourceInput {
   fileName: string
   content: string
+  schema?: CsvSourceSchemaConfig
 }
 
 export interface ContentSourceDiagnostic {

@@ -16,6 +16,66 @@ const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
 export const sampleSettings: AppSettings = {
   selectedProfileId: 'default-news',
   referenceImages: [],
+  sourceSchemas: [
+    {
+      id: 'csv-default-news',
+      name: 'Default news CSV',
+      type: 'csv',
+      delimiter: ';',
+      hasHeader: true,
+      blockDetection: {
+        mode: 'columnRegex',
+        sourceColumn: 'Nr',
+        pattern: '^---\\s*(.+?)\\s*---$',
+      },
+      entityMappings: {
+        title: {
+          enabled: true,
+          fields: {
+            number: 'Nr',
+            title: 'Titlu',
+          },
+        },
+        supertitle: {
+          enabled: false,
+        },
+        person: {
+          enabled: true,
+          fields: {
+            name: 'Nume',
+            role: 'Functie',
+          },
+        },
+        location: {
+          enabled: true,
+          fields: {
+            value: 'Locatie',
+          },
+        },
+        breakingNews: {
+          enabled: true,
+          fields: {
+            value: 'Ultima Ora',
+          },
+        },
+        waitingTitle: {
+          enabled: true,
+          fields: {
+            value: 'Titlu Asteptare',
+          },
+        },
+        waitingLocation: {
+          enabled: true,
+          fields: {
+            value: 'Locatie Asteptare',
+          },
+        },
+        phone: {
+          enabled: false,
+        },
+      },
+    },
+  ],
   profiles: [
     {
       id: 'default-news',
@@ -23,6 +83,7 @@ export const sampleSettings: AppSettings = {
       source: {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\default-news.csv',
+        schemaId: 'csv-default-news',
       },
       graphicConfigIds: [
         'title-main',

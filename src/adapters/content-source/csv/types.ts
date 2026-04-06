@@ -1,4 +1,7 @@
+import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
+
 export interface CsvParseOptions {
+  schema?: CsvSourceSchemaConfig
   expectedColumnsByGraphicId?: Record<string, string[]>
 }
 

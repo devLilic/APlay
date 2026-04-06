@@ -59,6 +59,7 @@ function createDefaultSettingsDocument(): AppSettings {
   return {
     selectedProfileId: 'default',
     referenceImages: [],
+    sourceSchemas: [],
     profiles: [
       {
         id: 'default',
@@ -82,6 +83,7 @@ function normalizePersistedSettings(input: unknown): unknown {
 
   return {
     referenceImages: [],
+    sourceSchemas: [],
     profiles: [],
     graphics: [],
     ...value,

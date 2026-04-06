@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { AppSettings } from '@/settings/models/appConfig'
+import type { AppSettings, CsvSourceSchemaConfig } from '@/settings/models/appConfig'
 import type {
   ContentSourceAdapter,
   ContentSourceDiagnostic,
@@ -35,9 +35,71 @@ const csvDocument = {
   ],
 }
 
+const defaultCsvSchema: CsvSourceSchemaConfig = {
+  id: 'csv-default-news',
+  name: 'Default News CSV',
+  type: 'csv',
+  delimiter: ';',
+  hasHeader: true,
+  blockDetection: {
+    mode: 'columnRegex',
+    sourceColumn: 'Nr',
+    pattern: '^---\\s*(.+?)\\s*---$',
+  },
+  entityMappings: {
+    title: {
+      enabled: true,
+      fields: {
+        number: 'Nr',
+        title: 'Titlu',
+      },
+    },
+    supertitle: {
+      enabled: false,
+    },
+    person: {
+      enabled: true,
+      fields: {
+        name: 'Nume',
+        role: 'Functie',
+      },
+    },
+    location: {
+      enabled: true,
+      fields: {
+        value: 'Locatie',
+      },
+    },
+    breakingNews: {
+      enabled: true,
+      fields: {
+        value: 'Ultima Ora',
+      },
+    },
+    waitingTitle: {
+      enabled: true,
+      fields: {
+        value: 'Titlu Asteptare',
+      },
+    },
+    waitingLocation: {
+      enabled: true,
+      fields: {
+        value: 'Locatie Asteptare',
+      },
+    },
+    phone: {
+      enabled: false,
+    },
+  },
+}
+
 const csvSettings: AppSettings = {
   selectedProfileId: 'morning',
   referenceImages: [],
+  sourceSchemas: [
+    defaultCsvSchema,
+  ],
   profiles: [
     {
       id: 'morning',
@@ -45,6 +107,7 @@ const csvSettings: AppSettings = {
       source: {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\morning.csv',
+        schemaId: 'csv-default-news',
       },
       graphicConfigIds: [],
     },
@@ -54,6 +117,7 @@ const csvSettings: AppSettings = {
       source: {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\special.csv',
+        schemaId: 'csv-default-news',
       },
       graphicConfigIds: [],
     },
@@ -92,10 +156,20 @@ describe('active profile source resolution', () => {
       source: {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\morning.csv',
+        schemaId: 'csv-default-news',
       },
       activeSourceFilePath: 'C:\\APlay\\sources\\morning.csv',
+      sourceSchema: defaultCsvSchema,
       diagnostics: [],
     })
+  })
+
+  it('keeps source file path and schema association as separate concerns', () => {
+    const resolution = resolveActiveProfileSourceConfig(csvSettings)
+
+    expect(resolution.activeSourceFilePath).toBe('C:\\APlay\\sources\\morning.csv')
+    expect(resolution.source?.schemaId).toBe('csv-default-news')
+    expect(resolution.sourceSchema).toEqual(defaultCsvSchema)
   })
 })
 
@@ -138,6 +212,57 @@ describe('profile content source loader', () => {
     expect(csvLoad).toHaveBeenCalledWith({
       fileName: 'morning.csv',
       content: 'number,title\n1,Morning Briefing',
+      schema: defaultCsvSchema,
+    })
+  })
+
+  it('switching active profile switches both the source file and the resolved schema', () => {
+    const alternateSchema: CsvSourceSchemaConfig = {
+      ...defaultCsvSchema,
+      id: 'csv-special',
+      name: 'Special CSV',
+      delimiter: ',',
+    }
+    const settings: AppSettings = {
+      ...csvSettings,
+      sourceSchemas: [defaultCsvSchema, alternateSchema],
+      profiles: [
+        csvSettings.profiles[0],
+        {
+          ...csvSettings.profiles[1],
+          source: {
+            type: 'csv',
+            filePath: 'C:\\APlay\\sources\\special.csv',
+            schemaId: 'csv-special',
+          },
+        },
+        csvSettings.profiles[2],
+      ],
+    }
+    const csvLoad = vi.fn(() => ({
+      document: csvDocument,
+      diagnostics: [],
+    }))
+    const loader = createProfileContentSourceLoader({
+      adapters: [createAdapter('csv', csvLoad)],
+      readSourceFile: (filePath) => `loaded:${filePath}`,
+    })
+
+    loader.loadActiveProfileSource(settings)
+    loader.loadActiveProfileSource({
+      ...settings,
+      selectedProfileId: 'special',
+    })
+
+    expect(csvLoad).toHaveBeenNthCalledWith(1, {
+      fileName: 'morning.csv',
+      content: 'loaded:C:\\APlay\\sources\\morning.csv',
+      schema: defaultCsvSchema,
+    })
+    expect(csvLoad).toHaveBeenNthCalledWith(2, {
+      fileName: 'special.csv',
+      content: 'loaded:C:\\APlay\\sources\\special.csv',
+      schema: alternateSchema,
     })
   })
 
@@ -223,6 +348,34 @@ describe('profile content source loader', () => {
         severity: 'error',
         code: 'missing-source-file-path',
         message: 'Show profile "draft" has no source file selected.',
+      },
+    ])
+  })
+
+  it('handles a missing schema safely for a CSV profile', () => {
+    const loader = createProfileContentSourceLoader({
+      adapters: [createAdapter('csv', () => ({
+        document: csvDocument,
+        diagnostics: [],
+      }))],
+      readSourceFile: vi.fn(),
+    })
+
+    const result = loader.loadActiveProfileSource({
+      ...csvSettings,
+      sourceSchemas: [],
+    })
+
+    expect(result.document).toEqual({ blocks: [] })
+    expect(result.diagnostics).toEqual([
+      {
+        severity: 'error',
+        code: 'missing-source-schema',
+        message: 'CSV schema could not be resolved for profile "morning".',
+        details: {
+          schemaId: 'csv-default-news',
+          sourceType: 'csv',
+        },
       },
     ])
   })

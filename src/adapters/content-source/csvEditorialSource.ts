@@ -20,7 +20,10 @@ export function createCsvEditorialSourceAdapter(
     id: 'csv-editorial',
     format: 'csv',
     load(source: ContentSourceInput): ContentSourceLoadResult {
-      const parsed = parseCsvEditorialDocumentContent(source.content, options)
+      const parsed = parseCsvEditorialDocumentContent(source.content, {
+        ...options,
+        schema: source.schema ?? options?.schema,
+      })
       return {
         ...parsed,
         source,

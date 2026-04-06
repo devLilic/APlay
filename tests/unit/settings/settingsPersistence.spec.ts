@@ -19,6 +19,66 @@ const baseSettings = {
       filePath: 'C:\\APlay\\references\\person.png',
     },
   ],
+  sourceSchemas: [
+    {
+      id: 'csv-news-default',
+      name: 'News rundown CSV',
+      type: 'csv',
+      delimiter: ';',
+      hasHeader: true,
+      blockDetection: {
+        mode: 'columnRegex',
+        sourceColumn: 'Nr',
+        pattern: '^---\\s*(.+?)\\s*---$',
+      },
+      entityMappings: {
+        title: {
+          enabled: true,
+          fields: {
+            number: 'Nr',
+            title: 'Titlu',
+          },
+        },
+        supertitle: {
+          enabled: false,
+        },
+        person: {
+          enabled: true,
+          fields: {
+            name: 'Nume',
+            role: 'Functie',
+          },
+        },
+        location: {
+          enabled: true,
+          fields: {
+            value: 'Locatie',
+          },
+        },
+        breakingNews: {
+          enabled: true,
+          fields: {
+            value: 'Ultima Ora',
+          },
+        },
+        waitingTitle: {
+          enabled: true,
+          fields: {
+            value: 'Titlu Asteptare',
+          },
+        },
+        waitingLocation: {
+          enabled: true,
+          fields: {
+            value: 'Locatie Asteptare',
+          },
+        },
+        phone: {
+          enabled: false,
+        },
+      },
+    },
+  ],
   profiles: [
     {
       id: 'news-am',
@@ -26,6 +86,7 @@ const baseSettings = {
       source: {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\morning.csv',
+        schemaId: 'csv-news-default',
       },
       graphicConfigIds: ['title-main', 'person-lower-third'],
     },
@@ -34,6 +95,7 @@ const baseSettings = {
       label: 'Evening News',
       source: {
         type: 'csv',
+        schemaId: 'csv-news-default',
       },
       graphicConfigIds: ['breaking-main'],
     },
@@ -147,6 +209,15 @@ describe('settings storage load/save', () => {
     expect(repository.load()).toEqual(appSettingsSchema.parse(baseSettings))
   })
 
+  it('persists and reloads configurable CSV source schemas through storage', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().sourceSchemas).toEqual(appSettingsSchema.parse(baseSettings).sourceSchemas)
+  })
+
   it('stores reusable reference images in the settings document', () => {
     const storage = createInMemorySettingsStorage()
     const repository = createSettingsRepository(storage)
@@ -194,6 +265,7 @@ describe('show profile definition and lookup', () => {
       label: 'Evening News',
       source: {
         type: 'csv',
+        schemaId: 'csv-news-default',
       },
       graphicConfigIds: ['breaking-main'],
     })
@@ -237,6 +309,7 @@ describe('profile source file persistence', () => {
     expect(repository.load().profiles.find((profile) => profile.id === 'news-am')?.source).toEqual({
       type: 'csv',
       filePath: 'C:\\APlay\\sources\\morning.csv',
+      schemaId: 'csv-news-default',
     })
   })
 
@@ -254,6 +327,7 @@ describe('profile source file persistence', () => {
     expect(loaded.selectedProfileId).toBe('news-pm')
     expect(loaded.profiles.find((profile) => profile.id === loaded.selectedProfileId)?.source).toEqual({
       type: 'csv',
+      schemaId: 'csv-news-default',
     })
   })
 
@@ -265,7 +339,24 @@ describe('profile source file persistence', () => {
 
     expect(repository.load().profiles.find((profile) => profile.id === 'news-pm')?.source).toEqual({
       type: 'csv',
+      schemaId: 'csv-news-default',
     })
+  })
+})
+
+describe('CSV schema association persistence', () => {
+  it('keeps source file path and schema reference as separate persisted concerns', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().profiles.find((profile) => profile.id === 'news-am')?.source).toEqual({
+      type: 'csv',
+      filePath: 'C:\\APlay\\sources\\morning.csv',
+      schemaId: 'csv-news-default',
+    })
+    expect(repository.load().sourceSchemas[0]?.id).toBe('csv-news-default')
   })
 })
 

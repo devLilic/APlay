@@ -6,6 +6,7 @@ import type {
 } from '@/adapters/content-source/contracts'
 import type {
   AppSettings,
+  CsvSourceSchemaConfig,
   ContentSourceType,
   ShowProfileConfig,
   ShowProfileSourceConfig,
@@ -15,6 +16,7 @@ import { resolveActiveProfileSource } from '@/settings/utils/profileSources'
 export type ProfileContentSourceDiagnosticCode =
   | ContentSourceDiagnostic['code']
   | 'missing-source'
+  | 'missing-source-schema'
   | 'missing-source-file-path'
   | 'invalid-source-file-path'
   | 'unsupported-source-type'
@@ -32,6 +34,7 @@ export interface ProfileContentSourceLoadResult {
   profile: ShowProfileConfig
   source?: ShowProfileSourceConfig
   activeSourceFilePath?: string
+  sourceSchema?: CsvSourceSchemaConfig
   document: EditorialDocument
   diagnostics: ProfileContentSourceDiagnostic[]
 }
@@ -81,6 +84,7 @@ export function createProfileContentSourceLoader(
         return {
           profile: sourceResolution.profile,
           source: sourceResolution.source,
+          sourceSchema: sourceResolution.sourceSchema,
           document: createEmptyEditorialDocument(),
           diagnostics: [
             {
@@ -92,10 +96,31 @@ export function createProfileContentSourceLoader(
         }
       }
 
+      if (sourceResolution.source.type === 'csv' && !sourceResolution.sourceSchema) {
+        return {
+          profile: sourceResolution.profile,
+          source: sourceResolution.source,
+          activeSourceFilePath: sourceResolution.activeSourceFilePath,
+          document: createEmptyEditorialDocument(),
+          diagnostics: [
+            {
+              severity: 'error',
+              code: 'missing-source-schema',
+              message: `CSV schema could not be resolved for profile "${sourceResolution.profile.id}".`,
+              details: {
+                schemaId: sourceResolution.source.schemaId,
+                sourceType: sourceResolution.source.type,
+              },
+            },
+          ],
+        }
+      }
+
       if (!isValidSourceFilePath(sourceResolution.activeSourceFilePath, sourceResolution.source.type)) {
         return {
           profile: sourceResolution.profile,
           source: sourceResolution.source,
+          sourceSchema: sourceResolution.sourceSchema,
           activeSourceFilePath: sourceResolution.activeSourceFilePath,
           document: createEmptyEditorialDocument(),
           diagnostics: [
@@ -117,6 +142,7 @@ export function createProfileContentSourceLoader(
         return {
           profile: sourceResolution.profile,
           source: sourceResolution.source,
+          sourceSchema: sourceResolution.sourceSchema,
           activeSourceFilePath: sourceResolution.activeSourceFilePath,
           document: createEmptyEditorialDocument(),
           diagnostics: [
@@ -136,11 +162,13 @@ export function createProfileContentSourceLoader(
           const loaded = adapter.load({
             fileName: getFileNameFromPath(sourceResolution.activeSourceFilePath),
             content,
+            schema: sourceResolution.sourceSchema,
           })
 
           return {
             profile: sourceResolution.profile,
             source: sourceResolution.source,
+            sourceSchema: sourceResolution.sourceSchema,
             activeSourceFilePath: sourceResolution.activeSourceFilePath,
             document: loaded.document,
             diagnostics: loaded.diagnostics.map((diagnostic) => ({
@@ -154,6 +182,7 @@ export function createProfileContentSourceLoader(
           return {
             profile: sourceResolution.profile,
             source: sourceResolution.source,
+            sourceSchema: sourceResolution.sourceSchema,
             activeSourceFilePath: sourceResolution.activeSourceFilePath,
             document: createEmptyEditorialDocument(),
             diagnostics: [
@@ -173,6 +202,7 @@ export function createProfileContentSourceLoader(
         return {
           profile: sourceResolution.profile,
           source: sourceResolution.source,
+          sourceSchema: sourceResolution.sourceSchema,
           activeSourceFilePath: sourceResolution.activeSourceFilePath,
           document: createEmptyEditorialDocument(),
           diagnostics: [

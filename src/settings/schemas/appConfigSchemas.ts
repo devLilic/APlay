@@ -4,6 +4,9 @@ import type {
   ActionButtonConfig,
   AppConfig,
   AppSettings,
+  CsvBlockDetectionConfig,
+  CsvEntityMappingConfig,
+  CsvSourceSchemaConfig,
   GraphicFieldBinding,
   GraphicControlConfig,
   GraphicInstanceConfig,
@@ -40,6 +43,8 @@ const previewElementKinds = ['text', 'box', 'image'] as const
 const previewBackgroundFitModes = ['contain', 'cover'] as const
 const previewBackgroundPositions = ['center'] as const
 const contentSourceTypes = ['csv'] as const
+const sourceSchemaTypes = ['csv'] as const
+const csvBlockDetectionModes = ['columnRegex'] as const
 const previewTextAlignValues = ['left', 'center'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
@@ -246,6 +251,67 @@ export const graphicFieldBindingSchema = createSchema<GraphicFieldBinding>((inpu
   }
 })
 
+export const csvBlockDetectionConfigSchema = createSchema<CsvBlockDetectionConfig>((input) => {
+  const value = assertRecord(input, 'csvBlockDetectionConfig')
+  const pattern = parseRequiredString(value, 'pattern', 'csvBlockDetectionConfig')
+
+  try {
+    // Validate once so malformed patterns fail early in settings, not at parse time.
+    new RegExp(pattern)
+  } catch {
+    throw new SchemaValidationError('csvBlockDetectionConfig.pattern must be a valid regex')
+  }
+
+  return {
+    mode: parseEnumValue(
+      value.mode,
+      csvBlockDetectionModes,
+      'csvBlockDetectionConfig',
+      'mode',
+    ),
+    sourceColumn: parseRequiredString(value, 'sourceColumn', 'csvBlockDetectionConfig'),
+    pattern,
+  }
+})
+
+export const csvEntityMappingConfigSchema = createSchema<CsvEntityMappingConfig>((input) => {
+  const value = assertRecord(input, 'csvEntityMappingConfig')
+
+  return {
+    title: parseTitleMapping(assertRecord(value.title, 'csvEntityMappingConfig.title')),
+    supertitle: parseSupertitleMapping(assertRecord(value.supertitle, 'csvEntityMappingConfig.supertitle')),
+    person: parsePersonMapping(assertRecord(value.person, 'csvEntityMappingConfig.person')),
+    location: parseValueMapping(assertRecord(value.location, 'csvEntityMappingConfig.location'), 'location'),
+    breakingNews: parseValueMapping(assertRecord(value.breakingNews, 'csvEntityMappingConfig.breakingNews'), 'breakingNews'),
+    waitingTitle: parseValueMapping(assertRecord(value.waitingTitle, 'csvEntityMappingConfig.waitingTitle'), 'waitingTitle'),
+    waitingLocation: parseValueMapping(assertRecord(value.waitingLocation, 'csvEntityMappingConfig.waitingLocation'), 'waitingLocation'),
+    phone: parsePhoneMapping(assertRecord(value.phone, 'csvEntityMappingConfig.phone')),
+  }
+})
+
+export const csvSourceSchemaConfigSchema = createSchema<CsvSourceSchemaConfig>((input) => {
+  const value = assertRecord(input, 'csvSourceSchemaConfig')
+  const delimiter = parseRequiredString(value, 'delimiter', 'csvSourceSchemaConfig')
+  if (delimiter.trim().length === 0) {
+    throw new SchemaValidationError('csvSourceSchemaConfig.delimiter must be a non-empty string')
+  }
+
+  return {
+    id: parseRequiredString(value, 'id', 'csvSourceSchemaConfig'),
+    name: parseRequiredString(value, 'name', 'csvSourceSchemaConfig'),
+    type: parseEnumValue(
+      value.type,
+      sourceSchemaTypes,
+      'csvSourceSchemaConfig',
+      'type',
+    ),
+    delimiter,
+    hasHeader: parseOptionalBoolean(value, 'hasHeader', 'csvSourceSchemaConfig') ?? false,
+    blockDetection: csvBlockDetectionConfigSchema.parse(value.blockDetection),
+    entityMappings: csvEntityMappingConfigSchema.parse(value.entityMappings),
+  }
+})
+
 export const previewTemplateDefinitionSchema = createSchema<PreviewTemplateDefinition>((input) => {
   const value = assertRecord(input, 'previewTemplateDefinition')
   const elements = parseRequiredArray(value, 'elements', 'previewTemplateDefinition').map(
@@ -300,6 +366,7 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
 export const showProfileSourceConfigSchema = createSchema<ShowProfileSourceConfig>((input) => {
   const value = assertRecord(input, 'showProfileConfig.source')
   const filePath = parseOptionalString(value, 'filePath', 'showProfileConfig.source')
+  const schemaId = parseOptionalString(value, 'schemaId', 'showProfileConfig.source')
 
   if (filePath && !isSafeContentSourcePath(filePath)) {
     throw new SchemaValidationError('showProfileConfig.source.filePath must be a valid non-empty file path when provided')
@@ -313,6 +380,7 @@ export const showProfileSourceConfigSchema = createSchema<ShowProfileSourceConfi
       'type',
     ),
     ...(filePath ? { filePath } : {}),
+    ...(schemaId ? { schemaId } : {}),
   }
 })
 
@@ -347,6 +415,11 @@ export const appSettingsSchema = createSchema<AppSettings>((input) => {
     : parseRequiredArray(value, 'referenceImages', 'appSettings').map((referenceImage) =>
       referenceImageAssetSchema.parse(referenceImage),
     )) as ReferenceImageAsset[]
+  const sourceSchemas = (value.sourceSchemas === undefined
+    ? []
+    : parseRequiredArray(value, 'sourceSchemas', 'appSettings').map((sourceSchema) =>
+      csvSourceSchemaConfigSchema.parse(sourceSchema),
+    )) as CsvSourceSchemaConfig[]
   const profiles = parseRequiredArray(value, 'profiles', 'appSettings').map((profile) =>
     showProfileConfigSchema.parse(profile),
   )
@@ -358,6 +431,16 @@ export const appSettingsSchema = createSchema<AppSettings>((input) => {
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
   if (!selectedProfile) {
     throw new SchemaValidationError(`appSettings.selectedProfileId references unknown profile: ${selectedProfileId}`)
+  }
+
+  const availableSourceSchemaIds = new Set(sourceSchemas.map((sourceSchema) => sourceSchema.id))
+  for (const profile of profiles) {
+    const schemaId = profile.source?.schemaId
+    if (schemaId && !availableSourceSchemaIds.has(schemaId)) {
+      throw new SchemaValidationError(
+        `appSettings profile "${profile.id}" references unknown source schema: ${schemaId}`,
+      )
+    }
   }
 
   const availableGraphicIds = new Set(graphics.map((graphic) => graphic.id))
@@ -374,6 +457,7 @@ export const appSettingsSchema = createSchema<AppSettings>((input) => {
   return {
     selectedProfileId,
     referenceImages,
+    sourceSchemas,
     profiles,
     graphics,
   }
@@ -401,4 +485,107 @@ function isSafeContentSourcePath(filePath: string): boolean {
   }
 
   return !/[<>:"|?*]/.test(normalizedPath.replace(/^[a-zA-Z]:\\/, ''))
+}
+
+function parseTitleMapping(value: Record<string, unknown>) {
+  const enabled = parseOptionalBoolean(value, 'enabled', 'csvEntityMappingConfig.title')
+  if (enabled === undefined) {
+    throw new SchemaValidationError('csvEntityMappingConfig.title.enabled is required')
+  }
+
+  if (!enabled) {
+    return { enabled: false }
+  }
+
+  const fields = assertRecord(value.fields, 'csvEntityMappingConfig.title.fields')
+
+  return {
+    enabled: true,
+    fields: {
+      number: parseRequiredString(fields, 'number', 'csvEntityMappingConfig.title.fields'),
+      title: parseRequiredString(fields, 'title', 'csvEntityMappingConfig.title.fields'),
+    },
+  }
+}
+
+function parseSupertitleMapping(value: Record<string, unknown>) {
+  const enabled = parseOptionalBoolean(value, 'enabled', 'csvEntityMappingConfig.supertitle')
+  if (enabled === undefined) {
+    throw new SchemaValidationError('csvEntityMappingConfig.supertitle.enabled is required')
+  }
+
+  if (!enabled) {
+    return { enabled: false }
+  }
+
+  const fields = assertRecord(value.fields, 'csvEntityMappingConfig.supertitle.fields')
+
+  return {
+    enabled: true,
+    fields: {
+      text: parseRequiredString(fields, 'text', 'csvEntityMappingConfig.supertitle.fields'),
+    },
+  }
+}
+
+function parsePersonMapping(value: Record<string, unknown>) {
+  const enabled = parseOptionalBoolean(value, 'enabled', 'csvEntityMappingConfig.person')
+  if (enabled === undefined) {
+    throw new SchemaValidationError('csvEntityMappingConfig.person.enabled is required')
+  }
+
+  if (!enabled) {
+    return { enabled: false }
+  }
+
+  const fields = assertRecord(value.fields, 'csvEntityMappingConfig.person.fields')
+
+  return {
+    enabled: true,
+    fields: {
+      name: parseRequiredString(fields, 'name', 'csvEntityMappingConfig.person.fields'),
+      role: parseRequiredString(fields, 'role', 'csvEntityMappingConfig.person.fields'),
+    },
+  }
+}
+
+function parseValueMapping(value: Record<string, unknown>, contextKey: string) {
+  const enabled = parseOptionalBoolean(value, 'enabled', `csvEntityMappingConfig.${contextKey}`)
+  if (enabled === undefined) {
+    throw new SchemaValidationError(`csvEntityMappingConfig.${contextKey}.enabled is required`)
+  }
+
+  if (!enabled) {
+    return { enabled: false }
+  }
+
+  const fields = assertRecord(value.fields, `csvEntityMappingConfig.${contextKey}.fields`)
+
+  return {
+    enabled: true,
+    fields: {
+      value: parseRequiredString(fields, 'value', `csvEntityMappingConfig.${contextKey}.fields`),
+    },
+  }
+}
+
+function parsePhoneMapping(value: Record<string, unknown>) {
+  const enabled = parseOptionalBoolean(value, 'enabled', 'csvEntityMappingConfig.phone')
+  if (enabled === undefined) {
+    throw new SchemaValidationError('csvEntityMappingConfig.phone.enabled is required')
+  }
+
+  if (!enabled) {
+    return { enabled: false }
+  }
+
+  const fields = assertRecord(value.fields, 'csvEntityMappingConfig.phone.fields')
+
+  return {
+    enabled: true,
+    fields: {
+      label: parseRequiredString(fields, 'label', 'csvEntityMappingConfig.phone.fields'),
+      number: parseRequiredString(fields, 'number', 'csvEntityMappingConfig.phone.fields'),
+    },
+  }
 }

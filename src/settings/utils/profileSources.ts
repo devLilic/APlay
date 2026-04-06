@@ -1,9 +1,15 @@
-import type { AppSettings, ShowProfileConfig, ShowProfileSourceConfig } from '@/settings/models/appConfig'
+import type {
+  AppSettings,
+  CsvSourceSchemaConfig,
+  ShowProfileConfig,
+  ShowProfileSourceConfig,
+} from '@/settings/models/appConfig'
 
 export interface ActiveProfileSourceResolution {
   profile: ShowProfileConfig
   source?: ShowProfileSourceConfig
   activeSourceFilePath?: string
+  sourceSchema?: CsvSourceSchemaConfig
   diagnostics: string[]
 }
 
@@ -16,11 +22,12 @@ export function resolveActiveProfileSource(
     throw new Error(`Unknown show profile: ${settings.selectedProfileId}`)
   }
 
-  return resolveProfileSource(profile)
+  return resolveProfileSource(profile, settings.sourceSchemas)
 }
 
 export function resolveProfileSource(
   profile: ShowProfileConfig,
+  sourceSchemas: CsvSourceSchemaConfig[] = [],
 ): ActiveProfileSourceResolution {
   const source = profile.source
 
@@ -31,10 +38,13 @@ export function resolveProfileSource(
     }
   }
 
+  const sourceSchema = resolveSourceSchema(source, sourceSchemas)
+
   if (!source.filePath) {
     return {
       profile,
       source,
+      sourceSchema,
       diagnostics: [`Show profile "${profile.id}" has no source file selected.`],
     }
   }
@@ -43,6 +53,20 @@ export function resolveProfileSource(
     profile,
     source,
     activeSourceFilePath: source.filePath,
-    diagnostics: [],
+    sourceSchema,
+    diagnostics: source.schemaId && !sourceSchema
+      ? [`Show profile "${profile.id}" references an unknown source schema "${source.schemaId}".`]
+      : [],
   }
+}
+
+function resolveSourceSchema(
+  source: ShowProfileSourceConfig,
+  sourceSchemas: CsvSourceSchemaConfig[],
+): CsvSourceSchemaConfig | undefined {
+  if (!source.schemaId) {
+    return undefined
+  }
+
+  return sourceSchemas.find((schema) => schema.id === source.schemaId)
 }

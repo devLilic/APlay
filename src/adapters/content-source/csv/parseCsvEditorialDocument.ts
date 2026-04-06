@@ -2,52 +2,40 @@ import type {
   ContentSourceDiagnostic,
   ContentSourceLoadResult,
 } from '@/adapters/content-source/contracts'
-import type { EditorialBlock, EditorialDocument } from '@/core/models/editorial'
+import type { EditorialBlock } from '@/core/models/editorial'
+import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
 import type { CsvParseOptions, CsvRow } from './types'
 import { parseCsvRows } from './parseCsvRows'
-import {
-  isBlockDelimiter,
-  normalizeCellValue,
-  normalizeHeaderValue,
-  parseBlockName,
-} from './utils'
+import { normalizeCellValue } from './utils'
 
 const defaultBlockName = 'Imported Block'
-
-const csvColumnAliases = {
-  number: ['nr', 'number'],
-  title: ['titlu', 'title'],
-  supertitle: ['supertitle', 'supratitlu', 'supertitlu'],
-  name: ['nume', 'name'],
-  role: ['functie', 'funcție', 'role'],
-  location: ['locatie', 'locație', 'location'],
-  breakingNews: ['ultima ora', 'ultima oră', 'breaking news', 'breakingnews'],
-  waitingTitle: ['titlu asteptare', 'titlu așteptare', 'waiting title', 'waitingtitle'],
-  waitingLocation: ['locatie asteptare', 'locație așteptare', 'waiting location', 'waitinglocation'],
-  phoneLabel: ['telefon label', 'phone label', 'phonelabel'],
-  phoneNumber: ['telefon', 'numar telefon', 'număr telefon', 'phone number', 'phonenumber'],
-} as const
-
-type CsvCanonicalColumn = keyof typeof csvColumnAliases
 
 export function parseCsvEditorialDocument(
   content: string,
   options: CsvParseOptions = {},
 ): Omit<ContentSourceLoadResult, 'source'> {
-  const { table, diagnostics } = parseCsvRows(content)
-  const columnIndexByName = createColumnIndexByName(table.header)
+  const schema = options.schema ?? createDefaultCsvSchema()
+  const { table, diagnostics } = parseCsvRows(content, { schema })
+  const columnIndexByName = createColumnIndexByName(table.header, schema.hasHeader)
   const blocks: EditorialBlock[] = []
   let currentBlock: EditorialBlock | null = null
+  const blockRegex = new RegExp(schema.blockDetection.pattern)
 
   for (const row of table.rows) {
-    const firstValue = normalizeCellValue(row.values[0])
     const hasContent = row.values.some((value) => normalizeCellValue(value) !== undefined)
     if (!hasContent) {
       continue
     }
 
-    if (firstValue && isBlockDelimiter(firstValue)) {
-      currentBlock = createEmptyBlock(parseBlockName(firstValue))
+    const blockSourceValue = normalizeCellValue(resolveCellValue(
+      row.values,
+      columnIndexByName,
+      schema.blockDetection.sourceColumn,
+    ))
+    const blockMatch = blockSourceValue ? blockSourceValue.match(blockRegex) : null
+
+    if (blockMatch) {
+      currentBlock = createEmptyBlock(resolveBlockName(blockSourceValue ?? '', blockMatch))
       blocks.push(currentBlock)
       continue
     }
@@ -57,7 +45,7 @@ export function parseCsvEditorialDocument(
       blocks.push(currentBlock)
     }
 
-    pushEntitiesIntoBlock(currentBlock, row, columnIndexByName)
+    pushEntitiesIntoBlock(currentBlock, row, columnIndexByName, schema)
   }
 
   return {
@@ -65,6 +53,7 @@ export function parseCsvEditorialDocument(
       blocks,
     },
     diagnostics: [
+      ...createMissingConfiguredColumnDiagnostics(columnIndexByName, schema),
       ...createMissingColumnDiagnostics(columnIndexByName, options),
       ...diagnostics,
     ],
@@ -85,97 +74,176 @@ function createEmptyBlock(name: string): EditorialBlock {
   }
 }
 
-function createColumnIndexByName(header: string[]): Partial<Record<CsvCanonicalColumn, number>> {
-  const normalizedHeader = header.map((columnName) => normalizeHeaderValue(columnName))
-  const result: Partial<Record<CsvCanonicalColumn, number>> = {}
-
-  for (const [columnName, aliases] of Object.entries(csvColumnAliases) as [CsvCanonicalColumn, readonly string[]][]) {
-    const index = normalizedHeader.findIndex((headerValue) => headerValue !== undefined && aliases.includes(headerValue))
-    if (index >= 0) {
-      result[columnName] = index
-    }
+function createColumnIndexByName(header: string[], hasHeader: boolean): Record<string, number> {
+  if (!hasHeader) {
+    return {}
   }
 
-  return result
+  return Object.fromEntries(
+    header
+      .map((columnName, index) => [columnName.trim(), index] as const)
+      .filter((entry) => entry[0].length > 0),
+  )
 }
 
 function resolveCellValue(
   values: string[],
-  columnIndexByName: Partial<Record<CsvCanonicalColumn, number>>,
-  columnName: CsvCanonicalColumn,
+  columnIndexByName: Record<string, number>,
+  columnName: string,
 ): string | undefined {
-  const index = columnIndexByName[columnName]
+  const trimmedColumnName = columnName.trim()
+  const index = /^\d+$/.test(trimmedColumnName)
+    ? Number(trimmedColumnName)
+    : columnIndexByName[trimmedColumnName]
+
   return index === undefined ? undefined : values[index]
 }
 
 function pushEntitiesIntoBlock(
   block: EditorialBlock,
   row: CsvRow,
-  columnIndexByName: Partial<Record<CsvCanonicalColumn, number>>,
+  columnIndexByName: Record<string, number>,
+  schema: CsvSourceSchemaConfig,
 ): void {
-  const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'number'))
-  const title = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'title'))
-  const supertitle = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'supertitle'))
-  const name = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'name'))
-  const role = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'role'))
-  const location = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'location'))
-  const breakingNews = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'breakingNews'))
-  const waitingTitle = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'waitingTitle'))
-  const waitingLocation = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'waitingLocation'))
-  const phoneLabel = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'phoneLabel'))
-  const phoneNumber = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, 'phoneNumber'))
-
-  if (title) {
-    block.titles.push(number ? { number, text: title } : { text: title })
+  const titleMapping = schema.entityMappings.title
+  if (titleMapping.enabled && titleMapping.fields) {
+    const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, titleMapping.fields.number))
+    const title = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, titleMapping.fields.title))
+    if (title) {
+      block.titles.push(number ? { number, text: title } : { text: title })
+    }
   }
 
-  if (supertitle) {
-    block.supertitles.push({ text: supertitle })
+  const supertitleMapping = schema.entityMappings.supertitle
+  if (supertitleMapping.enabled && supertitleMapping.fields) {
+    const supertitle = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, supertitleMapping.fields.text))
+    if (supertitle) {
+      block.supertitles.push({ text: supertitle })
+    }
   }
 
-  if (name) {
-    block.persons.push(role ? { name, role } : { name })
+  const personMapping = schema.entityMappings.person
+  if (personMapping.enabled && personMapping.fields) {
+    const name = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, personMapping.fields.name))
+    const role = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, personMapping.fields.role))
+    if (name) {
+      block.persons.push(role ? { name, role } : { name })
+    }
   }
 
-  if (location) {
-    block.locations.push({ value: location })
-  }
+  pushValueEntity(block.locations, row.values, columnIndexByName, schema.entityMappings.location)
+  pushValueEntity(block.breakingNews, row.values, columnIndexByName, schema.entityMappings.breakingNews)
+  pushValueEntity(block.waitingTitles, row.values, columnIndexByName, schema.entityMappings.waitingTitle)
+  pushValueEntity(block.waitingLocations, row.values, columnIndexByName, schema.entityMappings.waitingLocation)
 
-  if (breakingNews) {
-    block.breakingNews.push({ value: breakingNews })
-  }
-
-  if (waitingTitle) {
-    block.waitingTitles.push({ value: waitingTitle })
-  }
-
-  if (waitingLocation) {
-    block.waitingLocations.push({ value: waitingLocation })
-  }
-
-  if (phoneLabel && phoneNumber) {
-    block.phones.push({ label: phoneLabel, number: phoneNumber })
+  const phoneMapping = schema.entityMappings.phone
+  if (phoneMapping.enabled && phoneMapping.fields) {
+    const label = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, phoneMapping.fields.label))
+    const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, phoneMapping.fields.number))
+    if (label && number) {
+      block.phones.push({ label, number })
+    }
   }
 }
 
+function pushValueEntity(
+  collection: EditorialBlock['locations'] | EditorialBlock['breakingNews'] | EditorialBlock['waitingTitles'] | EditorialBlock['waitingLocations'],
+  values: string[],
+  columnIndexByName: Record<string, number>,
+  mapping: CsvSourceSchemaConfig['entityMappings']['location'],
+): void {
+  if (!mapping.enabled || !mapping.fields) {
+    return
+  }
+
+  const value = normalizeCellValue(resolveCellValue(values, columnIndexByName, mapping.fields.value))
+  if (value) {
+    collection.push({ value })
+  }
+}
+
+function createMissingConfiguredColumnDiagnostics(
+  columnIndexByName: Record<string, number>,
+  schema: CsvSourceSchemaConfig,
+): ContentSourceDiagnostic[] {
+  if (!schema.hasHeader) {
+    return []
+  }
+
+  const requiredColumns = new Set<string>([
+    schema.blockDetection.sourceColumn,
+    ...collectEnabledMappingColumns(schema),
+  ])
+  const missingColumns = Array.from(requiredColumns).filter((column) => columnIndexByName[column.trim()] === undefined)
+
+  if (missingColumns.length === 0) {
+    return []
+  }
+
+  return [
+    {
+      severity: 'warning',
+      code: 'missing-column',
+      message: `Missing configured source columns: ${missingColumns.join(', ')}`,
+      details: {
+        missingColumns,
+        schemaId: schema.id,
+      },
+    },
+  ]
+}
+
+function collectEnabledMappingColumns(schema: CsvSourceSchemaConfig): string[] {
+  const columns: string[] = []
+
+  if (schema.entityMappings.title.enabled && schema.entityMappings.title.fields) {
+    columns.push(schema.entityMappings.title.fields.number, schema.entityMappings.title.fields.title)
+  }
+
+  if (schema.entityMappings.supertitle.enabled && schema.entityMappings.supertitle.fields) {
+    columns.push(schema.entityMappings.supertitle.fields.text)
+  }
+
+  if (schema.entityMappings.person.enabled && schema.entityMappings.person.fields) {
+    columns.push(schema.entityMappings.person.fields.name, schema.entityMappings.person.fields.role)
+  }
+
+  for (const mapping of [
+    schema.entityMappings.location,
+    schema.entityMappings.breakingNews,
+    schema.entityMappings.waitingTitle,
+    schema.entityMappings.waitingLocation,
+  ]) {
+    if (mapping.enabled && mapping.fields) {
+      columns.push(mapping.fields.value)
+    }
+  }
+
+  if (schema.entityMappings.phone.enabled && schema.entityMappings.phone.fields) {
+    columns.push(schema.entityMappings.phone.fields.label, schema.entityMappings.phone.fields.number)
+  }
+
+  return columns
+}
+
 function createMissingColumnDiagnostics(
-  columnIndexByName: Partial<Record<CsvCanonicalColumn, number>>,
+  columnIndexByName: Record<string, number>,
   options: CsvParseOptions,
 ): ContentSourceDiagnostic[] {
   const expectedColumnsByGraphicId = options.expectedColumnsByGraphicId ?? {}
-  const availableColumns = new Set(
-    Object.entries(columnIndexByName)
-      .filter((entry): entry is [CsvCanonicalColumn, number] => entry[1] !== undefined)
-      .map(([columnName]) => columnName),
-  )
-
+  const availableColumns = new Set(Object.keys(columnIndexByName))
   const diagnostics: ContentSourceDiagnostic[] = []
 
   for (const [graphicId, expectedColumns] of Object.entries(expectedColumnsByGraphicId)) {
     const missingColumns = expectedColumns.filter((column) => {
-      const mappedColumn = mapExpectedColumnName(column)
-      return mappedColumn === undefined || !availableColumns.has(mappedColumn)
+      const trimmedColumn = column.trim()
+      if (!options.schema?.hasHeader && /^\d+$/.test(trimmedColumn)) {
+        return false
+      }
+
+      return !availableColumns.has(trimmedColumn)
     })
+
     if (missingColumns.length === 0) {
       continue
     }
@@ -194,17 +262,68 @@ function createMissingColumnDiagnostics(
   return diagnostics
 }
 
-function mapExpectedColumnName(columnName: string): CsvCanonicalColumn | undefined {
-  const normalized = normalizeHeaderValue(columnName)
-  if (!normalized) {
-    return undefined
-  }
+function resolveBlockName(value: string, match: RegExpMatchArray): string {
+  const capturedBlockName = match[1]?.trim()
+  return capturedBlockName && capturedBlockName.length > 0 ? capturedBlockName : value.trim()
+}
 
-  for (const [canonicalName, aliases] of Object.entries(csvColumnAliases) as [CsvCanonicalColumn, readonly string[]][]) {
-    if (aliases.includes(normalized)) {
-      return canonicalName
-    }
+function createDefaultCsvSchema(): CsvSourceSchemaConfig {
+  return {
+    id: 'csv-default',
+    name: 'Default CSV schema',
+    type: 'csv',
+    delimiter: ';',
+    hasHeader: true,
+    blockDetection: {
+      mode: 'columnRegex',
+      sourceColumn: 'Nr',
+      pattern: '^---\\s*(.+?)\\s*---$',
+    },
+    entityMappings: {
+      title: {
+        enabled: true,
+        fields: {
+          number: 'Nr',
+          title: 'Titlu',
+        },
+      },
+      supertitle: {
+        enabled: false,
+      },
+      person: {
+        enabled: true,
+        fields: {
+          name: 'Nume',
+          role: 'Functie',
+        },
+      },
+      location: {
+        enabled: true,
+        fields: {
+          value: 'Locatie',
+        },
+      },
+      breakingNews: {
+        enabled: true,
+        fields: {
+          value: 'Ultima Ora',
+        },
+      },
+      waitingTitle: {
+        enabled: true,
+        fields: {
+          value: 'Titlu Asteptare',
+        },
+      },
+      waitingLocation: {
+        enabled: true,
+        fields: {
+          value: 'Locatie Asteptare',
+        },
+      },
+      phone: {
+        enabled: false,
+      },
+    },
   }
-
-  return undefined
 }
