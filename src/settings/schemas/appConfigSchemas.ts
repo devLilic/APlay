@@ -31,7 +31,7 @@ const transformOrigins = [
   'center',
 ] as const
 
-const previewElementKinds = ['text', 'shape'] as const
+const previewElementKinds = ['text', 'box', 'image'] as const
 
 export const graphicControlConfigSchema = createSchema<GraphicControlConfig>((input) => {
   const value = assertRecord(input, 'graphicControlConfig')
@@ -95,6 +95,9 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
             : {}),
           ...(parseOptionalBoolean(textSettings, 'fitInBox', 'previewElementDefinition.text') !== undefined
             ? { fitInBox: parseOptionalBoolean(textSettings, 'fitInBox', 'previewElementDefinition.text') }
+            : {}),
+          ...(textSettings.minScaleX !== undefined
+            ? { minScaleX: parseRequiredNumber(textSettings, 'minScaleX', 'previewElementDefinition.text') }
             : {}),
         },
       }

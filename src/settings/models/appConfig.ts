@@ -2,11 +2,12 @@ import type { ActionType } from '@/core/actions/actionTypes'
 import type { SupportedEntityType } from '@/core/entities/entityTypes'
 
 export type TransformOrigin = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
-export type PreviewElementKind = 'text' | 'shape'
+export type PreviewElementKind = 'text' | 'box' | 'image'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
   fitInBox?: boolean
+  minScaleX?: number
 }
 
 export interface GraphicControlConfig {
@@ -24,7 +25,7 @@ export interface PreviewElementDefinition {
   id: string
   kind: PreviewElementKind
   sourceField: string
-  transformOrigin: TransformOrigin
+  transformOrigin?: TransformOrigin
   box: {
     x: number
     y: number
