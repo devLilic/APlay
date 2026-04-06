@@ -1,14 +1,14 @@
 import type { EditorialDocument } from '@/core/models/editorial'
 import type { SelectedEntityContext } from '@/features/workspace/state/workspaceSelectionState'
-import { parseCsvEditorialDocument } from '@/adapters/content-source/csvEditorialSource'
+import { createCsvEditorialSourceAdapter } from '@/adapters/content-source/csvEditorialSource'
+import { createJsonEditorialSourceAdapter } from '@/adapters/content-source/jsonEditorialSource'
+import { createProfileContentSourceLoader } from '@/adapters/content-source/profileContentSourceLoader'
 import { createOscGraphicOutputAdapter } from '@/adapters/graphic-output/oscGraphicOutput'
 import { createJsonDatasourcePublishTargetAdapter } from '@/adapters/publish-target/jsonDatasourcePublishTarget'
 import { createInMemoryGraphicConfigStorage, createProfileGraphicConfigLoader } from '@/settings/storage/profileGraphicConfigLoader'
 import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
 import type { WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
-import { resolveActiveProfileSource } from '@/settings/utils/profileSources'
-import { sampleGraphicFiles, sampleSettings } from '@/features/workspace/data/sampleWorkspaceConfig'
-import { sampleEditorialCsv } from '@/features/workspace/data/sampleEditorialCsv'
+import { sampleGraphicFiles, sampleSettings, sampleSourceFiles } from '@/features/workspace/data/sampleWorkspaceConfig'
 import {
   createSelectedEntityControlOrchestrator,
   createSelectedEntityPreviewData,
@@ -34,23 +34,35 @@ export function createDefaultWorkspaceConfigSnapshot(): WorkspaceConfigSnapshot 
 export function loadWorkspaceShellData(
   snapshot: WorkspaceConfigSnapshot = createDefaultWorkspaceConfigSnapshot(),
 ): WorkspaceShellData {
-  const parsedDocument = parseCsvEditorialDocument(sampleEditorialCsv)
+  const sourceLoader = createProfileContentSourceLoader({
+    adapters: [
+      createCsvEditorialSourceAdapter(),
+      createJsonEditorialSourceAdapter(),
+    ],
+    readSourceFile(filePath) {
+      const sourceContent = sampleSourceFiles[filePath]
+      if (sourceContent === undefined) {
+        throw new Error(`Source file not found: ${filePath}`)
+      }
+
+      return sourceContent
+    },
+  })
+  const loadedSource = sourceLoader.loadActiveProfileSource(snapshot.settings)
   const profileLoader = createProfileGraphicConfigLoader(
     createInMemoryGraphicConfigStorage(snapshot.graphicFiles),
   )
   const profileResult = loadProfileResult(profileLoader, snapshot)
-  const sourceResult = resolveActiveProfileSource(snapshot.settings)
 
   return {
-    document: parsedDocument.document,
+    document: loadedSource.document,
     activeProfileLabel: profileResult.profile.label,
-    activeSourceFilePath: sourceResult.activeSourceFilePath,
+    activeSourceFilePath: loadedSource.activeSourceFilePath,
     graphicsByEntityType: Object.fromEntries(
       profileResult.graphics.map((graphic) => [graphic.entityType, graphic]),
     ),
     diagnostics: [
-      ...parsedDocument.diagnostics.map((diagnostic) => diagnostic.message),
-      ...sourceResult.diagnostics,
+      ...loadedSource.diagnostics.map((diagnostic) => diagnostic.message),
       ...profileResult.diagnostics.map(formatGraphicConfigDiagnostic),
     ],
   }

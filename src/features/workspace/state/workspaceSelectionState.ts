@@ -41,6 +41,10 @@ export interface WorkspaceSelectionStateController {
   getSelectedBlock: () => EditorialBlock | undefined
 }
 
+export function deriveBlockList(document: EditorialDocument): EditorialBlock[] {
+  return document.blocks
+}
+
 export function createWorkspaceSelectionState(
   document: EditorialDocument,
   selection: WorkspaceSelection = createInitialSelection(document),

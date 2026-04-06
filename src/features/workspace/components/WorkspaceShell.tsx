@@ -5,6 +5,7 @@ import { SettingsPanel, type SettingsFeedback } from '@/features/settings/compon
 import { Panel } from '@/shared/ui/panel'
 import {
   createWorkspaceSelectionState,
+  deriveBlockList,
   deriveSelectedEntityContext,
   resolveGroupedEntityLists,
   type EntityGroupKey,
@@ -26,7 +27,7 @@ import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrou
 type ShellLoadState =
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; snapshot: WorkspaceConfigSnapshot }
+  | { status: 'ready'; snapshot: WorkspaceConfigSnapshot; data: WorkspaceShellData }
 
 const entityGroupLabels: Record<EntityGroupKey, string> = {
   titles: 'Titles',
@@ -57,7 +58,7 @@ export function WorkspaceShell() {
       const snapshot = repository.load()
       const data = loadWorkspaceShellData(snapshot)
       const initialState = createWorkspaceSelectionState(data.document)
-      setLoadState({ status: 'ready', snapshot })
+      setLoadState({ status: 'ready', snapshot, data })
       setSelection(initialState.selection)
     } catch (error) {
       setLoadState({
@@ -84,8 +85,9 @@ export function WorkspaceShell() {
     )
   }
 
-  const workspaceData = loadWorkspaceShellData(loadState.snapshot)
+  const workspaceData = loadState.data
   const workspace = createWorkspaceSelectionState(workspaceData.document, selection)
+  const blockList = deriveBlockList(workspaceData.document)
   const selectedBlock = workspace.getSelectedBlock()
   const groupedLists = resolveGroupedEntityLists(workspace.document, workspace.selection)
   const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection)
@@ -114,10 +116,14 @@ export function WorkspaceShell() {
   }
 
   const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
+    const nextSnapshot = createWorkspaceSnapshotFromSettings(settings)
+    const nextData = loadWorkspaceShellData(nextSnapshot)
     setLoadState({
       status: 'ready',
-      snapshot: createWorkspaceSnapshotFromSettings(settings),
+      snapshot: nextSnapshot,
+      data: nextData,
     })
+    setSelection(createWorkspaceSelectionState(nextData.document, selection).selection)
     setSettingsFeedback(null)
     setFeedback(null)
   }
@@ -130,7 +136,14 @@ export function WorkspaceShell() {
       }
 
       const savedSnapshot = repository.save(loadState.snapshot.settings)
-      setLoadState({ status: 'ready', snapshot: savedSnapshot })
+      const nextData = loadWorkspaceShellData(savedSnapshot)
+      setLoadState({
+        status: 'ready',
+        snapshot: savedSnapshot,
+        data: nextData,
+      })
+      setSelection((currentSelection) =>
+        createWorkspaceSelectionState(nextData.document, currentSelection).selection)
       setSettingsFeedback({
         kind: 'success',
         message: 'Settings saved. Updated profile and graphic config files were persisted for the current workstation.',
@@ -151,7 +164,14 @@ export function WorkspaceShell() {
       }
 
       const snapshot = repository.load()
-      setLoadState({ status: 'ready', snapshot })
+      const nextData = loadWorkspaceShellData(snapshot)
+      setLoadState({
+        status: 'ready',
+        snapshot,
+        data: nextData,
+      })
+      setSelection((currentSelection) =>
+        createWorkspaceSelectionState(nextData.document, currentSelection).selection)
       setSettingsFeedback({
         kind: 'success',
         message: 'Persisted settings reloaded.',
@@ -179,7 +199,7 @@ export function WorkspaceShell() {
         </div>
         <div className='grid gap-2 text-sm text-slate-200 sm:grid-cols-3'>
           <StatCard label='Profile' value={workspaceData.activeProfileLabel} />
-          <StatCard label='Blocks' value={String(workspace.document.blocks.length)} />
+          <StatCard label='Blocks' value={String(blockList.length)} />
           <StatCard label='Diagnostics' value={String(workspaceData.diagnostics.length)} />
         </div>
       </header>
@@ -213,13 +233,13 @@ export function WorkspaceShell() {
         </div>
       ) : null}
 
-      <section className='grid min-h-[40rem] gap-6 xl:grid-cols-[18rem,minmax(0,1fr),25rem]'>
+      <section className='grid min-h-[40rem] gap-6 xl:grid-cols-[16rem,minmax(0,0.7fr),minmax(28rem,1.3fr)]'>
         <Panel title='Editorial blocks' eyebrow='Left panel'>
-          {workspace.document.blocks.length === 0 ? (
+          {blockList.length === 0 ? (
             <EmptyState title='No source data' description='Load a CSV source to populate editorial blocks.' />
           ) : (
             <div className='space-y-3'>
-              {workspace.document.blocks.map((block, index) => {
+              {blockList.map((block, index) => {
                 const isSelected = workspace.selection.selectedBlockIndex === index
 
                 return (

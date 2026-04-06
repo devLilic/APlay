@@ -1,5 +1,6 @@
 import type { AppSettings } from '@/settings/models/appConfig'
 import type { FieldBinding } from '@/adapters/publish-target/jsonDatasourcePublishTarget'
+import { sampleEditorialCsv } from '@/features/workspace/data/sampleEditorialCsv'
 
 const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
   title: [{ sourceField: 'text', targetField: 'text', required: true }],
@@ -190,3 +191,7 @@ export const sampleGraphicFiles = Object.fromEntries(
 )
 
 export const graphicBindingsByEntityType = defaultGraphicBindingsByEntityType
+
+export const sampleSourceFiles: Record<string, string> = {
+  'C:\\APlay\\sources\\default-news.csv': sampleEditorialCsv,
+}
