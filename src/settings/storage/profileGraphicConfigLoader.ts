@@ -1,6 +1,6 @@
 import type { AppSettings, GraphicInstanceConfig, ShowProfileConfig } from '@/settings/models/appConfig'
 import { supportedEntityTypes } from '@/core/entities/entityTypes'
-import { graphicInstanceConfigSchema } from '@/settings/schemas/appConfigSchemas'
+import { parseGraphicConfigImport } from '@/settings/storage/graphicConfigExport'
 
 export interface GraphicConfigStorage {
   read: (fileName: string) => string | null
@@ -60,7 +60,7 @@ export function createProfileGraphicConfigLoader(
           if (entityTypeReason) {
             throw new Error(entityTypeReason)
           }
-          const graphicConfig = graphicInstanceConfigSchema.parse(parsed)
+          const graphicConfig = parseGraphicConfigImport(parsed)
           graphics.push(graphicConfig)
         } catch (error) {
           diagnostics.push({
@@ -91,6 +91,7 @@ function resolveEntityTypeValidationReason(input: unknown): string | null {
   }
 
   const entityType = (input as Record<string, unknown>).entityType
+    ?? ((input as Record<string, unknown>).payload as Record<string, unknown> | undefined)?.entityType
   if (typeof entityType !== 'string') {
     return null
   }

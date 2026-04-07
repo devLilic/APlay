@@ -1,6 +1,9 @@
 import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
 import { createSettingsRepository, type SettingsStorage } from '@/settings/storage/settingsRepository'
-import { graphicInstanceConfigSchema } from '@/settings/schemas/appConfigSchemas'
+import {
+  parseGraphicConfigImport,
+  serializeGraphicConfigExport,
+} from '@/settings/storage/graphicConfigExport'
 
 export interface GraphicConfigFileMap {
   [fileName: string]: string
@@ -115,7 +118,7 @@ function resolvePersistedGraphics(
     }
 
     try {
-      return graphicInstanceConfigSchema.parse(JSON.parse(persistedContent) as unknown)
+      return parseGraphicConfigImport(JSON.parse(persistedContent) as unknown)
     } catch {
       warnWorkspaceConfig(
         `Graphic config file "${resolveGraphicConfigFileName(graphic.id)}" is invalid. Falling back to the root settings version.`,
@@ -129,7 +132,7 @@ function createGraphicFileMap(graphics: GraphicInstanceConfig[]): GraphicConfigF
   return Object.fromEntries(
     graphics.map((graphic) => [
       resolveGraphicConfigFileName(graphic.id),
-      JSON.stringify(graphic, null, 2),
+      serializeGraphicConfigExport(graphic),
     ]),
   )
 }

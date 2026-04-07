@@ -1,5 +1,6 @@
 import type { ProgressInfo } from 'electron-updater'
 import type { AppConfig, AppLanguage } from '../../../config/types'
+import type { AppSettings as WorkspaceAppSettings, GraphicInstanceConfig } from '../../settings/models/appConfig'
 import type {
   LicenseActivationResult,
   LicenseEntitlementsRequest,
@@ -32,6 +33,8 @@ export const ipcInvokeChannels = {
   settingsPickSourceCsvFile: 'settings:pick-source-csv-file',
   settingsReadReferenceImage: 'settings:read-reference-image',
   settingsReadSourceFile: 'settings:read-source-file',
+  settingsExportGraphicConfig: 'settings:export-graphic-config',
+  settingsExportProfileConfig: 'settings:export-profile-config',
 } as const
 
 export const ipcEventChannels = {
@@ -116,6 +119,21 @@ export interface ReferenceImageDataResponse {
 }
 export interface SourceFileReadResponse {
   content: string | null
+}
+export interface GraphicConfigExportRequest {
+  graphicConfig: GraphicInstanceConfig
+  suggestedFileName?: string
+}
+export interface GraphicConfigExportResponse {
+  filePath: string | null
+}
+export interface ProfileConfigExportRequest {
+  settings: WorkspaceAppSettings
+  profileId: string
+  suggestedFileName?: string
+}
+export interface ProfileConfigExportResponse {
+  filePath: string | null
 }
 
 export interface IpcInvokeContract {
@@ -202,6 +220,14 @@ export interface IpcInvokeContract {
   [ipcInvokeChannels.settingsReadSourceFile]: {
     request: { filePath: string }
     response: SourceFileReadResponse
+  }
+  [ipcInvokeChannels.settingsExportGraphicConfig]: {
+    request: GraphicConfigExportRequest
+    response: GraphicConfigExportResponse
+  }
+  [ipcInvokeChannels.settingsExportProfileConfig]: {
+    request: ProfileConfigExportRequest
+    response: ProfileConfigExportResponse
   }
 }
 

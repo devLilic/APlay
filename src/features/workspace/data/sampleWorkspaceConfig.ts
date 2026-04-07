@@ -1,6 +1,7 @@
 import type { AppSettings } from '@/settings/models/appConfig'
 import type { FieldBinding } from '@/adapters/publish-target/jsonDatasourcePublishTarget'
 import { sampleEditorialCsv } from '@/features/workspace/data/sampleEditorialCsv'
+import { serializeGraphicConfigExport } from '@/settings/storage/graphicConfigExport'
 
 const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
   title: [{ sourceField: 'text', targetField: 'text', required: true }],
@@ -248,7 +249,7 @@ export const sampleSettings: AppSettings = {
 }
 
 export const sampleGraphicFiles = Object.fromEntries(
-  sampleSettings.graphics.map((graphic) => [`${graphic.id}.json`, JSON.stringify(graphic)]),
+  sampleSettings.graphics.map((graphic) => [`${graphic.id}.json`, serializeGraphicConfigExport(graphic)]),
 )
 
 export const graphicBindingsByEntityType = defaultGraphicBindingsByEntityType

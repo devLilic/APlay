@@ -1,15 +1,19 @@
 import { readFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { app, dialog, ipcMain } from 'electron'
 import {
   ipcInvokeChannels,
+  type GraphicConfigExportRequest,
+  type ProfileConfigExportRequest,
   type ReferenceImageDataResponse,
   type SettingsGetRequest,
   type SettingsValuePayload,
 } from '../../../../src/shared/ipc/contracts'
 import { createSettingsStore } from './settingsStore'
 import type { AppSettings, SettingsKey } from '../../../../src/shared/settings/types'
+import { createGraphicConfigFileSaveService } from '../../../../src/settings/storage/graphicConfigExport'
+import { createProfileConfigFileSaveService } from '../../../../src/settings/storage/profileConfigExport'
 
 let settingsHandlersRegistered = false
 
@@ -107,6 +111,68 @@ export function registerSettingsModule() {
         }
       } catch {
         event.returnValue = { content: null }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    ipcInvokeChannels.settingsExportGraphicConfig,
+    async (_event, payload: GraphicConfigExportRequest) => {
+      const exportService = createGraphicConfigFileSaveService({
+        async pickFilePath(suggestedFileName) {
+          const result = await dialog.showSaveDialog({
+            title: 'Export graphic config JSON',
+            defaultPath: suggestedFileName,
+            filters: [
+              {
+                name: 'JSON Files',
+                extensions: ['json'],
+              },
+            ],
+          })
+
+          return result.canceled ? null : (result.filePath ?? null)
+        },
+        async writeFile(filePath, content) {
+          await writeFile(filePath, content, 'utf8')
+        },
+      })
+
+      const result = await exportService.save(payload.graphicConfig, payload.suggestedFileName)
+
+      return {
+        filePath: result.filePath,
+      }
+    },
+  )
+
+  ipcMain.handle(
+    ipcInvokeChannels.settingsExportProfileConfig,
+    async (_event, payload: ProfileConfigExportRequest) => {
+      const exportService = createProfileConfigFileSaveService({
+        async pickFilePath(suggestedFileName) {
+          const result = await dialog.showSaveDialog({
+            title: 'Export profile config JSON',
+            defaultPath: suggestedFileName,
+            filters: [
+              {
+                name: 'JSON Files',
+                extensions: ['json'],
+              },
+            ],
+          })
+
+          return result.canceled ? null : (result.filePath ?? null)
+        },
+        async writeFile(filePath, content) {
+          await writeFile(filePath, content, 'utf8')
+        },
+      })
+
+      const result = await exportService.save(payload.settings, payload.profileId, payload.suggestedFileName)
+
+      return {
+        filePath: result.filePath,
       }
     },
   )

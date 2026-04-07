@@ -4,6 +4,7 @@ import {
   createProfileGraphicConfigLoader,
 } from '@/settings/storage/profileGraphicConfigLoader'
 import type { AppSettings } from '@/settings/models/appConfig'
+import { serializeGraphicConfigExport } from '@/settings/storage/graphicConfigExport'
 
 const settings: AppSettings = {
   selectedProfileId: 'morning',
@@ -224,6 +225,29 @@ describe('profile-based graphic config loading', () => {
       '/graphics/breaking/play',
       '/graphics/phone/play',
     ])
+  })
+
+  it('loads the new wrapped export format as an import-ready graphic config', () => {
+    const loader = createProfileGraphicConfigLoader(
+      createInMemoryGraphicConfigStorage({
+        'title-main.json': serializeGraphicConfigExport(JSON.parse(graphicFiles['title-main.json'])),
+      }),
+    )
+
+    const result = loader.loadForProfile({
+      ...settings,
+      profiles: [
+        {
+          id: 'morning',
+          label: 'Morning Show',
+          graphicConfigIds: ['title-main'],
+        },
+      ],
+    }, 'morning')
+
+    expect(result.graphics).toHaveLength(1)
+    expect(result.graphics[0]?.id).toBe('title-main')
+    expect(result.diagnostics).toEqual([])
   })
 
   it('selecting a different profile changes the loaded graphic config set', () => {

@@ -15,6 +15,7 @@ import {
   resolveGraphicControlForSelectedEntity,
   type SelectedEntityControlFeedback,
 } from '@/features/workspace/state/selectedEntityControl'
+import { serializeGraphicConfigExport } from '@/settings/storage/graphicConfigExport'
 
 export interface WorkspaceShellData {
   document: EditorialDocument
@@ -142,7 +143,7 @@ export function createWorkspaceSnapshotFromSettings(settings: AppSettings): Work
   return {
     settings,
     graphicFiles: Object.fromEntries(
-      settings.graphics.map((graphic) => [`${graphic.id}.json`, JSON.stringify(graphic)]),
+      settings.graphics.map((graphic) => [`${graphic.id}.json`, serializeGraphicConfigExport(graphic)]),
     ),
   }
 }

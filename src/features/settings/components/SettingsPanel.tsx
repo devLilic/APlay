@@ -30,6 +30,8 @@ interface SettingsPanelProps {
   onSettingsChange: (settings: AppSettings) => void
   onSave: () => void
   onReload: () => void
+  onExportGraphicConfig: (graphic: GraphicInstanceConfig) => Promise<void>
+  onExportProfile: (profileId: string) => Promise<void>
 }
 
 const transformOrigins: TransformOrigin[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']
@@ -44,6 +46,8 @@ export function SettingsPanel({
   onSettingsChange,
   onSave,
   onReload,
+  onExportGraphicConfig,
+  onExportProfile,
 }: SettingsPanelProps) {
   const selectedProfile = settings.profiles.find((profile) => profile.id === settings.selectedProfileId)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(selectedProfile?.graphicConfigIds[0] ?? null)
@@ -51,6 +55,8 @@ export function SettingsPanel({
   const [draftReferenceImagePath, setDraftReferenceImagePath] = useState('')
   const [isPickingReferenceImage, setIsPickingReferenceImage] = useState(false)
   const [isPickingSourceFile, setIsPickingSourceFile] = useState(false)
+  const [isExportingGraphicConfig, setIsExportingGraphicConfig] = useState(false)
+  const [isExportingProfile, setIsExportingProfile] = useState(false)
 
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
@@ -202,12 +208,56 @@ export function SettingsPanel({
     }
   }
 
+  const handleGraphicConfigExport = async () => {
+    if (!selectedGraphic || isExportingGraphicConfig) {
+      return
+    }
+
+    setIsExportingGraphicConfig(true)
+
+    try {
+      await onExportGraphicConfig(selectedGraphic)
+    } finally {
+      setIsExportingGraphicConfig(false)
+    }
+  }
+
+  const handleProfileExport = async () => {
+    if (!selectedProfile || isExportingProfile) {
+      return
+    }
+
+    setIsExportingProfile(true)
+
+    try {
+      await onExportProfile(selectedProfile.id)
+    } finally {
+      setIsExportingProfile(false)
+    }
+  }
+
   return (
     <Panel
       title='Settings'
       eyebrow='Application config'
       aside={(
         <div className='flex flex-wrap gap-2'>
+          <button
+            type='button'
+            onClick={handleProfileExport}
+            disabled={!selectedProfile || isExportingProfile}
+            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isExportingProfile ? 'Exporting profile...' : 'Export profile'}
+          </button>
+          <button
+            type='button'
+            onClick={handleGraphicConfigExport}
+            disabled={!selectedGraphic || isExportingGraphicConfig}
+            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isExportingGraphicConfig ? 'Exporting graphic...' : 'Export graphic'}
+          </button>
           <button
             type='button'
             onClick={onReload}

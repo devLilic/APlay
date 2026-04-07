@@ -17,6 +17,7 @@ import type {
 } from '@/shared/ipc/contracts'
 import type { LicenseEntitlementsResult } from '@/shared/licensing/contracts'
 import type { UpdatePreferences, UiPreferences } from '@/shared/settings/types'
+import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
 import type { ProgressInfo } from 'electron-updater'
 import type { UpdateErrorPayload, UpdateStateEvent, VersionInfo } from './update'
 
@@ -66,6 +67,8 @@ declare global {
       pickSourceCsvFile: () => Promise<string | null>
       readReferenceImage: (filePath: string) => Promise<string | null>
       readSourceFileSync: (filePath: string) => string | null
+      exportGraphicConfig: (graphicConfig: GraphicInstanceConfig, suggestedFileName?: string) => Promise<string | null>
+      exportProfileConfig: (settings: AppSettings, profileId: string, suggestedFileName?: string) => Promise<string | null>
     }
   }
 }

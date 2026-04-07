@@ -2,12 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppLanguage } from '../../../config/types'
 import {
   ipcInvokeChannels,
+  type GraphicConfigExportResponse,
+  type ProfileConfigExportResponse,
   type ReferenceImageDataResponse,
   type ReferenceImagePickerResponse,
   type SettingsGetResponse,
   type SourceFileReadResponse,
   type SourceCsvPickerResponse,
 } from '../../../src/shared/ipc/contracts'
+import type { AppSettings, GraphicInstanceConfig } from '../../../src/settings/models/appConfig'
 import type { UpdatePreferences, UiPreferences } from '../../../src/shared/settings/types'
 import { invoke } from './shared'
 
@@ -53,6 +56,21 @@ export function registerSettingsApi() {
       const response = ipcRenderer.sendSync(ipcInvokeChannels.settingsReadSourceFile, { filePath }) as SourceFileReadResponse
       return response.content
     },
+    async exportGraphicConfig(graphicConfig: GraphicInstanceConfig, suggestedFileName?: string): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsExportGraphicConfig, {
+        graphicConfig,
+        suggestedFileName,
+      })
+      return extractGraphicConfigExportPath(response)
+    },
+    async exportProfileConfig(settings: AppSettings, profileId: string, suggestedFileName?: string): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsExportProfileConfig, {
+        settings,
+        profileId,
+        suggestedFileName,
+      })
+      return extractProfileConfigExportPath(response)
+    },
   })
 }
 
@@ -69,5 +87,13 @@ function extractDataUrl(payload: ReferenceImageDataResponse): string | null {
 }
 
 function extractCsvFilePath(payload: SourceCsvPickerResponse): string | null {
+  return payload.filePath
+}
+
+function extractGraphicConfigExportPath(payload: GraphicConfigExportResponse): string | null {
+  return payload.filePath
+}
+
+function extractProfileConfigExportPath(payload: ProfileConfigExportResponse): string | null {
   return payload.filePath
 }

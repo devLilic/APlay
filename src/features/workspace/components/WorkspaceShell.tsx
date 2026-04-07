@@ -21,6 +21,7 @@ import {
   type WorkspaceShellData,
 } from '@/features/workspace/state/workspaceShellRuntime'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
+import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import { createWorkspaceConfigRepository, type WorkspaceConfigRepository, type WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 
@@ -222,6 +223,65 @@ export function WorkspaceShell() {
     }
   }
 
+  const handleExportGraphicConfig = async (graphic: GraphicInstanceConfig) => {
+    try {
+      if (!window.settingsApi?.exportGraphicConfig) {
+        throw new Error('Graphic config export is unavailable in this environment.')
+      }
+
+      const filePath = await window.settingsApi.exportGraphicConfig(graphic, graphic.dataFileName)
+
+      if (!filePath) {
+        setSettingsFeedback(null)
+        return
+      }
+
+      setSettingsFeedback({
+        kind: 'success',
+        message: `Graphic config exported to ${filePath}.`,
+      })
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config export failed.',
+      })
+    }
+  }
+
+  const handleExportProfile = async (profileId: string) => {
+    try {
+      if (!window.settingsApi?.exportProfileConfig) {
+        throw new Error('Profile export is unavailable in this environment.')
+      }
+
+      const profile = loadState.snapshot.settings.profiles.find((candidate) => candidate.id === profileId)
+      if (!profile) {
+        throw new Error(`Selected profile is unavailable: ${profileId}`)
+      }
+
+      const filePath = await window.settingsApi.exportProfileConfig(
+        loadState.snapshot.settings,
+        profileId,
+        `${profile.id}.profile.json`,
+      )
+
+      if (!filePath) {
+        setSettingsFeedback(null)
+        return
+      }
+
+      setSettingsFeedback({
+        kind: 'success',
+        message: `Profile export saved to ${filePath}.`,
+      })
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Profile export failed.',
+      })
+    }
+  }
+
   const handleSourceRefresh = () => {
     try {
       const nextData = loadWorkspaceShellData(loadState.snapshot)
@@ -299,6 +359,8 @@ export function WorkspaceShell() {
           onSettingsChange={handleSettingsChange}
           onSave={handleSettingsSave}
           onReload={handleSettingsReload}
+          onExportGraphicConfig={handleExportGraphicConfig}
+          onExportProfile={handleExportProfile}
         />
       ) : null}
 
