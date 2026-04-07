@@ -110,7 +110,8 @@ function pushEntitiesIntoBlock(
     const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, titleMapping.fields.number))
     const title = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, titleMapping.fields.title))
     if (title) {
-      block.titles.push(number ? { number, text: title } : { text: title })
+      const id = createCollectionEntityId('title', block.titles.length)
+      block.titles.push(number ? { id, number, text: title } : { id, text: title })
     }
   }
 
@@ -144,6 +145,10 @@ function pushEntitiesIntoBlock(
       block.phones.push({ label, number })
     }
   }
+}
+
+function createCollectionEntityId(prefix: string, currentLength: number): string {
+  return `${prefix}-${currentLength + 1}`
 }
 
 function pushValueEntity(

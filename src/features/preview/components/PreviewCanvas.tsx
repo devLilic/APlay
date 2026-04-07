@@ -113,6 +113,8 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
                 transformOrigin: element.style.transformOrigin,
                 backgroundColor: element.style.backgroundColor,
                 borderColor: element.style.borderColor,
+                borderWidth: element.style.borderColor ? '1px' : undefined,
+                borderStyle: element.style.borderColor ? 'solid' : undefined,
                 zIndex: element.style.zIndex,
               }}
             >
@@ -142,6 +144,8 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
               transformOrigin: element.style.transformOrigin,
               backgroundColor: element.style.backgroundColor,
               borderColor: element.style.borderColor,
+              borderWidth: element.style.borderColor ? '1px' : undefined,
+              borderStyle: element.style.borderColor ? 'solid' : undefined,
               zIndex: element.style.zIndex,
             }}
           />
@@ -172,7 +176,7 @@ function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement
 
   return (
     <div
-      className='absolute z-10 flex items-center overflow-hidden whitespace-nowrap font-semibold tracking-tight text-white'
+      className='absolute z-10 flex items-center overflow-hidden whitespace-nowrap border border-transparent font-semibold tracking-tight text-white'
       style={{
         left: `${element.style.left}px`,
         top: `${element.style.top}px`,
@@ -184,6 +188,8 @@ function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement
         color: element.style.color,
         backgroundColor: element.style.backgroundColor,
         borderColor: element.style.borderColor,
+        borderWidth: element.style.borderColor ? '1px' : undefined,
+        borderStyle: element.style.borderColor ? 'solid' : undefined,
         zIndex: element.style.zIndex,
         justifyContent: element.style.textAlign === 'center' ? 'center' : 'flex-start',
         textAlign: element.style.textAlign ?? 'left',
@@ -198,7 +204,7 @@ function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement
           fontSize: element.style.fontSize !== undefined
             ? `${element.style.fontSize}px`
             : undefined,
-          fontFamily: element.style.fontFamily,
+          fontFamily: element.style.fontFamily ?? 'Arial',
           textAlign: element.style.textAlign ?? 'left',
         }}
       >

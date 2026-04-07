@@ -23,6 +23,7 @@ export const titleEntitySchema = createSchema<TitleEntity>((input) => {
   const number = parseOptionalString(value, 'number', 'titleEntity')
 
   return {
+    id: parseRequiredString(value, 'id', 'titleEntity'),
     ...(number ? { number } : {}),
     text: parseRequiredString(value, 'text', 'titleEntity'),
   }
@@ -108,6 +109,7 @@ const titleEntityCollectionSchema = createSchema<TitleEntity>((input) =>
     const number = parseOptionalString(value, 'number', context)
 
     return {
+      id: parseRequiredString(value, 'id', context),
       ...(number ? { number } : {}),
       text: parseRequiredString(value, 'text', context),
     }

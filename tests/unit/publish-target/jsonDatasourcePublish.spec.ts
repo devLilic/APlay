@@ -9,7 +9,7 @@ import type {
 import { createJsonDatasourcePublishTargetAdapter } from '@/adapters/publish-target/jsonDatasourcePublishTarget'
 import { publishTargetAdapterSchema, type PublishTargetPublishInput } from '@/adapters/publish-target/contracts'
 
-const titleEntity: TitleEntity = { text: 'Main Title' }
+const titleEntity: TitleEntity = { id: 'title-1', text: 'Main Title' }
 const supertitleEntity: SupertitleEntity = { text: 'Top Strap' }
 const personEntity: PersonEntity = { name: 'Jane Doe', role: 'Anchor' }
 const textValueEntity: TextValueEntity = { value: 'Chisinau' }

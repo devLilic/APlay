@@ -187,7 +187,9 @@ function calculatePreviewElementLayout(
       : {}),
     ...(behavior?.fontFamily
       ? { fontFamily: behavior.fontFamily }
-      : {}),
+      : element.kind === 'text'
+        ? { fontFamily: 'Arial' }
+        : {}),
   }
 
   if (element.kind === 'text') {

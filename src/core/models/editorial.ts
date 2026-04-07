@@ -1,6 +1,7 @@
 // A CSV row is only an input detail. The domain starts at block-level collections,
 // so row-shaped structures must not be promoted to domain entities.
 export interface TitleEntity {
+  id: string
   number?: string
   text: string
 }

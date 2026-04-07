@@ -323,27 +323,54 @@ function NumberField({
   label,
   value,
   onChange,
+  min,
+  max,
+  step = 1,
+  showSlider = true,
 }: {
   label: string
   value: number
   onChange: (value: number) => void
+  min?: number
+  max?: number
+  step?: number
+  showSlider?: boolean
 }) {
   return (
     <label className='space-y-2'>
       <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
-      <input
-        type='number'
-        value={value}
-        onChange={(event) => {
-          const nextValue = Number(event.target.value)
-          if (!Number.isFinite(nextValue)) {
-            return
-          }
+      <div className='space-y-2'>
+        <input
+          type='number'
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={(event) => {
+            const nextValue = Number(event.target.value)
+            if (!Number.isFinite(nextValue)) {
+              return
+            }
 
-          onChange(nextValue)
-        }}
-        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-      />
+            onChange(nextValue)
+          }}
+          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+        />
+        {showSlider && min !== undefined && max !== undefined ? (
+          <div className='flex items-center gap-3'>
+            <input
+              type='range'
+              min={min}
+              max={max}
+              step={step}
+              value={Math.min(max, Math.max(min, value))}
+              onChange={(event) => onChange(Number(event.target.value))}
+              className='w-full accent-accent'
+            />
+            <span className='min-w-14 text-right text-xs font-medium text-muted'>{value}</span>
+          </div>
+        ) : null}
+      </div>
     </label>
   )
 }
@@ -635,7 +662,11 @@ function isValidCsvFilePath(filePath: string): boolean {
 }
 
 function getElementBehavior(element: PreviewElementDefinition) {
-  return element.behavior ?? element.text
+  return {
+    fontFamily: 'Arial',
+    textAlign: 'left' as const,
+    ...(element.behavior ?? element.text ?? {}),
+  }
 }
 
 function updateElementBehavior(
@@ -1797,8 +1828,8 @@ function PreviewTemplateSection({
                 className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
               />
             </label>
-            <NumberField label='Design width' value={graphic.preview.designWidth} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designWidth: value } }))} />
-            <NumberField label='Design height' value={graphic.preview.designHeight} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designHeight: value } }))} />
+            <NumberField label='Design width' value={graphic.preview.designWidth} min={320} max={3840} step={10} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designWidth: value } }))} />
+            <NumberField label='Design height' value={graphic.preview.designHeight} min={180} max={2160} step={10} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designHeight: value } }))} />
           </div>
 
           <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
@@ -1980,15 +2011,17 @@ function PreviewTemplateSection({
                       className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
                     />
                   </label>
-                  <label className='space-y-2 md:col-span-2'>
-                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
-                    <input
-                      value={element.previewText ?? ''}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
-                      placeholder='Write the exact text you want to arrange in preview'
-                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                    />
-                  </label>
+                  {element.kind === 'text' ? (
+                    <label className='space-y-2 md:col-span-2'>
+                      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
+                      <input
+                        value={element.previewText ?? ''}
+                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
+                        placeholder='Write the exact text you want to arrange in preview'
+                        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      />
+                    </label>
+                  ) : null}
                   <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
                     <input
                       type='checkbox'
@@ -1998,11 +2031,11 @@ function PreviewTemplateSection({
                     />
                     {element.visible ?? true ? 'VIEW' : 'HIDE'}
                   </label>
-                  <NumberField label='X' value={element.box.x} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
-                  <NumberField label='Y' value={element.box.y} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
-                  <NumberField label='Width' value={element.box.width} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
-                  <NumberField label='Height' value={element.box.height} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
-                  <NumberField label='Border radius' value={element.borderRadius ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
+                  <NumberField label='X' value={element.box.x} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
+                  <NumberField label='Y' value={element.box.y} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
+                  <NumberField label='Width' value={element.box.width} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
+                  <NumberField label='Height' value={element.box.height} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
+                  <NumberField label='Border radius' value={element.borderRadius ?? 0} min={0} max={200} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
                   <label className='space-y-2'>
                     <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
                     <select
@@ -2056,14 +2089,14 @@ function PreviewTemplateSection({
                       />
                       Fit in box
                     </label>
-                    <NumberField label='Min scaleX' value={textBehavior?.minScaleX ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                    <NumberField label='Min scaleX' value={textBehavior?.minScaleX ?? 0} min={0} max={1} step={0.01} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                       updateElementBehavior(current, (behavior) => ({ ...behavior, minScaleX: value })))} />
-                    <NumberField label='Font size' value={textBehavior?.fontSize ?? 0} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                    <NumberField label='Font size' value={textBehavior?.fontSize ?? 64} min={0} max={300} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                       updateElementBehavior(current, (behavior) => ({ ...behavior, fontSize: value })))} />
                     <label className='space-y-2 md:col-span-2'>
                       <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
                       <input
-                        value={textBehavior?.fontFamily ?? ''}
+                        value={textBehavior?.fontFamily ?? 'Arial'}
                         onChange={(event) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, fontFamily: normalizeOptionalInput(event.target.value) })))}
                         placeholder='Arial, Helvetica, "My Local Font"'

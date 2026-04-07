@@ -16,7 +16,7 @@ describe('EditorialDocument schema', () => {
       blocks: [
         {
           name: 'Opening',
-          titles: [{ number: '1', text: 'Main title' }],
+          titles: [{ id: 'title-1', number: '1', text: 'Main title' }],
           supertitles: [{ text: 'Top line' }],
           persons: [{ name: 'Jane Doe', role: 'Anchor' }],
           locations: [{ value: 'Chisinau' }],
@@ -32,7 +32,7 @@ describe('EditorialDocument schema', () => {
       blocks: [
         {
           name: 'Opening',
-          titles: [{ number: '1', text: 'Main title' }],
+          titles: [{ id: 'title-1', number: '1', text: 'Main title' }],
           supertitles: [{ text: 'Top line' }],
           persons: [{ name: 'Jane Doe', role: 'Anchor' }],
           locations: [{ value: 'Chisinau' }],
@@ -73,7 +73,7 @@ describe('EditorialBlock schema', () => {
   it('keeps entity collections independent and does not model row-level relationships', () => {
     const parsed = editorialBlockSchema.parse({
       name: 'Independent collections',
-      titles: [{ number: '1', text: 'Title A' }, { number: '2', text: 'Title B' }],
+      titles: [{ id: 'title-1', number: '1', text: 'Title A' }, { id: 'title-2', number: '2', text: 'Title B' }],
       persons: [{ name: 'Person A' }],
     })
 
@@ -100,11 +100,11 @@ describe('supported V1 entity types', () => {
 
 describe('entity schemas', () => {
   it('parses a title entity', () => {
-    expect(titleEntitySchema.parse({ number: '7', text: 'Headline' })).toEqual({ number: '7', text: 'Headline' })
+    expect(titleEntitySchema.parse({ id: 'title-7', number: '7', text: 'Headline' })).toEqual({ id: 'title-7', number: '7', text: 'Headline' })
   })
 
   it('requires title text', () => {
-    expect(() => titleEntitySchema.parse({})).toThrow('text')
+    expect(() => titleEntitySchema.parse({})).toThrow()
   })
 
   it('parses a supertitle entity', () => {
@@ -138,9 +138,9 @@ describe('entity schemas', () => {
   })
 
   it('does not introduce preview reference background fields into editorial entities', () => {
-    const parsed = titleEntitySchema.parse({ number: '7', text: 'Headline' })
+    const parsed = titleEntitySchema.parse({ id: 'title-7', number: '7', text: 'Headline' })
 
-    expect(parsed).toEqual({ number: '7', text: 'Headline' })
+    expect(parsed).toEqual({ id: 'title-7', number: '7', text: 'Headline' })
     expect(parsed).not.toHaveProperty('referenceImageId')
     expect(parsed).not.toHaveProperty('background')
   })

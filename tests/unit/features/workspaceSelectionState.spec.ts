@@ -11,7 +11,7 @@ const documentFixture: EditorialDocument = {
   blocks: [
     {
       name: 'Opening',
-      titles: [{ number: '1', text: 'Title One' }, { number: '2', text: 'Title Two' }],
+      titles: [{ id: 'title-1', number: '1', text: 'Title One' }, { id: 'title-2', number: '2', text: 'Title Two' }],
       supertitles: [{ text: 'Super One' }],
       persons: [{ name: 'Jane Doe', role: 'Anchor' }],
       locations: [{ value: 'Chisinau' }],
@@ -61,7 +61,7 @@ describe('grouped entity lists', () => {
     const groupedLists = resolveGroupedEntityLists(state.document, state.selection)
 
     expect(groupedLists).toEqual([
-      { entityType: 'titles', items: [{ number: '1', text: 'Title One' }, { number: '2', text: 'Title Two' }] },
+      { entityType: 'titles', items: [{ id: 'title-1', number: '1', text: 'Title One' }, { id: 'title-2', number: '2', text: 'Title Two' }] },
       { entityType: 'supertitles', items: [{ text: 'Super One' }] },
       { entityType: 'persons', items: [{ name: 'Jane Doe', role: 'Anchor' }] },
       { entityType: 'locations', items: [{ value: 'Chisinau' }] },
@@ -155,7 +155,7 @@ describe('selection reconciliation after source reload', () => {
       blocks: [
         {
           ...documentFixture.blocks[0]!,
-          titles: [{ number: '1', text: 'Title One' }],
+          titles: [{ id: 'title-1', number: '1', text: 'Title One' }],
         },
         documentFixture.blocks[1]!,
       ],

@@ -106,6 +106,7 @@ describe('CSV editorial parser with configurable schema', () => {
 
     expect(parsed.document.blocks).toHaveLength(3)
     expect(parsed.document.blocks[0]?.titles[0]).toEqual({
+      id: 'title-1',
       number: '1.',
       text: 'MAIA SANDU FACE DECLARATII IN CONSILIUL UE',
     })
@@ -166,7 +167,7 @@ describe('CSV editorial parser with configurable schema', () => {
     expect(parsed.document.blocks).toEqual([
       {
         name: 'Block One',
-        titles: [{ number: '1', text: 'Alpha Title' }],
+        titles: [{ id: 'title-1', number: '1', text: 'Alpha Title' }],
         supertitles: [],
         persons: [{ name: 'Alice Alpha', role: 'Anchor' }],
         locations: [],
@@ -192,9 +193,9 @@ describe('CSV editorial parser with configurable schema', () => {
     })
 
     expect(parsed.document.blocks[2]?.titles).toEqual([
-      { number: '1.', text: 'INTRA PE CALEA INTEGRARII IN UE' },
-      { number: '2.', text: 'GROSU: CINE ESTE ACASA?' },
-      { number: '3.', text: 'PRIMA ZI LA SCOALA' },
+      { id: 'title-1', number: '1.', text: 'INTRA PE CALEA INTEGRARII IN UE' },
+      { id: 'title-2', number: '2.', text: 'GROSU: CINE ESTE ACASA?' },
+      { id: 'title-3', number: '3.', text: 'PRIMA ZI LA SCOALA' },
     ])
   })
 
