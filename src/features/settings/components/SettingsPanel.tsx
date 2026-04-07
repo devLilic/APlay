@@ -6,6 +6,9 @@ import type {
   CsvSourceSchemaConfig,
   GraphicFieldBinding,
   GraphicInstanceConfig,
+  OscArgConfig,
+  OscArgType,
+  OscCommandConfig,
   PreviewElementDefinition,
   PreviewElementKind,
   ReferenceImageAsset,
@@ -13,6 +16,12 @@ import type {
   TransformOrigin,
 } from '@/settings/models/appConfig'
 import { csvSourceSchemaConfigSchema } from '@/settings/schemas/appConfigSchemas'
+import {
+  oscArgConfigSchema,
+  validateOscAddress,
+  validateOscHost,
+  validateOscPort,
+} from '@/settings/schemas/oscConfigSchemas'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 import { Panel } from '@/shared/ui/panel'
 
@@ -32,10 +41,15 @@ interface SettingsPanelProps {
   onReload: () => void
   onExportGraphicConfig: (graphic: GraphicInstanceConfig) => Promise<void>
   onExportProfile: (profileId: string) => Promise<void>
+  onTestOscCommand: (
+    graphic: GraphicInstanceConfig,
+    actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
+  ) => Promise<void>
 }
 
 const transformOrigins: TransformOrigin[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']
 const previewElementKinds: PreviewElementKind[] = ['text', 'box', 'image']
+const oscArgTypes: OscArgType[] = ['s', 'i', 'f']
 
 export function SettingsPanel({
   settings,
@@ -48,6 +62,7 @@ export function SettingsPanel({
   onReload,
   onExportGraphicConfig,
   onExportProfile,
+  onTestOscCommand,
 }: SettingsPanelProps) {
   const selectedProfile = settings.profiles.find((profile) => profile.id === settings.selectedProfileId)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(selectedProfile?.graphicConfigIds[0] ?? null)
@@ -57,6 +72,8 @@ export function SettingsPanel({
   const [isPickingSourceFile, setIsPickingSourceFile] = useState(false)
   const [isExportingGraphicConfig, setIsExportingGraphicConfig] = useState(false)
   const [isExportingProfile, setIsExportingProfile] = useState(false)
+  const [oscArgDrafts, setOscArgDrafts] = useState<Record<string, string>>({})
+  const [testingOscActionKey, setTestingOscActionKey] = useState<string | null>(null)
 
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
@@ -335,7 +352,23 @@ export function SettingsPanel({
           <div className='space-y-4'>
             {selectedGraphic ? (
               <>
-                <GraphicBindingSection graphic={selectedGraphic} updateGraphic={updateGraphic} updateBinding={updateBinding} />
+                <GraphicBindingSection
+                  graphic={selectedGraphic}
+                  updateGraphic={updateGraphic}
+                  updateBinding={updateBinding}
+                  oscArgDrafts={oscArgDrafts}
+                  onOscArgDraftChange={(draftKey, value) => setOscArgDrafts((current) => ({ ...current, [draftKey]: value }))}
+                  testingOscActionKey={testingOscActionKey}
+                  onTestOscCommand={async (graphic, actionType) => {
+                    const actionKey = `${graphic.id}:${actionType}`
+                    setTestingOscActionKey(actionKey)
+                    try {
+                      await onTestOscCommand(graphic, actionType)
+                    } finally {
+                      setTestingOscActionKey(null)
+                    }
+                  }}
+                />
                 <PreviewTemplateSection
                   settings={settings}
                   graphic={selectedGraphic}
@@ -717,6 +750,146 @@ function getElementBehavior(element: PreviewElementDefinition) {
     textAlign: 'left' as const,
     ...(element.behavior ?? element.text ?? {}),
   }
+}
+
+function normalizeGraphicControlCommand(
+  command: string | OscCommandConfig,
+): OscCommandConfig {
+  return typeof command === 'string'
+    ? {
+      address: command,
+      args: [],
+    }
+    : command
+}
+
+function updateGraphicControlAddress(
+  command: string | OscCommandConfig,
+  address: string,
+): OscCommandConfig {
+  return {
+    ...normalizeGraphicControlCommand(command),
+    address,
+  }
+}
+
+function updateGraphicControlArgs(
+  command: string | OscCommandConfig,
+  args: OscArgConfig[],
+): OscCommandConfig {
+  return {
+    ...normalizeGraphicControlCommand(command),
+    args,
+  }
+}
+
+function createDefaultOscArg(type: OscArgType = 's'): OscArgConfig {
+  return {
+    type,
+    value: type === 's' ? '' : 0,
+  }
+}
+
+function coerceOscArgValue(type: OscArgType, currentValue: string | number): string | number {
+  if (type === 's') {
+    return typeof currentValue === 'string' ? currentValue : String(currentValue)
+  }
+
+  if (typeof currentValue === 'number' && Number.isFinite(currentValue)) {
+    return type === 'i' ? Math.trunc(currentValue) : currentValue
+  }
+
+  const parsed = Number(currentValue)
+  if (!Number.isFinite(parsed)) {
+    return 0
+  }
+
+  return type === 'i' ? Math.trunc(parsed) : parsed
+}
+
+function getOscInputClass(hasError: boolean): string {
+  return `w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
+    hasError
+      ? 'border-rose-300 bg-rose-50 text-rose-900 focus:border-rose-400'
+      : 'border-border bg-white text-ink focus:border-accent'
+  }`
+}
+
+function getOscTargetValidationMessages(graphic: GraphicInstanceConfig): string[] {
+  const target = graphic.control.oscTarget
+  if (!target) {
+    return ['OSC target host and port are required before APlay can trigger this graphic.']
+  }
+
+  const messages: string[] = []
+
+  try {
+    validateOscHost(target.host)
+  } catch (error) {
+    messages.push(error instanceof Error ? error.message : 'OSC host is invalid.')
+  }
+
+  try {
+    validateOscPort(target.port)
+  } catch (error) {
+    messages.push(error instanceof Error ? error.message : 'OSC port is invalid.')
+  }
+
+  return messages
+}
+
+function getOscCommandValidationMessages(command: string | OscCommandConfig): string[] {
+  const normalizedCommand = normalizeGraphicControlCommand(command)
+  const messages: string[] = []
+
+  try {
+    validateOscAddress(normalizedCommand.address)
+  } catch (error) {
+    messages.push(error instanceof Error ? error.message : 'OSC address is invalid.')
+  }
+
+  normalizedCommand.args.forEach((arg, index) => {
+    try {
+      oscArgConfigSchema.parse(arg)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'OSC arg is invalid.'
+      messages.push(`Arg ${index + 1}: ${message}`)
+    }
+  })
+
+  return messages
+}
+
+function getOscArgDraftKey(
+  graphicId: string,
+  commandKey: 'play' | 'stop' | 'resume',
+  argIndex: number,
+): string {
+  return `${graphicId}:${commandKey}:${argIndex}`
+}
+
+function getOscArgInputError(
+  arg: OscArgConfig,
+  draftValue: string,
+): string | null {
+  if (arg.type === 's') {
+    return null
+  }
+
+  if (draftValue.trim().length === 0) {
+    return 'Value is required.'
+  }
+
+  const numericValue = Number(draftValue)
+  if (!Number.isFinite(numericValue)) {
+    return arg.type === 'i' ? 'Enter a valid integer.' : 'Enter a valid number.'
+  }
+
+  if (arg.type === 'i' && !Number.isInteger(numericValue)) {
+    return 'Enter a valid integer.'
+  }
+
+  return null
 }
 
 function updateElementBehavior(
@@ -1724,13 +1897,26 @@ function GraphicBindingSection({
   graphic,
   updateGraphic,
   updateBinding,
+  oscArgDrafts,
+  onOscArgDraftChange,
+  testingOscActionKey,
+  onTestOscCommand,
 }: {
   graphic: GraphicInstanceConfig
   updateGraphic: (updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig) => void
   updateBinding: (bindingIndex: number, updater: (binding: GraphicFieldBinding) => GraphicFieldBinding) => void
+  oscArgDrafts: Record<string, string>
+  onOscArgDraftChange: (draftKey: string, value: string) => void
+  testingOscActionKey: string | null
+  onTestOscCommand: (
+    graphic: GraphicInstanceConfig,
+    actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
+  ) => Promise<void>
 }) {
+  const targetValidationMessages = getOscTargetValidationMessages(graphic)
+
   return (
-    <FormSection title='Graphic bindings' description='Datasource path, OSC mappings, and required source fields live with the selected graphic config.'>
+    <FormSection title='Graphic bindings' description='Datasource path, OSC target, typed trigger commands, and source field bindings live with the selected graphic config.'>
       <div className='grid gap-3 md:grid-cols-2'>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic id</span>
@@ -1766,30 +1952,107 @@ function GraphicBindingSection({
             className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
           />
         </label>
-        <label className='space-y-2'>
-          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>OSC play</span>
-          <input
-            value={graphic.control.play}
-            onChange={(event) => updateGraphic((current) => ({ ...current, control: { ...current.control, play: event.target.value } }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-          />
-        </label>
-        <label className='space-y-2'>
-          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>OSC stop</span>
-          <input
-            value={graphic.control.stop}
-            onChange={(event) => updateGraphic((current) => ({ ...current, control: { ...current.control, stop: event.target.value } }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-          />
-        </label>
-        <label className='space-y-2 md:col-span-2'>
-          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>OSC resume</span>
-          <input
-            value={graphic.control.resume}
-            onChange={(event) => updateGraphic((current) => ({ ...current, control: { ...current.control, resume: event.target.value } }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-          />
-        </label>
+      </div>
+
+      <div className='space-y-4 rounded-3xl border border-border bg-surface/30 p-4'>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
+          <div>
+            <p className='text-sm font-semibold text-ink'>OSC target</p>
+            <p className='mt-1 text-sm text-muted'>
+              These values tell APlay where to send trigger commands. This form edits config only and does not call the OSC client directly.
+            </p>
+          </div>
+          <span className='rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-muted'>
+            Save or reload with the normal settings actions
+          </span>
+        </div>
+
+        <div className='grid gap-3 md:grid-cols-2'>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Host</span>
+            <input
+              value={graphic.control.oscTarget?.host ?? ''}
+              onChange={(event) => updateGraphic((current) => ({
+                ...current,
+                control: {
+                  ...current.control,
+                  oscTarget: {
+                    host: event.target.value,
+                    port: current.control.oscTarget?.port ?? 9000,
+                  },
+                },
+              }))}
+              placeholder='127.0.0.1'
+              className={getOscInputClass(targetValidationMessages.some((message) => message.includes('host')))}
+            />
+          </label>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Port</span>
+            <input
+              type='number'
+              min={1}
+              max={65535}
+              value={graphic.control.oscTarget?.port ?? 9000}
+              onChange={(event) => updateGraphic((current) => ({
+                ...current,
+                control: {
+                  ...current.control,
+                  oscTarget: {
+                    host: current.control.oscTarget?.host ?? '',
+                    port: Number(event.target.value),
+                  },
+                },
+              }))}
+              className={getOscInputClass(targetValidationMessages.some((message) => message.includes('port')))}
+            />
+          </label>
+        </div>
+
+        {targetValidationMessages.length > 0 ? (
+          <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+            {targetValidationMessages.map((message) => <p key={message}>{message}</p>)}
+          </div>
+        ) : (
+          <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+            OSC target is configured and ready to save.
+          </div>
+        )}
+      </div>
+
+      <div className='space-y-4'>
+        <OscCommandEditor
+          graphic={graphic}
+          commandKey='play'
+          label='Play command'
+          command={graphic.control.play}
+          updateGraphic={updateGraphic}
+          oscArgDrafts={oscArgDrafts}
+          onOscArgDraftChange={onOscArgDraftChange}
+          testingOscActionKey={testingOscActionKey}
+          onTestOscCommand={onTestOscCommand}
+        />
+        <OscCommandEditor
+          graphic={graphic}
+          commandKey='stop'
+          label='Stop command'
+          command={graphic.control.stop}
+          updateGraphic={updateGraphic}
+          oscArgDrafts={oscArgDrafts}
+          onOscArgDraftChange={onOscArgDraftChange}
+          testingOscActionKey={testingOscActionKey}
+          onTestOscCommand={onTestOscCommand}
+        />
+        <OscCommandEditor
+          graphic={graphic}
+          commandKey='resume'
+          label='Resume command'
+          command={graphic.control.resume}
+          updateGraphic={updateGraphic}
+          oscArgDrafts={oscArgDrafts}
+          onOscArgDraftChange={onOscArgDraftChange}
+          testingOscActionKey={testingOscActionKey}
+          onTestOscCommand={onTestOscCommand}
+        />
       </div>
 
       <div className='space-y-3'>
@@ -1842,6 +2105,199 @@ function GraphicBindingSection({
         ))}
       </div>
     </FormSection>
+  )
+}
+
+function OscCommandEditor({
+  graphic,
+  commandKey,
+  label,
+  command,
+  updateGraphic,
+  oscArgDrafts,
+  onOscArgDraftChange,
+  testingOscActionKey,
+  onTestOscCommand,
+}: {
+  graphic: GraphicInstanceConfig
+  commandKey: 'play' | 'stop' | 'resume'
+  label: string
+  command: string | OscCommandConfig
+  updateGraphic: (updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig) => void
+  oscArgDrafts: Record<string, string>
+  onOscArgDraftChange: (draftKey: string, value: string) => void
+  testingOscActionKey: string | null
+  onTestOscCommand: (
+    graphic: GraphicInstanceConfig,
+    actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
+  ) => Promise<void>
+}) {
+  const normalizedCommand = normalizeGraphicControlCommand(command)
+  const validationMessages = getOscCommandValidationMessages(command)
+  const commandHasAddressError = validationMessages.some((message) => message.includes('start with "/"'))
+  const actionType = commandKey === 'play' ? 'playGraphic' : commandKey === 'stop' ? 'stopGraphic' : 'resumeGraphic'
+  const isTesting = testingOscActionKey === `${graphic.id}:${actionType}`
+
+  const updateCommand = (nextCommand: OscCommandConfig) => {
+    updateGraphic((current) => ({
+      ...current,
+      control: {
+        ...current.control,
+        [commandKey]: nextCommand,
+      },
+    }))
+  }
+
+  return (
+    <section className='space-y-4 rounded-3xl border border-border bg-white p-5 shadow-sm'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <p className='text-sm font-semibold text-ink'>{label}</p>
+          <p className='mt-1 text-sm text-muted'>
+            Configure the OSC address and typed arguments that APlay should send for this command.
+          </p>
+        </div>
+        <button
+          type='button'
+          onClick={() => updateCommand({
+            ...normalizedCommand,
+            args: [...normalizedCommand.args, createDefaultOscArg()],
+          })}
+          className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+        >
+          Add arg
+        </button>
+        <button
+          type='button'
+          onClick={() => onTestOscCommand(graphic, actionType)}
+          disabled={isTesting}
+          className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+        >
+          {isTesting ? 'Sending...' : 'Test send'}
+        </button>
+      </div>
+
+      <label className='space-y-2'>
+        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Address</span>
+        <input
+          value={normalizedCommand.address}
+          onChange={(event) => updateCommand(updateGraphicControlAddress(command, event.target.value))}
+          placeholder='/aplay/graphic/play'
+          className={getOscInputClass(commandHasAddressError)}
+        />
+      </label>
+
+      {normalizedCommand.args.length === 0 ? (
+        <div className='rounded-2xl border border-dashed border-border bg-surface/20 px-4 py-3 text-sm text-muted'>
+          No args configured. That is valid for commands that only need an OSC address.
+        </div>
+      ) : (
+        <div className='space-y-3'>
+          {normalizedCommand.args.map((arg, argIndex) => {
+            const draftKey = getOscArgDraftKey(graphic.id, commandKey, argIndex)
+            const draftValue = oscArgDrafts[draftKey] ?? String(arg.value)
+            const argError = getOscArgInputError(arg, draftValue)
+
+            return (
+              <div key={draftKey} className='grid gap-3 rounded-2xl border border-border bg-surface/30 p-4 md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start'>
+                <label className='space-y-2'>
+                  <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Type</span>
+                  <select
+                    value={arg.type}
+                    onChange={(event) => {
+                      const nextType = event.target.value as OscArgType
+                      updateCommand(updateGraphicControlArgs(command, normalizedCommand.args.map((currentArg, currentIndex) => currentIndex === argIndex
+                        ? {
+                          type: nextType,
+                          value: coerceOscArgValue(nextType, currentArg.value),
+                        }
+                        : currentArg)))
+                      onOscArgDraftChange(
+                        draftKey,
+                        String(coerceOscArgValue(nextType, arg.value)),
+                      )
+                    }}
+                    className={getOscInputClass(false)}
+                  >
+                    {oscArgTypes.map((argType) => (
+                      <option key={argType} value={argType}>
+                        {argType}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className='space-y-2'>
+                  <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Value</span>
+                  <input
+                    type={arg.type === 's' ? 'text' : 'number'}
+                    step={arg.type === 'f' ? 'any' : 1}
+                    value={draftValue}
+                    onChange={(event) => {
+                      const nextDraftValue = event.target.value
+                      onOscArgDraftChange(draftKey, nextDraftValue)
+
+                      if (arg.type === 's') {
+                        updateCommand(updateGraphicControlArgs(command, normalizedCommand.args.map((currentArg, currentIndex) => currentIndex === argIndex
+                          ? {
+                            ...currentArg,
+                            value: nextDraftValue,
+                          }
+                          : currentArg)))
+                        return
+                      }
+
+                      const numericValue = Number(nextDraftValue)
+                      if (!Number.isFinite(numericValue)) {
+                        return
+                      }
+
+                      if (arg.type === 'i' && !Number.isInteger(numericValue)) {
+                        return
+                      }
+
+                      updateCommand(updateGraphicControlArgs(command, normalizedCommand.args.map((currentArg, currentIndex) => currentIndex === argIndex
+                        ? {
+                          ...currentArg,
+                          value: arg.type === 'i' ? Math.trunc(numericValue) : numericValue,
+                        }
+                        : currentArg)))
+                    }}
+                    placeholder={arg.type === 's' ? 'TemplateName' : arg.type === 'i' ? '1' : '0.5'}
+                    className={getOscInputClass(argError !== null)}
+                  />
+                  {argError ? (
+                    <p className='text-xs font-medium text-rose-600'>{argError}</p>
+                  ) : (
+                    <p className='text-xs text-muted'>
+                      {arg.type === 's' ? 'String value' : arg.type === 'i' ? 'Integer value' : 'Float value'}
+                    </p>
+                  )}
+                </label>
+
+                <button
+                  type='button'
+                  onClick={() => updateCommand(updateGraphicControlArgs(command, normalizedCommand.args.filter((_, currentIndex) => currentIndex !== argIndex)))}
+                  className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                >
+                  Remove
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {validationMessages.length > 0 ? (
+        <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+          {validationMessages.map((message) => <p key={message}>{message}</p>)}
+        </div>
+      ) : (
+        <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+          Command config is valid and ready to save.
+        </div>
+      )}
+    </section>
   )
 }
 

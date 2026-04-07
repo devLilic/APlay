@@ -3,19 +3,19 @@ import type { SelectedEntityContext } from '@/features/workspace/state/workspace
 import { createCsvEditorialSourceAdapter } from '@/adapters/content-source/csvEditorialSource'
 import { createJsonEditorialSourceAdapter } from '@/adapters/content-source/jsonEditorialSource'
 import { createProfileContentSourceLoader } from '@/adapters/content-source/profileContentSourceLoader'
-import { createOscGraphicOutputAdapter } from '@/adapters/graphic-output/oscGraphicOutput'
-import { createJsonDatasourcePublishTargetAdapter } from '@/adapters/publish-target/jsonDatasourcePublishTarget'
+import { createGraphicsAdapter } from '@/adapters/graphics/graphicsAdapter'
 import { createInMemoryGraphicConfigStorage, createProfileGraphicConfigLoader } from '@/settings/storage/profileGraphicConfigLoader'
 import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
 import type { WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 import { sampleGraphicFiles, sampleSettings, sampleSourceFiles } from '@/features/workspace/data/sampleWorkspaceConfig'
 import {
-  createSelectedEntityControlOrchestrator,
   createSelectedEntityPreviewData,
   resolveGraphicControlForSelectedEntity,
   type SelectedEntityControlFeedback,
 } from '@/features/workspace/state/selectedEntityControl'
 import { serializeGraphicConfigExport } from '@/settings/storage/graphicConfigExport'
+import type { ActionType } from '@/core/actions/actionTypes'
+import { createOscClient } from '@/integrations/osc/oscClient'
 
 export interface WorkspaceShellData {
   document: EditorialDocument
@@ -92,48 +92,132 @@ export function runWorkspaceGraphicAction(
   actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   selectedEntity: SelectedEntityContext | undefined,
   graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
-): SelectedEntityControlFeedback {
-  const orchestrator = createWorkspaceControlOrchestrator(graphicsByEntityType)
+): Promise<SelectedEntityControlFeedback> {
+  return runWorkspaceGraphicsAdapterAction(actionType, selectedEntity, graphicsByEntityType)
+}
 
-  switch (actionType) {
-    case 'playGraphic':
-      return orchestrator.play(selectedEntity)
-    case 'stopGraphic':
-      return orchestrator.stop(selectedEntity)
-    case 'resumeGraphic':
-      return orchestrator.resume(selectedEntity)
+export function runWorkspaceGraphicDebugAction(
+  actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
+  graphic: GraphicInstanceConfig,
+  previewContent: Record<string, string | undefined> = {},
+): Promise<SelectedEntityControlFeedback> {
+  const adapter = createWorkspaceGraphicsAdapter()
+  const entityType = graphic.entityType
+  const entity = createDebugEntityForGraphic(entityType, previewContent)
+
+  return runGraphicsAdapterFeedback(
+    actionType === 'playGraphic'
+      ? adapter.play({
+        entityType,
+        entity: entity as never,
+        graphic,
+        bindings: graphic.bindings ?? [],
+      })
+      : actionType === 'stopGraphic'
+        ? adapter.stop({
+          entityType,
+          entity: entity as never,
+          graphic,
+          bindings: graphic.bindings ?? [],
+        })
+        : adapter.resume({
+          entityType,
+          entity: entity as never,
+          graphic,
+          bindings: graphic.bindings ?? [],
+        }),
+    actionType,
+  )
+}
+
+async function runWorkspaceGraphicsAdapterAction(
+  actionType: ActionType,
+  selectedEntity: SelectedEntityContext | undefined,
+  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+): Promise<SelectedEntityControlFeedback> {
+  if (!selectedEntity) {
+    return {
+      kind: 'error',
+      title: 'No entity selected',
+      details: ['Select an entity before sending commands to LiveBoard.'],
+    }
+  }
+
+  const entityType = entityGroupToEntityType(selectedEntity.entityGroup)
+  const graphic = resolveGraphicControlForSelectedEntity(graphicsByEntityType, selectedEntity)
+  if (!graphic) {
+    return {
+      kind: 'error',
+      title: 'Graphic unavailable',
+      details: [`No graphic configuration is loaded for entity type "${entityType}".`],
+    }
+  }
+
+  const adapter = createWorkspaceGraphicsAdapter()
+
+  return runGraphicsAdapterFeedback(
+    actionType === 'playGraphic'
+      ? adapter.play({
+      entityType,
+      entity: selectedEntity.entity as never,
+      graphic,
+      bindings: graphic.bindings ?? [],
+    })
+      : actionType === 'stopGraphic'
+        ? adapter.stop({
+        entityType,
+        entity: selectedEntity.entity as never,
+        graphic,
+        bindings: graphic.bindings ?? [],
+      })
+        : adapter.resume({
+        entityType,
+        entity: selectedEntity.entity as never,
+        graphic,
+        bindings: graphic.bindings ?? [],
+      }),
+    actionType,
+  )
+}
+
+async function runGraphicsAdapterFeedback(
+  resultPromise: ReturnType<ReturnType<typeof createWorkspaceGraphicsAdapter>['play']>,
+  actionType: ActionType,
+): Promise<SelectedEntityControlFeedback> {
+  const result = await resultPromise
+  if (!result.success) {
+    return {
+      kind: 'error',
+      title: actionType === 'playGraphic' && result.diagnostics.some((diagnostic) => diagnostic.code === 'publish-failed' || diagnostic.code === 'missing-bindings')
+        ? 'Publish failed'
+        : 'Output failed',
+      details: result.diagnostics.map((diagnostic) => diagnostic.message),
+    }
+  }
+
+  return {
+    kind: 'success',
+    title: `${actionType} completed`,
+    details: [
+      ...(result.targetFile ? [`Datasource updated: ${result.targetFile}`] : []),
+      `OSC sent: ${result.command?.address ?? ''}`,
+    ],
   }
 }
 
-function createWorkspaceControlOrchestrator(
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
-) {
-  return createSelectedEntityControlOrchestrator({
-    graphicsByEntityType,
-    bindingsByEntityType: Object.fromEntries(
-      Object.entries(graphicsByEntityType).map(([entityType, graphic]) => [
-        entityType,
-        graphic?.bindings ?? [],
-      ]),
-    ),
-    publishTarget: {
-      publishEntity(input) {
-        const publisher = createJsonDatasourcePublishTargetAdapter()
-        return publisher.publishEntity(input, {
-          write(targetFile, content) {
-            datasourceFiles.set(targetFile, content)
-          },
-        })
-      },
+function createWorkspaceGraphicsAdapter() {
+  return createGraphicsAdapter({
+    createOscClient(config) {
+      return {
+        async send(address, args) {
+          sentOscAddresses.push(`${config.host}:${config.port}${address}`)
+          await createOscClient(config).send(address, args)
+        },
+      }
     },
-    graphicOutput: {
-      sendForGraphic(input) {
-        const output = createOscGraphicOutputAdapter()
-        return output.sendForGraphic(input, {
-          send(command) {
-            sentOscAddresses.push(command.address)
-          },
-        })
+    fileWriter: {
+      write(targetFile, content) {
+        datasourceFiles.set(targetFile, content)
       },
     },
   })
@@ -201,4 +285,55 @@ function formatGraphicConfigDiagnostic(
   return typeof reason === 'string' && reason.length > 0
     ? `${diagnostic.message}: ${reason}`
     : diagnostic.message
+}
+
+function entityGroupToEntityType(group: SelectedEntityContext['entityGroup']) {
+  switch (group) {
+    case 'titles':
+      return 'title'
+    case 'supertitles':
+      return 'supertitle'
+    case 'persons':
+      return 'person'
+    case 'locations':
+      return 'location'
+    case 'breakingNews':
+      return 'breakingNews'
+    case 'waitingTitles':
+      return 'waitingTitle'
+    case 'waitingLocations':
+      return 'waitingLocation'
+    case 'phones':
+      return 'phone'
+  }
+}
+
+function createDebugEntityForGraphic(
+  entityType: GraphicInstanceConfig['entityType'],
+  previewContent: Record<string, string | undefined>,
+) {
+  switch (entityType) {
+    case 'title':
+    case 'supertitle':
+      return {
+        text: previewContent.text ?? 'Debug title',
+      }
+    case 'person':
+      return {
+        name: previewContent.name ?? 'Debug name',
+        role: previewContent.role ?? 'Debug role',
+      }
+    case 'location':
+    case 'breakingNews':
+    case 'waitingTitle':
+    case 'waitingLocation':
+      return {
+        value: previewContent.value ?? previewContent.text ?? 'Debug value',
+      }
+    case 'phone':
+      return {
+        label: previewContent.label ?? 'Debug label',
+        number: previewContent.number ?? '000',
+      }
+  }
 }

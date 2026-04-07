@@ -106,9 +106,26 @@ const baseSettings = {
       entityType: 'title',
       dataFileName: 'title-main.json',
       control: {
-        play: '/graphics/title/play',
-        stop: '/graphics/title/stop',
-        resume: '/graphics/title/resume',
+        oscTarget: {
+          host: '127.0.0.1',
+          port: 9000,
+        },
+        play: {
+          address: '/graphics/title/play',
+          args: [
+            { type: 's', value: 'TitleTemplate' },
+            { type: 'i', value: 1 },
+            { type: 'f', value: 0.5 },
+          ],
+        },
+        stop: {
+          address: '/graphics/title/stop',
+          args: [],
+        },
+        resume: {
+          address: '/graphics/title/resume',
+          args: [{ type: 's', value: 'resume' }],
+        },
       },
       preview: {
         id: 'title-preview',
@@ -251,6 +268,36 @@ describe('settings storage load/save', () => {
         fitMode: 'contain',
         position: 'center',
       })
+  })
+
+  it('persists and reloads structured OSC target and command args', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save(baseSettings)
+
+    expect(repository.load().graphics.find((graphic) => graphic.id === 'title-main')?.control).toEqual({
+      oscTarget: {
+        host: '127.0.0.1',
+        port: 9000,
+      },
+      play: {
+        address: '/graphics/title/play',
+        args: [
+          { type: 's', value: 'TitleTemplate' },
+          { type: 'i', value: 1 },
+          { type: 'f', value: 0.5 },
+        ],
+      },
+      stop: {
+        address: '/graphics/title/stop',
+        args: [],
+      },
+      resume: {
+        address: '/graphics/title/resume',
+        args: [{ type: 's', value: 'resume' }],
+      },
+    })
   })
 })
 

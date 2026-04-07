@@ -16,6 +16,7 @@ import {
   createDefaultWorkspaceConfigSnapshot,
   createWorkspaceSnapshotFromSettings,
   loadWorkspaceShellData,
+  runWorkspaceGraphicDebugAction,
   resolveGraphicForSelection,
   runWorkspaceGraphicAction,
   type WorkspaceShellData,
@@ -124,8 +125,8 @@ export function WorkspaceShell() {
     setFeedback(null)
   }
 
-  const handleAction = (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    setFeedback(runWorkspaceGraphicAction(actionType, selectedEntity, workspaceData.graphicsByEntityType))
+  const handleAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
+    setFeedback(await runWorkspaceGraphicAction(actionType, selectedEntity, workspaceData.graphicsByEntityType))
   }
 
   const handleCollectionColumnDrop = (column: CollectionColumnIndex) => {
@@ -282,6 +283,20 @@ export function WorkspaceShell() {
     }
   }
 
+  const handleTestOscCommand = async (
+    graphic: GraphicInstanceConfig,
+    actionType: (typeof actionTypes)[keyof typeof actionTypes],
+  ) => {
+    const result = await runWorkspaceGraphicDebugAction(actionType, graphic, previewContent)
+
+    setSettingsFeedback({
+      kind: result.kind,
+      message: result.kind === 'success'
+        ? `${graphic.id}: ${result.details.join(' | ')}`
+        : `${graphic.id}: ${result.details.join(' | ')}`,
+    })
+  }
+
   const handleSourceRefresh = () => {
     try {
       const nextData = loadWorkspaceShellData(loadState.snapshot)
@@ -361,6 +376,7 @@ export function WorkspaceShell() {
           onReload={handleSettingsReload}
           onExportGraphicConfig={handleExportGraphicConfig}
           onExportProfile={handleExportProfile}
+          onTestOscCommand={handleTestOscCommand}
         />
       ) : null}
 

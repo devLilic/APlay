@@ -48,6 +48,33 @@ const personGraphic: GraphicInstanceConfig = {
   },
 }
 
+const structuredOscGraphic: GraphicInstanceConfig = {
+  ...titleGraphic,
+  id: 'title-structured',
+  control: {
+    oscTarget: {
+      host: '127.0.0.1',
+      port: 9000,
+    },
+    play: {
+      address: '/aplay/title/play',
+      args: [
+        { type: 's', value: 'TitleTemplate' },
+        { type: 'i', value: 1 },
+        { type: 'f', value: 0.5 },
+      ],
+    },
+    stop: {
+      address: '/aplay/title/stop',
+      args: [],
+    },
+    resume: {
+      address: '/aplay/title/resume',
+      args: [{ type: 's', value: 'resume' }],
+    },
+  },
+}
+
 const titleSelection: SelectedEntityContext = {
   blockIndex: 0,
   blockName: 'Opening',
@@ -204,6 +231,52 @@ describe('selected entity publish and command orchestration', () => {
     expect(result.kind).toBe('success')
   })
 
+  it('passes the selected graphic config through to output so the configured OSC target and typed play args can be resolved', () => {
+    let receivedGraphic: GraphicInstanceConfig | undefined
+    let receivedActionType: string | undefined
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: { title: structuredOscGraphic },
+      bindingsByEntityType: {
+        title: [{ sourceField: 'text', targetField: 'text', required: true }],
+      },
+      publishTarget: {
+        publishEntity() {
+          return {
+            success: true,
+            targetFile: 'datasources/title-main.json',
+            payload: { text: 'Morning Briefing' },
+            diagnostics: [],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic(input) {
+          receivedGraphic = input.graphic
+          receivedActionType = input.actionType
+          return {
+            success: true,
+            command: {
+              actionType: 'playGraphic',
+              address: '/aplay/title/play',
+              args: [
+                { type: 's', value: 'TitleTemplate' },
+                { type: 'i', value: 1 },
+                { type: 'f', value: 0.5 },
+              ],
+            },
+            diagnostics: [],
+          }
+        },
+      },
+    })
+
+    const result = orchestrator.play(titleSelection)
+
+    expect(result.kind).toBe('success')
+    expect(receivedActionType).toBe('playGraphic')
+    expect(receivedGraphic?.control).toEqual(structuredOscGraphic.control)
+  })
+
   it('orchestrates the stop action', () => {
     const calls: string[] = []
     const orchestrator = createSelectedEntityControlOrchestrator({
@@ -242,6 +315,46 @@ describe('selected entity publish and command orchestration', () => {
     expect(result.kind).toBe('success')
   })
 
+  it('uses the configured stop OSC command without forcing a datasource write', () => {
+    const publishCalls: string[] = []
+    const outputCalls: string[] = []
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: { title: structuredOscGraphic },
+      bindingsByEntityType: { title: [] },
+      publishTarget: {
+        publishEntity() {
+          publishCalls.push('publish')
+          return {
+            success: true,
+            targetFile: 'datasources/title-main.json',
+            payload: {},
+            diagnostics: [],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic(input) {
+          outputCalls.push(input.actionType)
+          return {
+            success: true,
+            command: {
+              actionType: 'stopGraphic',
+              address: '/aplay/title/stop',
+              args: [],
+            },
+            diagnostics: [],
+          }
+        },
+      },
+    })
+
+    const result = orchestrator.stop(titleSelection)
+
+    expect(result.kind).toBe('success')
+    expect(publishCalls).toEqual([])
+    expect(outputCalls).toEqual(['stopGraphic'])
+  })
+
   it('orchestrates the resume action', () => {
     const calls: string[] = []
     const orchestrator = createSelectedEntityControlOrchestrator({
@@ -278,6 +391,46 @@ describe('selected entity publish and command orchestration', () => {
 
     expect(calls).toEqual(['osc'])
     expect(result.kind).toBe('success')
+  })
+
+  it('uses the configured resume OSC command without forcing a datasource write', () => {
+    const publishCalls: string[] = []
+    const outputCalls: string[] = []
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: { title: structuredOscGraphic },
+      bindingsByEntityType: { title: [] },
+      publishTarget: {
+        publishEntity() {
+          publishCalls.push('publish')
+          return {
+            success: true,
+            targetFile: 'datasources/title-main.json',
+            payload: {},
+            diagnostics: [],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic(input) {
+          outputCalls.push(input.actionType)
+          return {
+            success: true,
+            command: {
+              actionType: 'resumeGraphic',
+              address: '/aplay/title/resume',
+              args: [{ type: 's', value: 'resume' }],
+            },
+            diagnostics: [],
+          }
+        },
+      },
+    })
+
+    const result = orchestrator.resume(titleSelection)
+
+    expect(result.kind).toBe('success')
+    expect(publishCalls).toEqual([])
+    expect(outputCalls).toEqual(['resumeGraphic'])
   })
 
   it('behaves safely when no config exists for the selected entity type', () => {
@@ -433,6 +586,96 @@ describe('selected entity publish and command orchestration', () => {
       kind: 'error',
       title: 'Output failed',
       details: ['Missing OSC address for action "playGraphic" on graphic "title-main"'],
+    })
+  })
+
+  it('behaves safely when the stop command is missing', () => {
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: {
+        title: {
+          ...titleGraphic,
+          control: {
+            ...titleGraphic.control,
+            stop: '',
+          },
+        },
+      },
+      bindingsByEntityType: { title: [] },
+      publishTarget: {
+        publishEntity() {
+          throw new Error('should not publish for stop')
+        },
+      },
+      graphicOutput: {
+        sendForGraphic() {
+          return {
+            success: false,
+            command: {
+              actionType: 'stopGraphic',
+              address: '',
+              args: [],
+            },
+            diagnostics: [
+              {
+                severity: 'error',
+                code: 'missing-osc-address',
+                message: 'Missing OSC address for action "stopGraphic" on graphic "title-main"',
+              },
+            ],
+          }
+        },
+      },
+    })
+
+    expect(orchestrator.stop(titleSelection)).toEqual({
+      kind: 'error',
+      title: 'Output failed',
+      details: ['Missing OSC address for action "stopGraphic" on graphic "title-main"'],
+    })
+  })
+
+  it('behaves safely when the resume command is missing', () => {
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsByEntityType: {
+        title: {
+          ...titleGraphic,
+          control: {
+            ...titleGraphic.control,
+            resume: '',
+          },
+        },
+      },
+      bindingsByEntityType: { title: [] },
+      publishTarget: {
+        publishEntity() {
+          throw new Error('should not publish for resume')
+        },
+      },
+      graphicOutput: {
+        sendForGraphic() {
+          return {
+            success: false,
+            command: {
+              actionType: 'resumeGraphic',
+              address: '',
+              args: [],
+            },
+            diagnostics: [
+              {
+                severity: 'error',
+                code: 'missing-osc-address',
+                message: 'Missing OSC address for action "resumeGraphic" on graphic "title-main"',
+              },
+            ],
+          }
+        },
+      },
+    })
+
+    expect(orchestrator.resume(titleSelection)).toEqual({
+      kind: 'error',
+      title: 'Output failed',
+      details: ['Missing OSC address for action "resumeGraphic" on graphic "title-main"'],
     })
   })
 

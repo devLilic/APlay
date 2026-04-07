@@ -9,6 +9,7 @@ export type ContentSourceType = 'csv'
 export type PreviewTextAlign = 'left' | 'center'
 export type SourceSchemaType = 'csv'
 export type CsvBlockDetectionMode = 'columnRegex'
+export type OscArgType = 's' | 'i' | 'f'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
@@ -38,10 +39,26 @@ export interface GraphicFieldBinding {
   required?: boolean
 }
 
+export interface OscArgConfig {
+  type: OscArgType
+  value: string | number
+}
+
+export interface OscTargetConfig {
+  host: string
+  port: number
+}
+
+export interface OscCommandConfig {
+  address: string
+  args: OscArgConfig[]
+}
+
 export interface GraphicControlConfig {
-  play: string
-  stop: string
-  resume: string
+  oscTarget?: OscTargetConfig
+  play: string | OscCommandConfig
+  stop: string | OscCommandConfig
+  resume: string | OscCommandConfig
 }
 
 export interface ActionButtonConfig {

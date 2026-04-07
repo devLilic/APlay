@@ -10,6 +10,8 @@ import type {
   GraphicFieldBinding,
   GraphicControlConfig,
   GraphicInstanceConfig,
+  OscCommandConfig,
+  OscTargetConfig,
   PreviewBackgroundConfig,
   ShowProfileSourceConfig,
   PreviewElementDefinition,
@@ -19,6 +21,12 @@ import type {
   ShowProfileConfig,
   TransformOrigin,
 } from '@/settings/models/appConfig'
+import {
+  oscArgConfigSchema,
+  oscCommandConfigSchema,
+  oscTargetConfigSchema,
+  parseGraphicOscCommandConfig,
+} from '@/settings/schemas/oscConfigSchemas'
 import {
   SchemaValidationError,
   assertRecord,
@@ -98,11 +106,23 @@ export const previewBackgroundConfigSchema = createSchema<PreviewBackgroundConfi
 
 export const graphicControlConfigSchema = createSchema<GraphicControlConfig>((input) => {
   const value = assertRecord(input, 'graphicControlConfig')
+  if (value.play === undefined) {
+    throw new SchemaValidationError('graphicControlConfig.play is required')
+  }
+  if (value.stop === undefined) {
+    throw new SchemaValidationError('graphicControlConfig.stop is required')
+  }
+  if (value.resume === undefined) {
+    throw new SchemaValidationError('graphicControlConfig.resume is required')
+  }
 
   return {
-    play: parseRequiredString(value, 'play', 'graphicControlConfig'),
-    stop: parseRequiredString(value, 'stop', 'graphicControlConfig'),
-    resume: parseRequiredString(value, 'resume', 'graphicControlConfig'),
+    ...(value.oscTarget !== undefined
+      ? { oscTarget: oscTargetConfigSchema.parse(value.oscTarget) as OscTargetConfig }
+      : {}),
+    play: parseGraphicOscCommandConfig(value.play, 'play') as string | OscCommandConfig,
+    stop: parseGraphicOscCommandConfig(value.stop, 'stop') as string | OscCommandConfig,
+    resume: parseGraphicOscCommandConfig(value.resume, 'resume') as string | OscCommandConfig,
   }
 })
 

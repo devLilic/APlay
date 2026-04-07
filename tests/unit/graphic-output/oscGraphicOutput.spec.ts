@@ -42,6 +42,33 @@ const graphicConfig: GraphicInstanceConfig = {
   ],
 }
 
+const structuredGraphicConfig: GraphicInstanceConfig = {
+  ...graphicConfig,
+  id: 'title-structured',
+  control: {
+    oscTarget: {
+      host: '127.0.0.1',
+      port: 9000,
+    },
+    play: {
+      address: '/lb/title/play',
+      args: [
+        { type: 's', value: 'TemplateName' },
+        { type: 'i', value: 1 },
+        { type: 'f', value: 0.5 },
+      ],
+    },
+    stop: {
+      address: '/lb/title/stop',
+      args: [],
+    },
+    resume: {
+      address: '/lb/title/resume',
+      args: [{ type: 's', value: 'resume' }],
+    },
+  },
+}
+
 describe('GraphicOutputAdapter contract', () => {
   it('defines an output adapter that executes code-defined actions', () => {
     const adapter = graphicOutputAdapterSchema.parse({
@@ -119,6 +146,25 @@ describe('OSC graphic output', () => {
       actionType: 'resumeGraphic',
       address: '/lb/title/resume',
       args: [],
+    })
+  })
+
+  it('preserves the configured structured OSC address and typed args for play', () => {
+    const adapter = createOscGraphicOutputAdapter()
+
+    expect(
+      adapter.buildCommand({
+        actionType: 'playGraphic',
+        graphic: structuredGraphicConfig,
+      }),
+    ).toEqual({
+      actionType: 'playGraphic',
+      address: '/lb/title/play',
+      args: [
+        { type: 's', value: 'TemplateName' },
+        { type: 'i', value: 1 },
+        { type: 'f', value: 0.5 },
+      ],
     })
   })
 

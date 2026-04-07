@@ -33,6 +33,11 @@ export default defineConfig(({ command }) => {
             }
           },
           vite: {
+            resolve: {
+              alias: {
+                '@': path.join(__dirname, 'src')
+              },
+            },
             build: {
               sourcemap,
               minify: isBuild,
@@ -48,6 +53,11 @@ export default defineConfig(({ command }) => {
           // Preload scripts may contain Web assets, so use the `build.rollupOptions.input` instead `build.lib.entry`.
           input: 'electron/preload/index.ts',
           vite: {
+            resolve: {
+              alias: {
+                '@': path.join(__dirname, 'src')
+              },
+            },
             build: {
               sourcemap: sourcemap ? 'inline' : undefined, // #332
               minify: isBuild,
