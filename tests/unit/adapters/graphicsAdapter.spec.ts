@@ -87,7 +87,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.play({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings,
@@ -126,7 +126,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.play({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings,
@@ -155,7 +155,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.stop({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings,
@@ -181,7 +181,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.resume({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings,
@@ -205,7 +205,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.play({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: {
         ...graphicConfig,
         control: {
@@ -243,7 +243,7 @@ describe('GraphicsAdapter', () => {
 
     const stopResult = await adapter.stop({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings: {
@@ -260,7 +260,7 @@ describe('GraphicsAdapter', () => {
 
     const resumeResult = await adapter.resume({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings: {
@@ -293,7 +293,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.stop({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings: undefined,
@@ -322,7 +322,7 @@ describe('GraphicsAdapter', () => {
 
     const result = await adapter.play({
       entityType: 'title',
-      entity: { text: 'Morning Briefing' },
+      entity: { id: 'title-1', text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
       oscSettings,
@@ -338,5 +338,34 @@ describe('GraphicsAdapter', () => {
         },
       ],
     })
+  })
+
+  it('prefers graphic-specific OSC commands over global command addresses', async () => {
+    const send = vi.fn(async () => undefined)
+    const adapter = createGraphicsAdapter({
+      createOscClient() {
+        return { send }
+      },
+      fileWriter: {
+        write() {},
+      },
+    })
+
+    const result = await adapter.stop({
+      entityType: 'title',
+      entity: { id: 'title-1', text: 'Morning Briefing' },
+      graphic: {
+        ...graphicConfig,
+        control: {
+          ...graphicConfig.control,
+          stop: '/graphics/title-main/stop',
+        },
+      },
+      bindings: graphicConfig.bindings,
+      oscSettings,
+    })
+
+    expect(result.success).toBe(true)
+    expect(send).toHaveBeenCalledWith('/graphics/title-main/stop', [])
   })
 })

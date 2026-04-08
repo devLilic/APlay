@@ -1,8 +1,9 @@
-import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
+import type { CsvSourceSchemaConfig, GraphicInstanceConfig } from '@/settings/models/appConfig'
 
 export interface CsvParseOptions {
   schema?: CsvSourceSchemaConfig
   expectedColumnsByGraphicId?: Record<string, string[]>
+  graphics?: GraphicInstanceConfig[]
 }
 
 export interface CsvRow {

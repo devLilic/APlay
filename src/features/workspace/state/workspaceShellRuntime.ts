@@ -20,7 +20,8 @@ export interface WorkspaceShellData {
   document: EditorialDocument
   activeProfileLabel: string
   activeSourceFilePath?: string
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>
+  graphics: GraphicInstanceConfig[]
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>
   diagnostics: string[]
 }
 
@@ -65,8 +66,9 @@ export function loadWorkspaceShellData(
     document: loadedSource.document,
     activeProfileLabel: profileResult.profile.label,
     activeSourceFilePath: loadedSource.activeSourceFilePath,
-    graphicsByEntityType: Object.fromEntries(
-      profileResult.graphics.map((graphic) => [graphic.entityType, graphic]),
+    graphics: profileResult.graphics,
+    graphicsById: Object.fromEntries(
+      profileResult.graphics.map((graphic) => [graphic.id, graphic]),
     ),
     diagnostics: [
       ...loadedSource.diagnostics.map((diagnostic) => diagnostic.message),
@@ -81,19 +83,19 @@ const sentOscAddresses: string[] = []
 export const createEntityPreviewContent = createSelectedEntityPreviewData
 
 export function resolveGraphicForSelection(
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>,
   selectedEntity: SelectedEntityContext | undefined,
 ): GraphicInstanceConfig | undefined {
-  return resolveGraphicControlForSelectedEntity(graphicsByEntityType, selectedEntity)
+  return resolveGraphicControlForSelectedEntity(graphicsById, selectedEntity)
 }
 
 export function runWorkspaceGraphicAction(
   actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   selectedEntity: SelectedEntityContext | undefined,
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>,
   oscSettings?: OscSettingsConfig,
 ): Promise<SelectedEntityControlFeedback> {
-  return runWorkspaceGraphicsAdapterAction(actionType, selectedEntity, graphicsByEntityType, oscSettings)
+  return runWorkspaceGraphicsAdapterAction(actionType, selectedEntity, graphicsById, oscSettings)
 }
 
 export function runWorkspaceGraphicDebugAction(
@@ -137,7 +139,7 @@ export function runWorkspaceGraphicDebugAction(
 async function runWorkspaceGraphicsAdapterAction(
   actionType: ActionType,
   selectedEntity: SelectedEntityContext | undefined,
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>,
   oscSettings?: OscSettingsConfig,
 ): Promise<SelectedEntityControlFeedback> {
   if (!selectedEntity) {
@@ -148,15 +150,15 @@ async function runWorkspaceGraphicsAdapterAction(
     }
   }
 
-  const entityType = entityGroupToEntityType(selectedEntity.entityGroup)
-  const graphic = resolveGraphicControlForSelectedEntity(graphicsByEntityType, selectedEntity)
+  const graphic = resolveGraphicControlForSelectedEntity(graphicsById, selectedEntity)
   if (!graphic) {
     return {
       kind: 'error',
       title: 'Graphic unavailable',
-      details: [`No graphic configuration is loaded for entity type "${entityType}".`],
+      details: [`No graphic configuration is loaded for "${selectedEntity.graphicConfigId}".`],
     }
   }
+  const entityType = graphic.entityType
 
   const adapter = createWorkspaceGraphicsAdapter()
 
@@ -302,34 +304,12 @@ function formatGraphicConfigDiagnostic(
     : diagnostic.message
 }
 
-function entityGroupToEntityType(group: SelectedEntityContext['entityGroup']) {
-  switch (group) {
-    case 'titles':
-      return 'title'
-    case 'supertitles':
-      return 'supertitle'
-    case 'persons':
-      return 'person'
-    case 'locations':
-      return 'location'
-    case 'breakingNews':
-      return 'breakingNews'
-    case 'waitingTitles':
-      return 'waitingTitle'
-    case 'waitingLocations':
-      return 'waitingLocation'
-    case 'phones':
-      return 'phone'
-  }
-}
-
 function createDebugEntityForGraphic(
   entityType: GraphicInstanceConfig['entityType'],
   previewContent: Record<string, string | undefined>,
 ) {
   switch (entityType) {
     case 'title':
-    case 'supertitle':
       return {
         text: previewContent.text ?? 'Debug title',
       }
@@ -339,9 +319,6 @@ function createDebugEntityForGraphic(
         role: previewContent.role ?? 'Debug role',
       }
     case 'location':
-    case 'breakingNews':
-    case 'waitingTitle':
-    case 'waitingLocation':
       return {
         value: previewContent.value ?? previewContent.text ?? 'Debug value',
       }
@@ -350,5 +327,7 @@ function createDebugEntityForGraphic(
         label: previewContent.label ?? 'Debug label',
         number: previewContent.number ?? '000',
       }
+    case 'staticImage':
+      return {}
   }
 }

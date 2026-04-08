@@ -1,5 +1,5 @@
 import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
-import { supportedEntityTypes } from '@/core/entities/entityTypes'
+import { supportedEntityTypes, type SupportedEntityType } from '@/core/entities/entityTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import type {
   AppSettings,
@@ -76,6 +76,13 @@ const transformOrigins: TransformOrigin[] = ['top-left', 'top-right', 'bottom-le
 const previewElementKinds: PreviewElementKind[] = ['text', 'box', 'image']
 const oscArgTypes: OscArgType[] = ['s', 'i', 'f']
 const graphicConfigLibraryService = createGraphicConfigLibraryService()
+const graphicBindingSourceFieldOptions: Record<SupportedEntityType, string[]> = {
+  title: ['text', 'number'],
+  person: ['name', 'role'],
+  location: ['value'],
+  phone: ['label', 'number'],
+  staticImage: ['staticAsset'],
+}
 type SettingsTabId = 'show' | 'osc' | 'graphics' | 'preview' | 'assets'
 
 const settingsTabs: Array<{
@@ -927,10 +934,12 @@ function ColorField({
   )
 }
 
-function createDefaultBinding(): GraphicFieldBinding {
+function createDefaultBinding(entityType: GraphicInstanceConfig['entityType'] = 'title'): GraphicFieldBinding {
+  const sourceField = getGraphicBindingSourceOptions(entityType)[0] ?? 'text'
+
   return {
-    sourceField: 'text',
-    targetField: 'text',
+    sourceField,
+    targetField: sourceField,
     required: true,
   }
 }
@@ -961,6 +970,58 @@ function createDefaultPreviewElement(index: number): PreviewElementDefinition {
   }
 }
 
+function getGraphicBindingSourceOptions(entityType: GraphicInstanceConfig['entityType']): string[] {
+  return graphicBindingSourceFieldOptions[entityType] ?? []
+}
+
+function getGraphicBindingTargetOptions(graphic: GraphicInstanceConfig): string[] {
+  const options = new Set<string>()
+
+  for (const element of graphic.preview.elements) {
+    const value = element.sourceField.trim()
+    if (value) {
+      options.add(value)
+    }
+  }
+
+  for (const binding of graphic.bindings ?? []) {
+    const value = binding.targetField.trim()
+    if (value) {
+      options.add(value)
+    }
+  }
+
+  if (graphic.kind === 'static' || graphic.entityType === 'staticImage') {
+    options.add('staticAsset')
+  }
+
+  return [...options]
+}
+
+function createBindingDraft(graphic: GraphicInstanceConfig): GraphicFieldBinding {
+  const sourceField = getGraphicBindingSourceOptions(graphic.entityType)[0] ?? 'text'
+  const targetField = getGraphicBindingTargetOptions(graphic)[0] ?? sourceField
+
+  return {
+    sourceField,
+    targetField,
+    required: true,
+  }
+}
+
+function createProfileBindingDraft(
+  graphic: GraphicInstanceConfig,
+  detectedColumns: string[],
+): GraphicFieldBinding {
+  const targetField = getGraphicBindingTargetOptions(graphic)[0] ?? ''
+
+  return {
+    sourceField: detectedColumns[0] ?? '',
+    targetField,
+    required: true,
+  }
+}
+
 function createUniqueGraphicConfigId(settings: AppSettings, preferredId?: string): string {
   const baseId = (preferredId?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
     || 'graphic-config')
@@ -982,7 +1043,7 @@ function createDefaultGraphicConfig(
 ): GraphicInstanceConfig {
   const id = createUniqueGraphicConfigId(settings, preferredId ?? entityType)
   const dataFileName = `${id}.json`
-  const isStaticGraphic = entityType === 'logo' || entityType === 'staticImage'
+  const isStaticGraphic = entityType === 'staticImage'
 
   return {
     id,
@@ -996,7 +1057,7 @@ function createDefaultGraphicConfig(
       resume: `/graphics/${entityType}/resume`,
       templateName: id.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
     },
-    ...(!isStaticGraphic ? { bindings: [createDefaultBinding()] } : {}),
+    ...(!isStaticGraphic ? { bindings: [createDefaultBinding(entityType)] } : {}),
     ...(isStaticGraphic
       ? {
         staticAsset: {
@@ -1065,9 +1126,6 @@ function createDefaultCsvSourceSchema(settings: AppSettings): CsvSourceSchemaCon
           title: 'Titlu',
         },
       },
-      supertitle: {
-        enabled: false,
-      },
       person: {
         enabled: true,
         fields: {
@@ -1079,24 +1137,6 @@ function createDefaultCsvSourceSchema(settings: AppSettings): CsvSourceSchemaCon
         enabled: true,
         fields: {
           value: 'Locatie',
-        },
-      },
-      breakingNews: {
-        enabled: true,
-        fields: {
-          value: 'Ultima Ora',
-        },
-      },
-      waitingTitle: {
-        enabled: true,
-        fields: {
-          value: 'Titlu Asteptare',
-        },
-      },
-      waitingLocation: {
-        enabled: true,
-        fields: {
-          value: 'Locatie Asteptare',
         },
       },
       phone: {
@@ -1598,18 +1638,20 @@ function ProfileSection({
               }
 
               return (
-                <div key={graphic.id} className='flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-white px-4 py-3'>
+                <div key={graphic.id} className='rounded-2xl border border-border bg-white px-4 py-3'>
                   <div className='min-w-0'>
                     <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
                     <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                   </div>
-                  <button
-                    type='button'
-                    onClick={() => onDetachGraphicConfig(graphic.id)}
-                    className='rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-400 hover:bg-amber-100'
-                  >
-                    Remove from profile
-                  </button>
+                  <div className='mt-3'>
+                    <button
+                      type='button'
+                      onClick={() => onDetachGraphicConfig(graphic.id)}
+                      className='rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-400 hover:bg-amber-100'
+                    >
+                      Remove from profile
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -1744,6 +1786,9 @@ function CsvSchemaSection({
   onSettingsChange: (settings: AppSettings) => void
 }) {
   const selectedSchema = getSelectedSourceSchema(settings, selectedProfile)
+  const profileGraphics = (selectedProfile?.graphicConfigIds ?? [])
+    .map((graphicId) => settings.graphics.find((graphic) => graphic.id === graphicId))
+    .filter((graphic): graphic is GraphicInstanceConfig => graphic !== undefined)
   const [detectedColumns, setDetectedColumns] = useState<string[]>([])
 
   useEffect(() => {
@@ -1839,8 +1884,18 @@ function CsvSchemaSection({
     })
   }
 
+  const updateProfileGraphic = (
+    graphicId: string,
+    updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig,
+  ) => {
+    onSettingsChange({
+      ...settings,
+      graphics: settings.graphics.map((graphic) => graphic.id === graphicId ? updater(graphic) : graphic),
+    })
+  }
+
   return (
-    <FormSection title='CSV schema' description='Define how APlay should understand the working CSV: delimiter, block detection, and entity column mappings.'>
+    <FormSection title='CSV schema' description='Define how APlay should read the working CSV: delimiter, block detection, and manual profile graphic mappings.'>
       <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr),auto,auto]'>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile schema</span>
@@ -1960,326 +2015,135 @@ function CsvSchemaSection({
             </div>
           </div>
 
-          <div className='space-y-4'>
-            <CsvEntityMappingCard
-              title='Title'
-              enabled={selectedSchema.entityMappings.title.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  title: enabled
-                    ? {
-                      enabled: true,
-                      fields: schema.entityMappings.title.fields ?? { number: '', title: '' },
-                    }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <div className='grid gap-3 md:grid-cols-2'>
-                <SchemaColumnField
-                  label='Title number column'
-                  value={selectedSchema.entityMappings.title.fields?.number ?? ''}
-                  detectedColumns={detectedColumns}
-                  disabled={!selectedSchema.entityMappings.title.enabled}
-                  onChange={(value) => updateSelectedSchema((schema) => ({
-                    ...schema,
-                    entityMappings: {
-                      ...schema.entityMappings,
-                      title: {
-                        enabled: true,
-                        fields: {
-                          number: value,
-                          title: schema.entityMappings.title.fields?.title ?? '',
-                        },
-                      },
-                    },
-                  }))}
-                />
-                <SchemaColumnField
-                  label='Title text column'
-                  value={selectedSchema.entityMappings.title.fields?.title ?? ''}
-                  detectedColumns={detectedColumns}
-                  disabled={!selectedSchema.entityMappings.title.enabled}
-                  onChange={(value) => updateSelectedSchema((schema) => ({
-                    ...schema,
-                    entityMappings: {
-                      ...schema.entityMappings,
-                      title: {
-                        enabled: true,
-                        fields: {
-                          number: schema.entityMappings.title.fields?.number ?? '',
-                          title: value,
-                        },
-                      },
-                    },
-                  }))}
-                />
+          <div className='space-y-3 rounded-2xl border border-border bg-surface/30 p-4'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile graphic config mapping</p>
+              <p className='mt-1 text-sm text-muted'>
+                Configure the CSV columns used by each graphic config assigned to this profile. These manual mappings drive the entity collections for the current show. Static configs do not require CSV data.
+              </p>
+            </div>
+
+            {profileGraphics.length > 0 ? (
+              <div className='space-y-2'>
+                {profileGraphics.map((graphic) => {
+                  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'staticImage'
+                  const targetOptions = getGraphicBindingTargetOptions(graphic)
+
+                  return (
+                    <div key={graphic.id} className='rounded-2xl border border-border bg-white px-4 py-3'>
+                      <div className='flex flex-wrap items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                          <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          isStaticGraphic
+                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : 'border border-sky-200 bg-sky-50 text-sky-700'
+                        }`}>
+                          {isStaticGraphic ? 'Static asset' : 'Manual bindings'}
+                        </span>
+                      </div>
+
+                      {isStaticGraphic ? (
+                        <p className='mt-3 text-sm text-muted'>
+                          This static graphic config does not use CSV schema mapping.
+                        </p>
+                      ) : (
+                        <div className='mt-3 space-y-3'>
+                          <div className='flex items-center justify-between gap-3'>
+                            <p className='text-[11px] font-semibold uppercase tracking-[0.16em] text-muted'>Graphic bindings</p>
+                            <button
+                              type='button'
+                              onClick={() => updateProfileGraphic(
+                                graphic.id,
+                                (current) => ({ ...current, bindings: [...(current.bindings ?? []), createProfileBindingDraft(current, detectedColumns)] }),
+                              )}
+                              className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                            >
+                              Add binding
+                            </button>
+                          </div>
+
+                          {(graphic.bindings ?? []).length > 0 ? (
+                            <div className='space-y-2'>
+                              {(graphic.bindings ?? []).map((binding, index) => (
+                                <div key={`${graphic.id}-${index}`} className='grid gap-3 rounded-2xl border border-border bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
+                                  <SchemaColumnField
+                                    label='Source field'
+                                    value={binding.sourceField}
+                                    detectedColumns={detectedColumns}
+                                    onChange={(value) => updateProfileGraphic(
+                                      graphic.id,
+                                      (current) => ({
+                                        ...current,
+                                        bindings: (current.bindings ?? []).map((item, bindingIndex) =>
+                                          bindingIndex === index ? { ...item, sourceField: value } : item),
+                                      }),
+                                    )}
+                                  />
+                                  <FieldOptionSelect
+                                    label='Target field'
+                                    value={binding.targetField}
+                                    options={targetOptions}
+                                    emptyLabel='Select target field'
+                                    onChange={(value) => updateProfileGraphic(
+                                      graphic.id,
+                                      (current) => ({
+                                        ...current,
+                                        bindings: (current.bindings ?? []).map((item, bindingIndex) =>
+                                          bindingIndex === index ? { ...item, targetField: value } : item),
+                                      }),
+                                    )}
+                                  />
+                                  <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+                                    <input
+                                      type='checkbox'
+                                      checked={binding.required ?? false}
+                                      onChange={(event) => updateProfileGraphic(
+                                        graphic.id,
+                                        (current) => ({
+                                          ...current,
+                                          bindings: (current.bindings ?? []).map((item, bindingIndex) =>
+                                            bindingIndex === index ? { ...item, required: event.target.checked } : item),
+                                        }),
+                                      )}
+                                      className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                                    />
+                                    Required
+                                  </label>
+                                  <button
+                                    type='button'
+                                    onClick={() => updateProfileGraphic(
+                                      graphic.id,
+                                      (current) => ({
+                                        ...current,
+                                        bindings: (current.bindings ?? []).filter((_, bindingIndex) => bindingIndex !== index),
+                                      }),
+                                    )}
+                                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className='rounded-xl border border-dashed border-border bg-slate-50 p-3 text-sm text-muted'>
+                              No bindings configured yet for this graphic config.
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Supertitle'
-              enabled={selectedSchema.entityMappings.supertitle.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  supertitle: enabled
-                    ? {
-                      enabled: true,
-                      fields: { text: schema.entityMappings.supertitle.fields?.text ?? '' },
-                    }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <SchemaColumnField
-                label='Supertitle value column'
-                value={selectedSchema.entityMappings.supertitle.fields?.text ?? ''}
-                detectedColumns={detectedColumns}
-                disabled={!selectedSchema.entityMappings.supertitle.enabled}
-                onChange={(value) => updateSelectedSchema((schema) => ({
-                  ...schema,
-                  entityMappings: {
-                    ...schema.entityMappings,
-                    supertitle: {
-                      enabled: true,
-                      fields: { text: value },
-                    },
-                  },
-                }))}
-              />
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Person'
-              enabled={selectedSchema.entityMappings.person.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  person: enabled
-                    ? {
-                      enabled: true,
-                      fields: schema.entityMappings.person.fields ?? { name: '', role: '' },
-                    }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <div className='grid gap-3 md:grid-cols-2'>
-                <SchemaColumnField
-                  label='Person name column'
-                  value={selectedSchema.entityMappings.person.fields?.name ?? ''}
-                  detectedColumns={detectedColumns}
-                  disabled={!selectedSchema.entityMappings.person.enabled}
-                  onChange={(value) => updateSelectedSchema((schema) => ({
-                    ...schema,
-                    entityMappings: {
-                      ...schema.entityMappings,
-                      person: {
-                        enabled: true,
-                        fields: {
-                          name: value,
-                          role: schema.entityMappings.person.fields?.role ?? '',
-                        },
-                      },
-                    },
-                  }))}
-                />
-                <SchemaColumnField
-                  label='Person role column'
-                  value={selectedSchema.entityMappings.person.fields?.role ?? ''}
-                  detectedColumns={detectedColumns}
-                  disabled={!selectedSchema.entityMappings.person.enabled}
-                  onChange={(value) => updateSelectedSchema((schema) => ({
-                    ...schema,
-                    entityMappings: {
-                      ...schema.entityMappings,
-                      person: {
-                        enabled: true,
-                        fields: {
-                          name: schema.entityMappings.person.fields?.name ?? '',
-                          role: value,
-                        },
-                      },
-                    },
-                  }))}
-                />
+            ) : (
+              <div className='rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted'>
+                No graphic configs are assigned to the active profile yet.
               </div>
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Location'
-              enabled={selectedSchema.entityMappings.location.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  location: enabled
-                    ? { enabled: true, fields: { value: schema.entityMappings.location.fields?.value ?? '' } }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <SchemaColumnField
-                label='Location value column'
-                value={selectedSchema.entityMappings.location.fields?.value ?? ''}
-                detectedColumns={detectedColumns}
-                disabled={!selectedSchema.entityMappings.location.enabled}
-                onChange={(value) => updateSelectedSchema((schema) => ({
-                  ...schema,
-                  entityMappings: {
-                    ...schema.entityMappings,
-                    location: { enabled: true, fields: { value } },
-                  },
-                }))}
-              />
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Breaking News'
-              enabled={selectedSchema.entityMappings.breakingNews.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  breakingNews: enabled
-                    ? { enabled: true, fields: { value: schema.entityMappings.breakingNews.fields?.value ?? '' } }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <SchemaColumnField
-                label='BreakingNews value column'
-                value={selectedSchema.entityMappings.breakingNews.fields?.value ?? ''}
-                detectedColumns={detectedColumns}
-                disabled={!selectedSchema.entityMappings.breakingNews.enabled}
-                onChange={(value) => updateSelectedSchema((schema) => ({
-                  ...schema,
-                  entityMappings: {
-                    ...schema.entityMappings,
-                    breakingNews: { enabled: true, fields: { value } },
-                  },
-                }))}
-              />
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Waiting Title'
-              enabled={selectedSchema.entityMappings.waitingTitle.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  waitingTitle: enabled
-                    ? { enabled: true, fields: { value: schema.entityMappings.waitingTitle.fields?.value ?? '' } }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <SchemaColumnField
-                label='WaitingTitle value column'
-                value={selectedSchema.entityMappings.waitingTitle.fields?.value ?? ''}
-                detectedColumns={detectedColumns}
-                disabled={!selectedSchema.entityMappings.waitingTitle.enabled}
-                onChange={(value) => updateSelectedSchema((schema) => ({
-                  ...schema,
-                  entityMappings: {
-                    ...schema.entityMappings,
-                    waitingTitle: { enabled: true, fields: { value } },
-                  },
-                }))}
-              />
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Waiting Location'
-              enabled={selectedSchema.entityMappings.waitingLocation.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  waitingLocation: enabled
-                    ? { enabled: true, fields: { value: schema.entityMappings.waitingLocation.fields?.value ?? '' } }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <SchemaColumnField
-                label='WaitingLocation value column'
-                value={selectedSchema.entityMappings.waitingLocation.fields?.value ?? ''}
-                detectedColumns={detectedColumns}
-                disabled={!selectedSchema.entityMappings.waitingLocation.enabled}
-                onChange={(value) => updateSelectedSchema((schema) => ({
-                  ...schema,
-                  entityMappings: {
-                    ...schema.entityMappings,
-                    waitingLocation: { enabled: true, fields: { value } },
-                  },
-                }))}
-              />
-            </CsvEntityMappingCard>
-
-            <CsvEntityMappingCard
-              title='Phone'
-              enabled={selectedSchema.entityMappings.phone.enabled}
-              onToggle={(enabled) => updateSelectedSchema((schema) => ({
-                ...schema,
-                entityMappings: {
-                  ...schema.entityMappings,
-                  phone: enabled
-                    ? {
-                      enabled: true,
-                      fields: schema.entityMappings.phone.fields ?? { label: '', number: '' },
-                    }
-                    : { enabled: false },
-                },
-              }))}
-            >
-              <div className='grid gap-3 md:grid-cols-2'>
-                <SchemaColumnField
-                  label='Phone label column'
-                  value={selectedSchema.entityMappings.phone.fields?.label ?? ''}
-                  detectedColumns={detectedColumns}
-                  disabled={!selectedSchema.entityMappings.phone.enabled}
-                  onChange={(value) => updateSelectedSchema((schema) => ({
-                    ...schema,
-                    entityMappings: {
-                      ...schema.entityMappings,
-                      phone: {
-                        enabled: true,
-                        fields: {
-                          label: value,
-                          number: schema.entityMappings.phone.fields?.number ?? '',
-                        },
-                      },
-                    },
-                  }))}
-                />
-                <SchemaColumnField
-                  label='Phone value column'
-                  value={selectedSchema.entityMappings.phone.fields?.number ?? ''}
-                  detectedColumns={detectedColumns}
-                  disabled={!selectedSchema.entityMappings.phone.enabled}
-                  onChange={(value) => updateSelectedSchema((schema) => ({
-                    ...schema,
-                    entityMappings: {
-                      ...schema.entityMappings,
-                      phone: {
-                        enabled: true,
-                        fields: {
-                          label: schema.entityMappings.phone.fields?.label ?? '',
-                          number: value,
-                        },
-                      },
-                    },
-                  }))}
-                />
-              </div>
-            </CsvEntityMappingCard>
+            )}
           </div>
 
           {validationMessages.length > 0 ? (
@@ -2294,40 +2158,6 @@ function CsvSchemaSection({
         </>
       )}
     </FormSection>
-  )
-}
-
-function CsvEntityMappingCard({
-  title,
-  enabled,
-  onToggle,
-  children,
-}: PropsWithChildren<{
-  title: string
-  enabled: boolean
-  onToggle: (enabled: boolean) => void
-}>) {
-  return (
-    <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
-      <div className='flex items-center justify-between gap-3'>
-        <div>
-          <p className='text-sm font-semibold text-ink'>{title}</p>
-          <p className='mt-1 text-xs uppercase tracking-[0.18em] text-muted'>
-            {enabled ? 'Mapping enabled' : 'Mapping disabled'}
-          </p>
-        </div>
-        <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
-          <input
-            type='checkbox'
-            checked={enabled}
-            onChange={(event) => onToggle(event.target.checked)}
-            className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
-          />
-          Enable
-        </label>
-      </div>
-      {children}
-    </div>
   )
 }
 
@@ -2369,6 +2199,46 @@ function SchemaColumnField({
           className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
         />
       )}
+    </label>
+  )
+}
+
+function FieldOptionSelect({
+  label,
+  value,
+  options,
+  disabled,
+  emptyLabel = 'Select field',
+  onChange,
+}: {
+  label: string
+  value: string
+  options: string[]
+  disabled?: boolean
+  emptyLabel?: string
+  onChange: (value: string) => void
+}) {
+  const resolvedOptions = Array.from(new Set([
+    ...options.filter((option) => option.trim().length > 0),
+    ...(value.trim().length > 0 ? [value] : []),
+  ]))
+
+  return (
+    <label className='space-y-2'>
+      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
+      >
+        <option value=''>{emptyLabel}</option>
+        {resolvedOptions.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
     </label>
   )
 }
@@ -2853,7 +2723,9 @@ function GraphicBindingSection({
     actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   ) => Promise<void>
 }) {
-  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'logo' || graphic.entityType === 'staticImage'
+  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'staticImage'
+  const sourceOptions = getGraphicBindingSourceOptions(graphic.entityType)
+  const targetOptions = getGraphicBindingTargetOptions(graphic)
 
   return (
     <FormSection title='Graphic configuration' description='Configure runtime behavior for the selected graphic config. Static graphics use image assets; dynamic graphics use datasource mappings.'>
@@ -3033,7 +2905,7 @@ function GraphicBindingSection({
             <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Required source field bindings</p>
             <button
               type='button'
-              onClick={() => updateGraphic((current) => ({ ...current, bindings: [...(current.bindings ?? []), createDefaultBinding()] }))}
+              onClick={() => updateGraphic((current) => ({ ...current, bindings: [...(current.bindings ?? []), createBindingDraft(current)] }))}
               className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
             >
               Add binding
@@ -3042,22 +2914,20 @@ function GraphicBindingSection({
 
             {(graphic.bindings ?? []).map((binding, bindingIndex) => (
               <div key={bindingIndex} className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
-                <input
-                  value={binding.sourceField}
-                  onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
-              <label className='space-y-2'>
-                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Target field</span>
-                <input
-                  value={binding.targetField}
-                  onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, targetField: event.target.value }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-                />
-              </label>
+              <FieldOptionSelect
+                label='Source field'
+                value={binding.sourceField}
+                options={sourceOptions}
+                emptyLabel='Select source field'
+                onChange={(value) => updateBinding(bindingIndex, (current) => ({ ...current, sourceField: value }))}
+              />
+              <FieldOptionSelect
+                label='Target field'
+                value={binding.targetField}
+                options={targetOptions}
+                emptyLabel='Select target field'
+                onChange={(value) => updateBinding(bindingIndex, (current) => ({ ...current, targetField: value }))}
+              />
               <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
                 <input
                   type='checkbox'

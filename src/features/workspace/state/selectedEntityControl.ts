@@ -22,8 +22,8 @@ export interface SelectedEntityControlOrchestrator {
 }
 
 interface SelectedEntityControlDependencies {
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>
-  bindingsByEntityType: Partial<Record<string, FieldBinding[]>>
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>
+  bindingsByGraphicId: Partial<Record<string, FieldBinding[]>>
   publishTarget: {
     publishEntity: (input: EntityPublishInput) => PublishTargetPublishResult
   }
@@ -49,14 +49,14 @@ export function createSelectedEntityControlOrchestrator(
 }
 
 export function resolveGraphicControlForSelectedEntity(
-  graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>,
   selectedEntity: SelectedEntityContext | undefined,
 ): GraphicInstanceConfig | undefined {
   if (!selectedEntity) {
     return undefined
   }
 
-  return graphicsByEntityType[entityGroupToEntityType(selectedEntity.entityGroup)]
+  return graphicsById[selectedEntity.graphicConfigId]
 }
 
 export function createSelectedEntityPreviewData(
@@ -85,17 +85,18 @@ function runAction(
     }
   }
 
-  const entityType = entityGroupToEntityType(selectedEntity.entityGroup)
-  const graphic = resolveGraphicControlForSelectedEntity(dependencies.graphicsByEntityType, selectedEntity)
+  const graphic = resolveGraphicControlForSelectedEntity(dependencies.graphicsById, selectedEntity)
   if (!graphic) {
     return {
       kind: 'error',
       title: 'Graphic unavailable',
-      details: [`No graphic configuration is loaded for entity type "${entityType}".`],
+      details: [`No graphic configuration is loaded for "${selectedEntity.graphicConfigId}".`],
     }
   }
 
-  const bindings = graphic.bindings ?? dependencies.bindingsByEntityType[entityType] ?? []
+  const entityType = graphic.entityType
+
+  const bindings = graphic.bindings ?? dependencies.bindingsByGraphicId[graphic.id] ?? []
   const targetFile = resolveDatasourceTargetPath(graphic)
 
   if (actionType === 'playGraphic') {
@@ -145,27 +146,6 @@ function runAction(
         : []),
       `OSC sent: ${outputResult.command.address}`,
     ],
-  }
-}
-
-function entityGroupToEntityType(group: SelectedEntityContext['entityGroup']) {
-  switch (group) {
-    case 'titles':
-      return 'title'
-    case 'supertitles':
-      return 'supertitle'
-    case 'persons':
-      return 'person'
-    case 'locations':
-      return 'location'
-    case 'breakingNews':
-      return 'breakingNews'
-    case 'waitingTitles':
-      return 'waitingTitle'
-    case 'waitingLocations':
-      return 'waitingLocation'
-    case 'phones':
-      return 'phone'
   }
 }
 

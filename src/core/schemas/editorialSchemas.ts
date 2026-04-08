@@ -2,9 +2,9 @@ import { supportedEntityTypes, type SupportedEntityType } from '@/core/entities/
 import type {
   EditorialBlock,
   EditorialDocument,
+  GraphicConfigEntityCollections,
   PersonEntity,
   PhoneEntity,
-  SupertitleEntity,
   TextValueEntity,
   TitleEntity,
 } from '@/core/models/editorial'
@@ -26,14 +26,6 @@ export const titleEntitySchema = createSchema<TitleEntity>((input) => {
     id: parseRequiredString(value, 'id', 'titleEntity'),
     ...(number ? { number } : {}),
     text: parseRequiredString(value, 'text', 'titleEntity'),
-  }
-})
-
-export const supertitleEntitySchema = createSchema<SupertitleEntity>((input) => {
-  const value = assertRecord(input, 'supertitleEntity')
-
-  return {
-    text: parseRequiredString(value, 'text', 'supertitleEntity'),
   }
 })
 
@@ -116,12 +108,6 @@ const titleEntityCollectionSchema = createSchema<TitleEntity>((input) =>
   }),
 )
 
-const supertitleEntityCollectionSchema = createSchema<SupertitleEntity>((input) =>
-  parseEntityWithContext(input, 'supertitleEntity', (value, context) => ({
-    text: parseRequiredString(value, 'text', context),
-  })),
-)
-
 const personEntityCollectionSchema = createSchema<PersonEntity>((input) =>
   parseEntityWithContext(input, 'personEntity', (value, context) => {
     const role = parseOptionalString(value, 'role', context)
@@ -152,12 +138,6 @@ export const editorialBlockSchema = createSchema<EditorialBlock>((input) => {
   return {
     name: parseRequiredString(value, 'name', 'editorialBlock'),
     titles: parseCollection(value, 'titles', 'editorialBlock', titleEntityCollectionSchema),
-    supertitles: parseCollection(
-      value,
-      'supertitles',
-      'editorialBlock',
-      supertitleEntityCollectionSchema,
-    ),
     persons: parseCollection(value, 'persons', 'editorialBlock', personEntityCollectionSchema),
     locations: parseCollection(
       value,
@@ -165,25 +145,10 @@ export const editorialBlockSchema = createSchema<EditorialBlock>((input) => {
       'editorialBlock',
       textValueEntityCollectionSchema,
     ),
-    breakingNews: parseCollection(
-      value,
-      'breakingNews',
-      'editorialBlock',
-      textValueEntityCollectionSchema,
-    ),
-    waitingTitles: parseCollection(
-      value,
-      'waitingTitles',
-      'editorialBlock',
-      textValueEntityCollectionSchema,
-    ),
-    waitingLocations: parseCollection(
-      value,
-      'waitingLocations',
-      'editorialBlock',
-      textValueEntityCollectionSchema,
-    ),
     phones: parseCollection(value, 'phones', 'editorialBlock', phoneEntityCollectionSchema),
+    ...(value.entityCollections !== undefined
+      ? { entityCollections: parseGraphicConfigEntityCollections(value.entityCollections) }
+      : {}),
   }
 })
 
@@ -200,4 +165,39 @@ export const editorialDocumentSchema = createSchema<EditorialDocument>((input) =
 
 export function isSupportedEntityType(value: string): value is SupportedEntityType {
   return supportedEntityTypes.includes(value as SupportedEntityType)
+}
+
+function parseGraphicConfigEntityCollections(input: unknown): GraphicConfigEntityCollections {
+  const value = assertRecord(input, 'editorialBlock.entityCollections')
+
+  return Object.fromEntries(
+    Object.entries(value).map(([graphicConfigId, items]) => {
+      const parsedItems = parseRequiredArray(
+        { items },
+        'items',
+        `editorialBlock.entityCollections.${graphicConfigId}`,
+      ).map((item, index) =>
+        parseGraphicConfigEntityItem(item, `editorialBlock.entityCollections.${graphicConfigId}[${index}]`))
+
+      return [graphicConfigId, parsedItems]
+    }),
+  )
+}
+
+function parseGraphicConfigEntityItem(
+  input: unknown,
+  context: string,
+): Record<string, string> {
+  const value = assertRecord(input, context)
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, itemValue]) => [
+      key,
+      parseRequiredString(
+        { value: itemValue },
+        'value',
+        `${context}.${key}`,
+      ),
+    ]),
+  )
 }

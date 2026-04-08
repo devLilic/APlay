@@ -6,10 +6,6 @@ export interface TitleEntity {
   text: string
 }
 
-export interface SupertitleEntity {
-  text: string
-}
-
 export interface PersonEntity {
   name: string
   role?: string
@@ -24,19 +20,22 @@ export interface PhoneEntity {
   number: string
 }
 
+export interface GraphicConfigEntityItem {
+  [field: string]: string
+}
+
+export type GraphicConfigEntityCollections = Record<string, GraphicConfigEntityItem[]>
+
 // Each block owns independent ordered collections grouped by entity type.
 // Collection order is preserved from source data, but cross-type relationships
 // must not be inferred from source row positions.
 export interface EditorialBlock {
   name: string
   titles: TitleEntity[]
-  supertitles: SupertitleEntity[]
   persons: PersonEntity[]
   locations: TextValueEntity[]
-  breakingNews: TextValueEntity[]
-  waitingTitles: TextValueEntity[]
-  waitingLocations: TextValueEntity[]
   phones: PhoneEntity[]
+  entityCollections?: GraphicConfigEntityCollections
 }
 
 export interface EditorialDocument {

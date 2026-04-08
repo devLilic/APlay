@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
+import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
   createCsvEditorialSourceAdapter,
   parseCsvEditorialDocument,
@@ -24,9 +25,6 @@ const newsCsvSchema: CsvSourceSchemaConfig = {
         title: 'Titlu',
       },
     },
-    supertitle: {
-      enabled: false,
-    },
     person: {
       enabled: true,
       fields: {
@@ -40,24 +38,6 @@ const newsCsvSchema: CsvSourceSchemaConfig = {
         value: 'Locatie',
       },
     },
-    breakingNews: {
-      enabled: true,
-      fields: {
-        value: 'Ultima Ora',
-      },
-    },
-    waitingTitle: {
-      enabled: true,
-      fields: {
-        value: 'Titlu Asteptare',
-      },
-    },
-    waitingLocation: {
-      enabled: true,
-      fields: {
-        value: 'Locatie Asteptare',
-      },
-    },
     phone: {
       enabled: false,
     },
@@ -68,12 +48,6 @@ const extendedCsvSchema: CsvSourceSchemaConfig = {
   ...newsCsvSchema,
   entityMappings: {
     ...newsCsvSchema.entityMappings,
-    supertitle: {
-      enabled: true,
-      fields: {
-        text: 'Supratitlu',
-      },
-    },
     phone: {
       enabled: true,
       fields: {
@@ -97,6 +71,108 @@ const sampleCsv = [
   '2.;GROSU: CINE ESTE ACASA?;IGOR GROSU;presedintele Parlamentului;;;;',
   '3.;PRIMA ZI LA SCOALA;;;;;;',
 ].join('\n')
+
+const profileGraphics: GraphicInstanceConfig[] = [
+  {
+    id: 'title-main',
+    entityType: 'title',
+    dataFileName: 'title-main.json',
+    datasourcePath: 'datasources/title-main.json',
+    control: { templateName: 'TITLE_MAIN' },
+    bindings: [
+      { sourceField: 'Titlu Asteptare', targetField: 'text', required: true },
+      { sourceField: 'Nr', targetField: 'number' },
+    ],
+    preview: {
+      id: 'title-main-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        { id: 'title-text', kind: 'text', sourceField: 'text', box: { x: 0, y: 0, width: 100, height: 50 } },
+      ],
+    },
+    actions: [],
+  },
+  {
+    id: 'location-main',
+    entityType: 'location',
+    dataFileName: 'location-main.json',
+    datasourcePath: 'datasources/location-main.json',
+    control: { templateName: 'LOCATION_MAIN' },
+    bindings: [
+      { sourceField: 'Locatie Asteptare', targetField: 'value', required: true },
+    ],
+    preview: {
+      id: 'location-main-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        { id: 'location-text', kind: 'text', sourceField: 'value', box: { x: 0, y: 0, width: 100, height: 50 } },
+      ],
+    },
+    actions: [],
+  },
+]
+
+const graphicConfigCollectionGraphics: GraphicInstanceConfig[] = [
+  {
+    id: 'pa_title_main',
+    entityType: 'title',
+    dataFileName: 'pa_title_main.json',
+    datasourcePath: 'datasources/pa_title_main.json',
+    control: { templateName: 'PA_TITLE_MAIN' },
+    bindings: [
+      { sourceField: 'Titlu', targetField: 'text', required: true },
+      { sourceField: 'Nr', targetField: 'number' },
+    ],
+    preview: {
+      id: 'pa-title-main-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        { id: 'title-text', kind: 'text', sourceField: 'text', box: { x: 0, y: 0, width: 100, height: 50 } },
+      ],
+    },
+    actions: [],
+  },
+  {
+    id: 'pa_title_waiting',
+    entityType: 'title',
+    dataFileName: 'pa_title_waiting.json',
+    datasourcePath: 'datasources/pa_title_waiting.json',
+    control: { templateName: 'PA_TITLE_WAITING' },
+    bindings: [
+      { sourceField: 'Titlu Asteptare', targetField: 'text', required: true },
+      { sourceField: 'Locatie Asteptare', targetField: 'location' },
+    ],
+    preview: {
+      id: 'pa-title-waiting-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        { id: 'waiting-text', kind: 'text', sourceField: 'text', box: { x: 0, y: 0, width: 100, height: 50 } },
+      ],
+    },
+    actions: [],
+  },
+  {
+    id: 'static-bug',
+    entityType: 'staticImage',
+    kind: 'static',
+    dataFileName: 'static-bug.json',
+    control: { templateName: 'STATIC_BUG' },
+    staticAsset: { assetPath: 'assets/bug.png', assetType: 'image' },
+    preview: {
+      id: 'static-bug-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        { id: 'static-image', kind: 'image', sourceField: 'staticAsset', box: { x: 0, y: 0, width: 100, height: 50 } },
+      ],
+    },
+    actions: [],
+  },
+]
 
 describe('CSV editorial parser with configurable schema', () => {
   it('receives CsvSourceSchemaConfig and uses it', () => {
@@ -157,9 +233,6 @@ describe('CSV editorial parser with configurable schema', () => {
             },
           },
           location: { enabled: false },
-          breakingNews: { enabled: false },
-          waitingTitle: { enabled: false },
-          waitingLocation: { enabled: false },
         },
       },
     })
@@ -168,12 +241,8 @@ describe('CSV editorial parser with configurable schema', () => {
       {
         name: 'Block One',
         titles: [{ id: 'title-1', number: '1', text: 'Alpha Title' }],
-        supertitles: [],
         persons: [{ name: 'Alice Alpha', role: 'Anchor' }],
         locations: [],
-        breakingNews: [],
-        waitingTitles: [],
-        waitingLocations: [],
         phones: [],
       },
     ])
@@ -218,60 +287,6 @@ describe('CSV editorial parser with configurable schema', () => {
     expect(parsed.document.blocks[2]?.locations).toEqual([{ value: 'CHISINAU' }])
   })
 
-  it('uses configured source field for breakingNews extraction', () => {
-    const parsed = parseCsvEditorialDocument(sampleCsv, {
-      schema: newsCsvSchema,
-    })
-
-    expect(parsed.document.blocks[2]?.breakingNews).toEqual([{ value: 'ULTIMA ORA' }])
-  })
-
-  it('uses configured source field for waitingTitle extraction', () => {
-    const parsed = parseCsvEditorialDocument(sampleCsv, {
-      schema: newsCsvSchema,
-    })
-
-    expect(parsed.document.blocks[2]?.waitingTitles).toEqual([{ value: 'DECLARATII IMPORTANTE' }])
-  })
-
-  it('uses configured source field for waitingLocation extraction', () => {
-    const parsed = parseCsvEditorialDocument(sampleCsv, {
-      schema: newsCsvSchema,
-    })
-
-    expect(parsed.document.blocks[2]?.waitingLocations).toEqual([{ value: 'PIATA MARII ADUNARI NATIONALE' }])
-  })
-
-  it('extracts supertitles from configured source field when enabled', () => {
-    const parsed = parseCsvEditorialDocument([
-      'Nr;Titlu;Supratitlu',
-      '--- Block ---;;',
-      '1.;Alpha;Top Strap',
-    ].join('\n'), {
-      schema: {
-        ...extendedCsvSchema,
-        entityMappings: {
-          ...extendedCsvSchema.entityMappings,
-          title: {
-            enabled: true,
-            fields: {
-              number: 'Nr',
-              title: 'Titlu',
-            },
-          },
-          person: { enabled: false },
-          location: { enabled: false },
-          breakingNews: { enabled: false },
-          waitingTitle: { enabled: false },
-          waitingLocation: { enabled: false },
-          phone: { enabled: false },
-        },
-      },
-    })
-
-    expect(parsed.document.blocks[0]?.supertitles).toEqual([{ text: 'Top Strap' }])
-  })
-
   it('extracts phones from configured source fields when enabled', () => {
     const parsed = parseCsvEditorialDocument([
       'Nr;Titlu;Telefon Label;Telefon',
@@ -282,12 +297,8 @@ describe('CSV editorial parser with configurable schema', () => {
         ...extendedCsvSchema,
         entityMappings: {
           title: { enabled: false },
-          supertitle: { enabled: false },
           person: { enabled: false },
           location: { enabled: false },
-          breakingNews: { enabled: false },
-          waitingTitle: { enabled: false },
-          waitingLocation: { enabled: false },
           phone: {
             enabled: true,
             fields: {
@@ -310,16 +321,12 @@ describe('CSV editorial parser with configurable schema', () => {
           ...newsCsvSchema.entityMappings,
           person: { enabled: false },
           location: { enabled: false },
-          breakingNews: { enabled: false },
-          waitingTitle: { enabled: false },
-          waitingLocation: { enabled: false },
         },
       },
     })
 
     expect(parsed.document.blocks[2]?.persons).toEqual([])
     expect(parsed.document.blocks[2]?.locations).toEqual([])
-    expect(parsed.document.blocks[2]?.breakingNews).toEqual([])
   })
 
   it('reports missing configured source columns safely', () => {
@@ -335,9 +342,9 @@ describe('CSV editorial parser with configurable schema', () => {
       {
         severity: 'warning',
         code: 'missing-column',
-        message: 'Missing configured source columns: Nume, Functie, Locatie, Ultima Ora, Titlu Asteptare, Locatie Asteptare',
+        message: 'Missing configured source columns: Nume, Functie, Locatie',
         details: {
-          missingColumns: ['Nume', 'Functie', 'Locatie', 'Ultima Ora', 'Titlu Asteptare', 'Locatie Asteptare'],
+          missingColumns: ['Nume', 'Functie', 'Locatie'],
           schemaId: 'csv-news-default',
         },
       },
@@ -351,6 +358,44 @@ describe('CSV editorial parser with configurable schema', () => {
 
     expect(parsed.document.blocks[0]).toHaveProperty('titles')
     expect(parsed.document).not.toHaveProperty('rows')
+  })
+
+  it('builds entity collections from manual profile graphic bindings when graphics are provided', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: {
+        ...newsCsvSchema,
+        entityMappings: {
+          title: { enabled: false },
+          person: { enabled: false },
+          location: { enabled: false },
+          phone: { enabled: false },
+        },
+      },
+      graphics: profileGraphics,
+    })
+
+    expect(parsed.document.blocks[2]?.titles).toEqual([
+      { id: 'title-1', number: '1.', text: 'DECLARATII IMPORTANTE' },
+    ])
+    expect(parsed.document.blocks[2]?.locations).toEqual([
+      { value: 'PIATA MARII ADUNARI NATIONALE' },
+    ])
+    expect(parsed.document.blocks[2]?.persons).toEqual([])
+  })
+
+  it('does not depend on automatic entityMappings when manual profile graphic bindings are present', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: profileGraphics,
+    })
+
+    expect(parsed.document.blocks[2]?.titles).toEqual([
+      { id: 'title-1', number: '1.', text: 'DECLARATII IMPORTANTE' },
+    ])
+    expect(parsed.document.blocks[2]?.locations).toEqual([
+      { value: 'PIATA MARII ADUNARI NATIONALE' },
+    ])
+    expect(parsed.document.blocks[2]?.persons).toEqual([])
   })
 })
 
@@ -369,6 +414,98 @@ describe('CSV content source adapter', () => {
       'beta 1 - Maia Sandu UE',
       'beta 2 - NATO',
       'INVITATI',
+    ])
+  })
+})
+
+describe('GraphicConfig-based entity collections', () => {
+  it('stores entity collections under entityCollections keyed by graphicConfigId', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: graphicConfigCollectionGraphics,
+    })
+
+    const blockCollections = parsed.document.blocks[2]?.entityCollections ?? {}
+
+    expect(Object.keys(blockCollections ?? {})).toContain('pa_title_main')
+    expect(Object.keys(blockCollections ?? {})).toContain('pa_title_waiting')
+    expect(Array.isArray(blockCollections?.pa_title_main)).toBe(true)
+    expect(Array.isArray(blockCollections?.pa_title_waiting)).toBe(true)
+  })
+
+  it('builds independent collections for multiple graphic configs sharing the same entityType', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: graphicConfigCollectionGraphics,
+    })
+
+    const blockCollections = parsed.document.blocks[2]?.entityCollections ?? {}
+
+    expect(blockCollections.pa_title_main).toEqual([
+      { text: 'INTRA PE CALEA INTEGRARII IN UE', number: '1.' },
+      { text: 'GROSU: CINE ESTE ACASA?', number: '2.' },
+      { text: 'PRIMA ZI LA SCOALA', number: '3.' },
+    ])
+    expect(blockCollections.pa_title_waiting).toEqual([
+      { text: 'DECLARATII IMPORTANTE', location: 'PIATA MARII ADUNARI NATIONALE' },
+    ])
+  })
+
+  it('keeps collections independent when one collection is modified in memory', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: graphicConfigCollectionGraphics,
+    })
+
+    const blockCollections = parsed.document.blocks[2]?.entityCollections ?? {}
+    expect(blockCollections.pa_title_waiting).toEqual([
+      { text: 'DECLARATII IMPORTANTE', location: 'PIATA MARII ADUNARI NATIONALE' },
+    ])
+    const waitingSnapshot = JSON.parse(JSON.stringify(blockCollections.pa_title_waiting))
+
+    blockCollections.pa_title_main?.push({ text: 'Injected item' })
+
+    expect(blockCollections.pa_title_waiting).toEqual(waitingSnapshot)
+  })
+
+  it('allows empty collections for a graphic config within a block', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: graphicConfigCollectionGraphics,
+    })
+
+    const firstBlockCollections = parsed.document.blocks[0]?.entityCollections ?? {}
+
+    expect(firstBlockCollections.pa_title_waiting).toEqual([])
+  })
+
+  it('does not generate entityCollections entries for static graphic configs', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: graphicConfigCollectionGraphics,
+    })
+
+    const blockCollections = parsed.document.blocks[2]?.entityCollections ?? {}
+
+    expect(blockCollections['static-bug']).toBeUndefined()
+  })
+
+  it('respects block context and keeps collections scoped to each block', () => {
+    const parsed = parseCsvEditorialDocument(sampleCsv, {
+      schema: newsCsvSchema,
+      graphics: graphicConfigCollectionGraphics,
+    })
+
+    const firstBlockCollections = parsed.document.blocks[0]?.entityCollections ?? {}
+    const thirdBlockCollections = parsed.document.blocks[2]?.entityCollections ?? {}
+
+    expect(firstBlockCollections.pa_title_main).toEqual([
+      { text: 'MAIA SANDU FACE DECLARATII IN CONSILIUL UE', number: '1.' },
+    ])
+    expect(thirdBlockCollections.pa_title_main).toEqual([
+      { text: 'INTRA PE CALEA INTEGRARII IN UE', number: '1.' },
+      { text: 'GROSU: CINE ESTE ACASA?', number: '2.' },
+      { text: 'PRIMA ZI LA SCOALA', number: '3.' },
     ])
   })
 })

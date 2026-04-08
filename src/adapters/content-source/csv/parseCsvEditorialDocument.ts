@@ -5,6 +5,14 @@ import type {
 import type { EditorialBlock } from '@/core/models/editorial'
 import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
 import type { CsvParseOptions, CsvRow } from './types'
+import {
+  appendGraphicConfigEntityCollectionsRow,
+  collectGraphicConfigExpectedColumns,
+  collectGraphicConfigMappingColumns,
+  createEmptyGraphicConfigEntityCollections,
+  createGraphicCollectionPlans,
+  deriveLegacyEntityCollectionsFromGraphicConfigs,
+} from './graphicConfigEntityCollections'
 import { parseCsvRows } from './parseCsvRows'
 import { normalizeCellValue } from './utils'
 
@@ -17,6 +25,7 @@ export function parseCsvEditorialDocument(
   const schema = options.schema ?? createDefaultCsvSchema()
   const { table, diagnostics } = parseCsvRows(content, { schema })
   const columnIndexByName = createColumnIndexByName(table.header, schema.hasHeader)
+  const graphicCollectionPlans = createGraphicCollectionPlans(options.graphics ?? [])
   const blocks: EditorialBlock[] = []
   let currentBlock: EditorialBlock | null = null
   const blockRegex = new RegExp(schema.blockDetection.pattern)
@@ -35,17 +44,17 @@ export function parseCsvEditorialDocument(
     const blockMatch = blockSourceValue ? blockSourceValue.match(blockRegex) : null
 
     if (blockMatch) {
-      currentBlock = createEmptyBlock(resolveBlockName(blockSourceValue ?? '', blockMatch))
+      currentBlock = createEmptyBlock(resolveBlockName(blockSourceValue ?? '', blockMatch), graphicCollectionPlans)
       blocks.push(currentBlock)
       continue
     }
 
     if (!currentBlock) {
-      currentBlock = createEmptyBlock(defaultBlockName)
+      currentBlock = createEmptyBlock(defaultBlockName, graphicCollectionPlans)
       blocks.push(currentBlock)
     }
 
-    pushEntitiesIntoBlock(currentBlock, row, columnIndexByName, schema)
+    pushEntitiesIntoBlock(currentBlock, row, columnIndexByName, schema, graphicCollectionPlans)
   }
 
   return {
@@ -53,24 +62,32 @@ export function parseCsvEditorialDocument(
       blocks,
     },
     diagnostics: [
-      ...createMissingConfiguredColumnDiagnostics(columnIndexByName, schema),
-      ...createMissingColumnDiagnostics(columnIndexByName, options),
+      ...createMissingConfiguredColumnDiagnostics(columnIndexByName, schema, graphicCollectionPlans),
+      ...createMissingColumnDiagnostics(columnIndexByName, {
+        ...options,
+        expectedColumnsByGraphicId: {
+          ...collectGraphicConfigExpectedColumns(graphicCollectionPlans),
+          ...(options.expectedColumnsByGraphicId ?? {}),
+        },
+      }),
       ...diagnostics,
     ],
   }
 }
 
-function createEmptyBlock(name: string): EditorialBlock {
+function createEmptyBlock(
+  name: string,
+  graphicCollectionPlans: ReturnType<typeof createGraphicCollectionPlans>,
+): EditorialBlock {
   return {
     name,
     titles: [],
-    supertitles: [],
     persons: [],
     locations: [],
-    breakingNews: [],
-    waitingTitles: [],
-    waitingLocations: [],
     phones: [],
+    ...(graphicCollectionPlans.length > 0
+      ? { entityCollections: createEmptyGraphicConfigEntityCollections(graphicCollectionPlans) }
+      : {}),
   }
 }
 
@@ -104,22 +121,28 @@ function pushEntitiesIntoBlock(
   row: CsvRow,
   columnIndexByName: Record<string, number>,
   schema: CsvSourceSchemaConfig,
+  graphicCollectionPlans: ReturnType<typeof createGraphicCollectionPlans>,
 ): void {
+  if (graphicCollectionPlans.length > 0 && block.entityCollections) {
+    appendGraphicConfigEntityCollectionsRow(block.entityCollections, row, columnIndexByName, graphicCollectionPlans)
+    const legacyCollections = deriveLegacyEntityCollectionsFromGraphicConfigs(
+      block.entityCollections,
+      graphicCollectionPlans,
+    )
+
+    block.titles = legacyCollections.titles
+    block.persons = legacyCollections.persons
+    block.locations = legacyCollections.locations
+    block.phones = legacyCollections.phones
+    return
+  }
+
   const titleMapping = schema.entityMappings.title
   if (titleMapping.enabled && titleMapping.fields) {
     const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, titleMapping.fields.number))
     const title = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, titleMapping.fields.title))
     if (title) {
-      const id = createCollectionEntityId('title', block.titles.length)
-      block.titles.push(number ? { id, number, text: title } : { id, text: title })
-    }
-  }
-
-  const supertitleMapping = schema.entityMappings.supertitle
-  if (supertitleMapping.enabled && supertitleMapping.fields) {
-    const supertitle = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, supertitleMapping.fields.text))
-    if (supertitle) {
-      block.supertitles.push({ text: supertitle })
+      addTitleEntity(block, number ? { number, text: title } : { text: title })
     }
   }
 
@@ -128,21 +151,18 @@ function pushEntitiesIntoBlock(
     const name = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, personMapping.fields.name))
     const role = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, personMapping.fields.role))
     if (name) {
-      block.persons.push(role ? { name, role } : { name })
+      addPersonEntity(block, role ? { name, role } : { name })
     }
   }
 
   pushValueEntity(block.locations, row.values, columnIndexByName, schema.entityMappings.location)
-  pushValueEntity(block.breakingNews, row.values, columnIndexByName, schema.entityMappings.breakingNews)
-  pushValueEntity(block.waitingTitles, row.values, columnIndexByName, schema.entityMappings.waitingTitle)
-  pushValueEntity(block.waitingLocations, row.values, columnIndexByName, schema.entityMappings.waitingLocation)
 
   const phoneMapping = schema.entityMappings.phone
   if (phoneMapping.enabled && phoneMapping.fields) {
     const label = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, phoneMapping.fields.label))
     const number = normalizeCellValue(resolveCellValue(row.values, columnIndexByName, phoneMapping.fields.number))
     if (label && number) {
-      block.phones.push({ label, number })
+      addPhoneEntity(block, { label, number })
     }
   }
 }
@@ -152,7 +172,7 @@ function createCollectionEntityId(prefix: string, currentLength: number): string
 }
 
 function pushValueEntity(
-  collection: EditorialBlock['locations'] | EditorialBlock['breakingNews'] | EditorialBlock['waitingTitles'] | EditorialBlock['waitingLocations'],
+  collection: EditorialBlock['locations'],
   values: string[],
   columnIndexByName: Record<string, number>,
   mapping: CsvSourceSchemaConfig['entityMappings']['location'],
@@ -163,22 +183,34 @@ function pushValueEntity(
 
   const value = normalizeCellValue(resolveCellValue(values, columnIndexByName, mapping.fields.value))
   if (value) {
-    collection.push({ value })
+    if (!collection.some((item) => item.value === value)) {
+      collection.push({ value })
+    }
   }
 }
 
 function createMissingConfiguredColumnDiagnostics(
   columnIndexByName: Record<string, number>,
   schema: CsvSourceSchemaConfig,
+  graphicCollectionPlans: ReturnType<typeof createGraphicCollectionPlans>,
 ): ContentSourceDiagnostic[] {
   if (!schema.hasHeader) {
     return []
   }
 
-  const requiredColumns = new Set<string>([
-    schema.blockDetection.sourceColumn,
-    ...collectEnabledMappingColumns(schema),
-  ])
+  const requiredColumns = new Set<string>([schema.blockDetection.sourceColumn])
+  const manualMappingColumns = collectGraphicConfigMappingColumns(graphicCollectionPlans)
+
+  if (manualMappingColumns.length > 0) {
+    for (const column of manualMappingColumns) {
+      requiredColumns.add(column)
+    }
+  } else {
+    for (const column of collectEnabledMappingColumns(schema)) {
+      requiredColumns.add(column)
+    }
+  }
+
   const missingColumns = Array.from(requiredColumns).filter((column) => columnIndexByName[column.trim()] === undefined)
 
   if (missingColumns.length === 0) {
@@ -205,20 +237,11 @@ function collectEnabledMappingColumns(schema: CsvSourceSchemaConfig): string[] {
     columns.push(schema.entityMappings.title.fields.number, schema.entityMappings.title.fields.title)
   }
 
-  if (schema.entityMappings.supertitle.enabled && schema.entityMappings.supertitle.fields) {
-    columns.push(schema.entityMappings.supertitle.fields.text)
-  }
-
   if (schema.entityMappings.person.enabled && schema.entityMappings.person.fields) {
     columns.push(schema.entityMappings.person.fields.name, schema.entityMappings.person.fields.role)
   }
 
-  for (const mapping of [
-    schema.entityMappings.location,
-    schema.entityMappings.breakingNews,
-    schema.entityMappings.waitingTitle,
-    schema.entityMappings.waitingLocation,
-  ]) {
+  for (const mapping of [schema.entityMappings.location]) {
     if (mapping.enabled && mapping.fields) {
       columns.push(mapping.fields.value)
     }
@@ -292,9 +315,6 @@ function createDefaultCsvSchema(): CsvSourceSchemaConfig {
           title: 'Titlu',
         },
       },
-      supertitle: {
-        enabled: false,
-      },
       person: {
         enabled: true,
         fields: {
@@ -308,27 +328,40 @@ function createDefaultCsvSchema(): CsvSourceSchemaConfig {
           value: 'Locatie',
         },
       },
-      breakingNews: {
-        enabled: true,
-        fields: {
-          value: 'Ultima Ora',
-        },
-      },
-      waitingTitle: {
-        enabled: true,
-        fields: {
-          value: 'Titlu Asteptare',
-        },
-      },
-      waitingLocation: {
-        enabled: true,
-        fields: {
-          value: 'Locatie Asteptare',
-        },
-      },
       phone: {
         enabled: false,
       },
     },
+  }
+}
+
+function addTitleEntity(
+  block: EditorialBlock,
+  entity: Omit<EditorialBlock['titles'][number], 'id'>,
+): void {
+  const exists = block.titles.some((item) => item.text === entity.text && item.number === entity.number)
+  if (exists) {
+    return
+  }
+
+  const id = createCollectionEntityId('title', block.titles.length)
+  block.titles.push(entity.number ? { id, number: entity.number, text: entity.text } : { id, text: entity.text })
+}
+
+function addPersonEntity(
+  block: EditorialBlock,
+  entity: EditorialBlock['persons'][number],
+): void {
+  if (!block.persons.some((item) => item.name === entity.name && item.role === entity.role)) {
+    block.persons.push(entity.role ? { name: entity.name, role: entity.role } : { name: entity.name })
+  }
+}
+
+function addPhoneEntity(
+  block: EditorialBlock,
+  entity: EditorialBlock['phones'][number],
+): void {
+  if (!block.phones.some((item) => item.label === entity.label && item.number === entity.number)) {
+    block.phones.push(entity)
   }
 }

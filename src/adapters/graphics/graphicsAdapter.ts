@@ -305,6 +305,21 @@ function resolveCommand(
 ):
   | { success: true; command: { address: string; args: OscArgConfig[] } }
   | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
+  const graphicCommand = graphicOutput.buildCommand({
+    actionType,
+    graphic: input.graphic,
+  })
+
+  if (graphicCommand.address) {
+    return {
+      success: true,
+      command: {
+        address: graphicCommand.address,
+        args: graphicCommand.args as OscArgConfig[],
+      },
+    }
+  }
+
   if (input.oscSettings) {
     const commandConfig = actionType === 'playGraphic'
       ? input.oscSettings.commands.play
@@ -354,16 +369,11 @@ function resolveCommand(
     }
   }
 
-  const command = graphicOutput.buildCommand({
-    actionType,
-    graphic: input.graphic,
-  })
-
   return {
     success: true,
     command: {
-      address: command.address,
-      args: command.args as OscArgConfig[],
+      address: graphicCommand.address,
+      args: graphicCommand.args as OscArgConfig[],
     },
   }
 }

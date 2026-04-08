@@ -23,6 +23,7 @@ export function createCsvEditorialSourceAdapter(
       const parsed = parseCsvEditorialDocumentContent(source.content, {
         ...options,
         schema: source.schema ?? options?.schema,
+        graphics: source.graphics ?? options?.graphics,
       })
       return {
         ...parsed,

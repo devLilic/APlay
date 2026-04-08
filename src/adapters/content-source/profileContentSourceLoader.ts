@@ -157,12 +157,16 @@ export function createProfileContentSourceLoader(
 
       try {
         const content = dependencies.readSourceFile(sourceResolution.activeSourceFilePath)
+        const profileGraphics = sourceResolution.profile.graphicConfigIds
+          .map((graphicId) => settings.graphics.find((graphic) => graphic.id === graphicId))
+          .filter((graphic): graphic is AppSettings['graphics'][number] => graphic !== undefined)
 
         try {
           const loaded = adapter.load({
             fileName: getFileNameFromPath(sourceResolution.activeSourceFilePath),
             content,
             schema: sourceResolution.sourceSchema,
+            graphics: profileGraphics,
           })
 
           return {

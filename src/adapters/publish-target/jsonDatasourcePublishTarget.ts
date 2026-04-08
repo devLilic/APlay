@@ -1,7 +1,6 @@
 import type {
   PersonEntity,
   PhoneEntity,
-  SupertitleEntity,
   TextValueEntity,
   TitleEntity,
 } from '@/core/models/editorial'
@@ -15,7 +14,6 @@ import type {
 
 type PublishableEntity =
   | TitleEntity
-  | SupertitleEntity
   | PersonEntity
   | TextValueEntity
   | PhoneEntity
@@ -154,6 +152,9 @@ function mapEntityToPayload(input: EntityPayloadMappingInput): EntityPayloadMapp
     }
 
     const sourceValue = resolveEntityFieldValue(input.entityType, input.entity, binding.sourceField)
+      ?? (binding.targetField !== binding.sourceField
+        ? resolveEntityFieldValue(input.entityType, input.entity, binding.targetField)
+        : undefined)
 
     if (sourceValue === undefined) {
       if (binding.required) {
@@ -180,42 +181,16 @@ function mapEntityToPayload(input: EntityPayloadMappingInput): EntityPayloadMapp
 }
 
 function resolveEntityFieldValue(
-  entityType: SupportedEntityType,
+  _entityType: SupportedEntityType,
   entity: PublishableEntity,
   sourceField: string,
 ): string | undefined {
-  switch (entityType) {
-    case 'title':
-    case 'supertitle':
-      if (sourceField === 'text' && 'text' in entity) {
-        return normalizeTextValue(entity.text)
-      }
-      return undefined
-    case 'person':
-      if (sourceField === 'name' && 'name' in entity) {
-        return normalizeTextValue(entity.name)
-      }
-      if (sourceField === 'role' && 'role' in entity) {
-        return normalizeTextValue(entity.role)
-      }
-      return undefined
-    case 'location':
-    case 'breakingNews':
-    case 'waitingTitle':
-    case 'waitingLocation':
-      if (sourceField === 'value' && 'value' in entity) {
-        return normalizeTextValue(entity.value)
-      }
-      return undefined
-    case 'phone':
-      if (sourceField === 'label' && 'label' in entity) {
-        return normalizeTextValue(entity.label)
-      }
-      if (sourceField === 'number' && 'number' in entity) {
-        return normalizeTextValue(entity.number)
-      }
-      return undefined
+  if (!entity || typeof entity !== 'object') {
+    return undefined
   }
+
+  const value = (entity as unknown as Record<string, unknown>)[sourceField]
+  return typeof value === 'string' ? normalizeTextValue(value) : undefined
 }
 
 function normalizeTextValue(value: string | undefined): string | undefined {

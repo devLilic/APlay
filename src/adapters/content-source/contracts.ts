@@ -1,4 +1,5 @@
 import type { EditorialDocument } from '@/core/models/editorial'
+import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import type { CsvSourceSchemaConfig } from '@/settings/models/appConfig'
 import {
   SchemaValidationError,
@@ -18,6 +19,7 @@ export interface ContentSourceInput {
   fileName: string
   content: string
   schema?: CsvSourceSchemaConfig
+  graphics?: GraphicInstanceConfig[]
 }
 
 export interface ContentSourceDiagnostic {

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type {
   PersonEntity,
   PhoneEntity,
-  SupertitleEntity,
   TextValueEntity,
   TitleEntity,
 } from '@/core/models/editorial'
@@ -10,7 +9,6 @@ import { createJsonDatasourcePublishTargetAdapter } from '@/adapters/publish-tar
 import { publishTargetAdapterSchema, type PublishTargetPublishInput } from '@/adapters/publish-target/contracts'
 
 const titleEntity: TitleEntity = { id: 'title-1', text: 'Main Title' }
-const supertitleEntity: SupertitleEntity = { text: 'Top Strap' }
 const personEntity: PersonEntity = { name: 'Jane Doe', role: 'Anchor' }
 const textValueEntity: TextValueEntity = { value: 'Chisinau' }
 const phoneEntity: PhoneEntity = { label: 'Desk', number: '111' }
@@ -58,18 +56,6 @@ describe('JSON datasource publishing', () => {
     expect(result.payload).toEqual({ headline: 'Main Title' })
   })
 
-  it('maps a supertitle entity to a JSON payload', () => {
-    const adapter = createJsonDatasourcePublishTargetAdapter()
-
-    const result = adapter.mapEntityToPayload({
-      entityType: 'supertitle',
-      entity: supertitleEntity,
-      bindings: [{ sourceField: 'text', targetField: 'strap' }],
-    })
-
-    expect(result.payload).toEqual({ strap: 'Top Strap' })
-  })
-
   it('maps a person entity to a JSON payload', () => {
     const adapter = createJsonDatasourcePublishTargetAdapter()
 
@@ -88,36 +74,12 @@ describe('JSON datasource publishing', () => {
     })
   })
 
-  it('maps location/breaking/waiting entities to a JSON payload', () => {
+  it('maps a location entity to a JSON payload', () => {
     const adapter = createJsonDatasourcePublishTargetAdapter()
 
     expect(
       adapter.mapEntityToPayload({
         entityType: 'location',
-        entity: textValueEntity,
-        bindings: [{ sourceField: 'value', targetField: 'location' }],
-      }).payload,
-    ).toEqual({ location: 'Chisinau' })
-
-    expect(
-      adapter.mapEntityToPayload({
-        entityType: 'breakingNews',
-        entity: textValueEntity,
-        bindings: [{ sourceField: 'value', targetField: 'line' }],
-      }).payload,
-    ).toEqual({ line: 'Chisinau' })
-
-    expect(
-      adapter.mapEntityToPayload({
-        entityType: 'waitingTitle',
-        entity: textValueEntity,
-        bindings: [{ sourceField: 'value', targetField: 'title' }],
-      }).payload,
-    ).toEqual({ title: 'Chisinau' })
-
-    expect(
-      adapter.mapEntityToPayload({
-        entityType: 'waitingLocation',
         entity: textValueEntity,
         bindings: [{ sourceField: 'value', targetField: 'location' }],
       }).payload,
@@ -273,20 +235,33 @@ describe('JSON datasource publishing', () => {
     ])
   })
 
+  it('falls back to targetField when bindings use CSV columns as source fields', () => {
+    const adapter = createJsonDatasourcePublishTargetAdapter()
+
+    const result = adapter.mapEntityToPayload({
+      entityType: 'title',
+      entity: titleEntity,
+      bindings: [{ sourceField: 'Titlu Asteptare', targetField: 'text', required: true }],
+    })
+
+    expect(result.payload).toEqual({ text: 'Main Title' })
+    expect(result.diagnostics).toEqual([])
+  })
+
   it('keeps publish logic modular and independent from UI concerns', () => {
     const adapter = createJsonDatasourcePublishTargetAdapter()
 
     const result = adapter.publishEntity(
       {
-        entityType: 'supertitle',
-        entity: supertitleEntity,
-        targetFile: 'graphics/supertitle.json',
-        bindings: [{ sourceField: 'text', targetField: 'strap' }],
+        entityType: 'location',
+        entity: textValueEntity,
+        targetFile: 'graphics/location.json',
+        bindings: [{ sourceField: 'value', targetField: 'location' }],
       },
       createInMemoryTargetFileWriter(),
     )
 
-    expect(result.payload).toEqual({ strap: 'Top Strap' })
+    expect(result.payload).toEqual({ location: 'Chisinau' })
     expect(result).not.toHaveProperty('preview')
     expect(result).not.toHaveProperty('component')
   })

@@ -4,7 +4,6 @@ import {
   editorialDocumentSchema,
   phoneEntitySchema,
   personEntitySchema,
-  supertitleEntitySchema,
   textValueEntitySchema,
   titleEntitySchema,
 } from '@/core/schemas/editorialSchemas'
@@ -17,12 +16,8 @@ describe('EditorialDocument schema', () => {
         {
           name: 'Opening',
           titles: [{ id: 'title-1', number: '1', text: 'Main title' }],
-          supertitles: [{ text: 'Top line' }],
           persons: [{ name: 'Jane Doe', role: 'Anchor' }],
           locations: [{ value: 'Chisinau' }],
-          breakingNews: [{ value: 'Breaking line' }],
-          waitingTitles: [{ value: 'Waiting title' }],
-          waitingLocations: [{ value: 'Waiting location' }],
           phones: [{ label: 'Guest line', number: '+37360000000' }],
         },
       ],
@@ -33,12 +28,8 @@ describe('EditorialDocument schema', () => {
         {
           name: 'Opening',
           titles: [{ id: 'title-1', number: '1', text: 'Main title' }],
-          supertitles: [{ text: 'Top line' }],
           persons: [{ name: 'Jane Doe', role: 'Anchor' }],
           locations: [{ value: 'Chisinau' }],
-          breakingNews: [{ value: 'Breaking line' }],
-          waitingTitles: [{ value: 'Waiting title' }],
-          waitingLocations: [{ value: 'Waiting location' }],
           phones: [{ label: 'Guest line', number: '+37360000000' }],
         },
       ],
@@ -60,12 +51,8 @@ describe('EditorialBlock schema', () => {
     expect(parsed).toEqual({
       name: 'Guest block',
       titles: [],
-      supertitles: [],
       persons: [{ name: 'John Smith' }],
       locations: [],
-      breakingNews: [],
-      waitingTitles: [],
-      waitingLocations: [],
       phones: [],
     })
   })
@@ -87,13 +74,10 @@ describe('supported V1 entity types', () => {
   it('exposes only the allowed entity types for APlay V1', () => {
     expect(supportedEntityTypes).toEqual([
       'title',
-      'supertitle',
       'person',
       'location',
-      'breakingNews',
-      'waitingTitle',
-      'waitingLocation',
       'phone',
+      'staticImage',
     ])
   })
 })
@@ -105,10 +89,6 @@ describe('entity schemas', () => {
 
   it('requires title text', () => {
     expect(() => titleEntitySchema.parse({})).toThrow()
-  })
-
-  it('parses a supertitle entity', () => {
-    expect(supertitleEntitySchema.parse({ text: 'Top strap' })).toEqual({ text: 'Top strap' })
   })
 
   it('parses a person entity with optional role', () => {

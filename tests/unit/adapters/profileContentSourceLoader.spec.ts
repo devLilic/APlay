@@ -18,18 +18,12 @@ const csvDocument = {
       titles: [
         { id: 'title-1', number: '1', text: 'Morning Briefing' },
       ],
-      supertitles: [
-        { id: 'supertitle-1', text: 'Top Story' },
-      ],
       persons: [
         { id: 'person-1', name: 'Jane Doe', role: 'Reporter' },
       ],
       locations: [
         { id: 'location-1', value: 'Chisinau' },
       ],
-      breakingNews: [],
-      waitingTitles: [],
-      waitingLocations: [],
       phones: [],
     },
   ],
@@ -54,9 +48,6 @@ const defaultCsvSchema: CsvSourceSchemaConfig = {
         title: 'Titlu',
       },
     },
-    supertitle: {
-      enabled: false,
-    },
     person: {
       enabled: true,
       fields: {
@@ -68,24 +59,6 @@ const defaultCsvSchema: CsvSourceSchemaConfig = {
       enabled: true,
       fields: {
         value: 'Locatie',
-      },
-    },
-    breakingNews: {
-      enabled: true,
-      fields: {
-        value: 'Ultima Ora',
-      },
-    },
-    waitingTitle: {
-      enabled: true,
-      fields: {
-        value: 'Titlu Asteptare',
-      },
-    },
-    waitingLocation: {
-      enabled: true,
-      fields: {
-        value: 'Locatie Asteptare',
       },
     },
     phone: {
@@ -132,6 +105,22 @@ const csvSettings: AppSettings = {
   ],
   graphics: [],
 }
+
+const titleGraphic = {
+  id: 'title-main',
+  entityType: 'title',
+  dataFileName: 'title-main.json',
+  datasourcePath: 'datasources/title-main.json',
+  control: { templateName: 'TITLE_MAIN' },
+  bindings: [{ sourceField: 'Titlu Asteptare', targetField: 'text', required: true }],
+  preview: {
+    id: 'title-main-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [{ id: 'title-text', kind: 'text', sourceField: 'text', box: { x: 0, y: 0, width: 100, height: 50 } }],
+  },
+  actions: [],
+} as const
 
 function createAdapter(
   format: ContentSourceAdapter['format'],
@@ -213,6 +202,34 @@ describe('profile content source loader', () => {
       fileName: 'morning.csv',
       content: 'number,title\n1,Morning Briefing',
       schema: defaultCsvSchema,
+      graphics: [],
+    })
+  })
+
+  it('passes the current profile graphics into the CSV adapter for manual collection mapping', () => {
+    const csvLoad = vi.fn(() => ({
+      document: csvDocument,
+      diagnostics: [],
+    }))
+    const loader = createProfileContentSourceLoader({
+      adapters: [createAdapter('csv', csvLoad)],
+      readSourceFile: () => 'number,title\n1,Morning Briefing',
+    })
+
+    loader.loadActiveProfileSource({
+      ...csvSettings,
+      profiles: [{
+        ...csvSettings.profiles[0],
+        graphicConfigIds: ['title-main'],
+      }, ...csvSettings.profiles.slice(1)],
+      graphics: [titleGraphic as unknown as AppSettings['graphics'][number]],
+    })
+
+    expect(csvLoad).toHaveBeenCalledWith({
+      fileName: 'morning.csv',
+      content: 'number,title\n1,Morning Briefing',
+      schema: defaultCsvSchema,
+      graphics: [titleGraphic],
     })
   })
 
@@ -258,11 +275,13 @@ describe('profile content source loader', () => {
       fileName: 'morning.csv',
       content: 'loaded:C:\\APlay\\sources\\morning.csv',
       schema: defaultCsvSchema,
+      graphics: [],
     })
     expect(csvLoad).toHaveBeenNthCalledWith(2, {
       fileName: 'special.csv',
       content: 'loaded:C:\\APlay\\sources\\special.csv',
       schema: alternateSchema,
+      graphics: [],
     })
   })
 
@@ -386,12 +405,8 @@ describe('profile content source loader', () => {
         blocks: [{
           name: source.fileName,
           titles: [],
-          supertitles: [],
           persons: [],
           locations: [],
-          breakingNews: [],
-          waitingTitles: [],
-          waitingLocations: [],
           phones: [],
         }],
       },

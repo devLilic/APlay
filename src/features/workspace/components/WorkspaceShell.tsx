@@ -7,8 +7,7 @@ import {
   createWorkspaceSelectionState,
   deriveBlockList,
   deriveSelectedEntityContext,
-  resolveGroupedEntityLists,
-  type EntityGroupKey,
+  resolveGraphicConfigEntityLists,
   type WorkspaceSelection,
 } from '@/features/workspace/state/workspaceSelectionState'
 import {
@@ -39,7 +38,6 @@ type ShellLoadState =
   | { status: 'error'; message: string }
   | { status: 'ready'; snapshot: WorkspaceConfigSnapshot; data: WorkspaceShellData }
 
-type CollectionColumnIndex = 0 | 1
 type PendingImportSummary =
   | {
     kind: 'graphic'
@@ -54,22 +52,6 @@ type PendingImportSummary =
     preview: ProfileLibraryImportResult
   }
 
-interface EntityCollectionLayout {
-  order: EntityGroupKey[]
-  columns: Record<EntityGroupKey, CollectionColumnIndex>
-}
-
-const entityGroupLabels: Record<EntityGroupKey, string> = {
-  titles: 'Titles',
-  supertitles: 'Supertitles',
-  persons: 'Persons',
-  locations: 'Locations',
-  breakingNews: 'Breaking News',
-  waitingTitles: 'Waiting Titles',
-  waitingLocations: 'Waiting Locations',
-  phones: 'Phones',
-}
-
 export function WorkspaceShell() {
   const [loadState, setLoadState] = useState<ShellLoadState>({ status: 'loading' })
   const [selection, setSelection] = useState<WorkspaceSelection>({})
@@ -79,8 +61,6 @@ export function WorkspaceShell() {
   const [isImportingGraphicConfig, setIsImportingGraphicConfig] = useState(false)
   const [isImportingProfile, setIsImportingProfile] = useState(false)
   const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
-  const [collectionLayout, setCollectionLayout] = useState<EntityCollectionLayout>(() => createInitialCollectionLayout())
-  const [draggedGroup, setDraggedGroup] = useState<EntityGroupKey | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
 
@@ -93,7 +73,7 @@ export function WorkspaceShell() {
       repositoryRef.current = repository
       const snapshot = repository.load()
       const data = loadWorkspaceShellData(snapshot)
-      const initialState = createWorkspaceSelectionState(data.document)
+      const initialState = createWorkspaceSelectionState(data.document, data.graphics)
       setLoadState({ status: 'ready', snapshot, data })
       setSelection(initialState.selection)
     } catch (error) {
@@ -122,14 +102,12 @@ export function WorkspaceShell() {
   }
 
   const workspaceData = loadState.data
-  const workspace = createWorkspaceSelectionState(workspaceData.document, selection)
+  const workspace = createWorkspaceSelectionState(workspaceData.document, workspaceData.graphics, selection)
   const blockList = deriveBlockList(workspaceData.document)
   const selectedBlock = workspace.getSelectedBlock()
-  const groupedLists = resolveGroupedEntityLists(workspace.document, workspace.selection)
-  const orderedGroupedLists = orderGroupedLists(groupedLists, collectionLayout)
-  const groupedListColumns = splitGroupedListsIntoColumns(orderedGroupedLists, collectionLayout)
+  const graphicCollections = resolveGraphicConfigEntityLists(workspace.document, workspace.selection, workspaceData.graphics)
   const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection)
-  const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsByEntityType, selectedEntity)
+  const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsById, selectedEntity)
   const previewContent = createEntityPreviewContent(selectedEntity)
   const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, selectedGraphic)
   const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
@@ -140,7 +118,7 @@ export function WorkspaceShell() {
       data: nextData,
     })
     setSelection((currentSelection) =>
-      createWorkspaceSelectionState(nextData.document, currentSelection).selection)
+      createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
   }
 
   const handleBlockSelect = (blockIndex: number) => {
@@ -148,13 +126,13 @@ export function WorkspaceShell() {
     setFeedback(null)
   }
 
-  const handleGroupSelect = (entityGroup: EntityGroupKey) => {
-    setSelection(workspace.selectEntityGroup(entityGroup).selection)
+  const handleGraphicConfigSelect = (graphicConfigId: string) => {
+    setSelection(workspace.selectGraphicConfig(graphicConfigId).selection)
     setFeedback(null)
   }
 
-  const handleEntitySelect = (entityGroup: EntityGroupKey, entityIndex: number) => {
-    const nextState = workspace.selectEntityGroup(entityGroup).selectEntity(entityIndex)
+  const handleEntitySelect = (graphicConfigId: string, entityIndex: number) => {
+    const nextState = workspace.selectGraphicConfig(graphicConfigId).selectEntity(entityIndex)
     setSelection(nextState.selection)
     setFeedback(null)
   }
@@ -163,31 +141,9 @@ export function WorkspaceShell() {
     setFeedback(await runWorkspaceGraphicAction(
       actionType,
       selectedEntity,
-      workspaceData.graphicsByEntityType,
+      workspaceData.graphicsById,
       loadState.snapshot.settings.osc,
     ))
-  }
-
-  const handleCollectionColumnDrop = (column: CollectionColumnIndex) => {
-    if (!draggedGroup) {
-      return
-    }
-
-    setCollectionLayout((currentLayout) => moveCollectionGroup(currentLayout, draggedGroup, column))
-    setDraggedGroup(null)
-  }
-
-  const handleCollectionGroupDrop = (
-    targetGroup: EntityGroupKey,
-    targetColumn: CollectionColumnIndex,
-  ) => {
-    if (!draggedGroup || draggedGroup === targetGroup) {
-      return
-    }
-
-    setCollectionLayout((currentLayout) =>
-      moveCollectionGroup(currentLayout, draggedGroup, targetColumn, targetGroup))
-    setDraggedGroup(null)
   }
 
   const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
@@ -469,7 +425,7 @@ export function WorkspaceShell() {
         data: nextData,
       })
       setSelection((currentSelection) =>
-        createWorkspaceSelectionState(nextData.document, currentSelection).selection)
+        createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
       setSourceRefreshFeedback({
         kind: 'success',
         message: nextData.activeSourceFilePath
@@ -493,7 +449,7 @@ export function WorkspaceShell() {
           <div className='space-y-2'>
             <h1 className='text-3xl font-semibold tracking-tight'>Editorial graphics control shell</h1>
             <p className='max-w-3xl text-sm text-slate-300'>
-              Blocks drive the left panel, grouped entity collections fill the middle panel, and the right panel previews and triggers the selected graphic.
+              Blocks drive the left panel, profile graphic collections fill the middle panel, and the right panel previews and triggers the selected graphic.
             </p>
           </div>
         </div>
@@ -593,85 +549,62 @@ export function WorkspaceShell() {
         <Panel
           title='Entity collections'
           eyebrow='Middle panel'
-          aside={<span className='rounded-full bg-surface px-3 py-1 text-xs font-medium text-muted'>Grouped by type</span>}
+          aside={<span className='rounded-full bg-surface px-3 py-1 text-xs font-medium text-muted'>Grouped by graphic config</span>}
         >
           {!selectedBlock ? (
             <EmptyState title='No selected block' description='Choose a block from the left panel to inspect its entity collections.' />
           ) : (
             <div className='grid gap-3 md:grid-cols-2'>
-              {groupedListColumns.map((columnGroups, columnIndex) => (
-                <div
-                  key={columnIndex}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => handleCollectionColumnDrop(columnIndex as CollectionColumnIndex)}
-                  className='flex min-h-[12rem] flex-col gap-3 rounded-2xl border border-dashed border-border/80 bg-surface/20 p-2'
-                >
-                  {columnGroups.map((group) => {
-                    const isSelectedGroup = workspace.selection.selectedEntityGroup === group.entityType
-                    const isEmptyGroup = group.items.length === 0
-                    const isDragging = draggedGroup === group.entityType
+              {graphicCollections.map((group) => {
+                const isSelectedGroup = workspace.selection.selectedGraphicConfigId === group.graphicConfigId
+                const isEmptyGroup = group.items.length === 0
 
-                    return (
-                      <article
-                        key={group.entityType}
-                        draggable
-                        onDragStart={() => setDraggedGroup(group.entityType)}
-                        onDragEnd={() => setDraggedGroup(null)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={(event) => {
-                          event.preventDefault()
-                          handleCollectionGroupDrop(group.entityType, columnIndex as CollectionColumnIndex)
-                        }}
-                        className={`rounded-2xl border p-4 transition ${
-                          isSelectedGroup ? 'border-accent bg-accent/5' : 'border-border bg-surface/40'
-                        } ${
-                          isDragging ? 'opacity-60' : ''
-                        }`}
-                      >
-                        <button
-                          type='button'
-                          onClick={() => handleGroupSelect(group.entityType)}
-                          className='flex w-full items-center justify-between gap-3 text-left'
-                        >
-                          <div className='min-w-0'>
-                            <h3 className='text-sm font-semibold text-ink'>{entityGroupLabels[group.entityType]}</h3>
-                            <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-muted'>
-                              {isEmptyGroup ? 'Collapsed empty collection' : 'Drag to reorder'}
-                            </p>
-                          </div>
-                          <div className='flex items-center gap-2'>
-                            <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
-                            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Drag</span>
-                          </div>
-                        </button>
+                return (
+                  <article
+                    key={group.graphicConfigId}
+                    className={`rounded-2xl border p-4 transition ${
+                      isSelectedGroup ? 'border-accent bg-accent/5' : 'border-border bg-surface/40'
+                    }`}
+                  >
+                    <button
+                      type='button'
+                      onClick={() => handleGraphicConfigSelect(group.graphicConfigId)}
+                      className='flex w-full items-center justify-between gap-3 text-left'
+                    >
+                      <div className='min-w-0'>
+                        <h3 className='text-sm font-semibold text-ink'>{group.graphic.id}</h3>
+                        <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-muted'>
+                          {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
+                        </p>
+                      </div>
+                      <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
+                    </button>
 
-                        {!isEmptyGroup ? (
-                          <div className='mt-3 space-y-2'>
-                            {group.items.map((item, index) => {
-                              const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
+                    {!isEmptyGroup ? (
+                      <div className='mt-3 space-y-2'>
+                        {group.items.map((item, index) => {
+                          const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
 
-                              return (
-                                <button
-                                  key={`${group.entityType}-${index}`}
-                                  type='button'
-                                  onClick={() => handleEntitySelect(group.entityType, index)}
-                                  className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
-                                    isSelectedItem
-                                      ? 'border-accent bg-white text-ink'
-                                      : 'border-border/80 bg-white/70 text-muted hover:border-accent/40 hover:text-ink'
-                                  }`}
-                                >
-                                  {formatEntityCollectionLabel(item)}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        ) : null}
-                      </article>
-                    )
-                  })}
-                </div>
-              ))}
+                          return (
+                            <button
+                              key={`${group.graphicConfigId}-${index}`}
+                              type='button'
+                              onClick={() => handleEntitySelect(group.graphicConfigId, index)}
+                              className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
+                                isSelectedItem
+                                  ? 'border-accent bg-white text-ink'
+                                  : 'border-border/80 bg-white/70 text-muted hover:border-accent/40 hover:text-ink'
+                              }`}
+                            >
+                              {formatEntityCollectionLabel(item)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : null}
+                  </article>
+                )
+              })}
             </div>
           )}
         </Panel>
@@ -706,7 +639,7 @@ export function WorkspaceShell() {
                 <p className='text-xs font-semibold uppercase tracking-[0.22em] text-muted'>Selected content</p>
                 <p className='mt-2 text-sm font-semibold text-ink'>{formatEntityLabel(selectedEntity.entity)}</p>
                 <p className='mt-1 text-sm text-muted'>
-                  Block: {selectedEntity.blockName} | Collection: {entityGroupLabels[selectedEntity.entityGroup]}
+                  Block: {selectedEntity.blockName} | Graphic config: {selectedEntity.graphicConfigId}
                 </p>
               </div>
 
@@ -837,69 +770,6 @@ function formatEntityCollectionLabel(entity: unknown): string {
 }
 
 function countBlockEntities(block: WorkspaceShellData['document']['blocks'][number]): number {
-  return [block.titles.length, block.supertitles.length, block.persons.length, block.locations.length, block.breakingNews.length, block.waitingTitles.length, block.waitingLocations.length, block.phones.length].reduce((total, count) => total + count, 0)
-}
-
-function createInitialCollectionLayout(): EntityCollectionLayout {
-  const order = Object.keys(entityGroupLabels) as EntityGroupKey[]
-
-  return {
-    order,
-    columns: Object.fromEntries(
-      order.map((group, index) => [group, (index % 2) as CollectionColumnIndex]),
-    ) as Record<EntityGroupKey, CollectionColumnIndex>,
-  }
-}
-
-function orderGroupedLists(
-  groupedLists: ReturnType<typeof resolveGroupedEntityLists>,
-  layout: EntityCollectionLayout,
-) {
-  const groupedListMap = new Map(groupedLists.map((group) => [group.entityType, group]))
-
-  return layout.order
-    .map((entityGroup) => groupedListMap.get(entityGroup))
-    .filter((group): group is (typeof groupedLists)[number] => group !== undefined)
-}
-
-function splitGroupedListsIntoColumns(
-  groupedLists: ReturnType<typeof resolveGroupedEntityLists>,
-  layout: EntityCollectionLayout,
-) {
-  return [
-    groupedLists.filter((group) => layout.columns[group.entityType] === 0),
-    groupedLists.filter((group) => layout.columns[group.entityType] === 1),
-  ] as const
-}
-
-function moveCollectionGroup(
-  layout: EntityCollectionLayout,
-  draggedGroup: EntityGroupKey,
-  targetColumn: CollectionColumnIndex,
-  targetBeforeGroup?: EntityGroupKey,
-): EntityCollectionLayout {
-  const orderWithoutDragged = layout.order.filter((group) => group !== draggedGroup)
-  const nextColumns = {
-    ...layout.columns,
-    [draggedGroup]: targetColumn,
-  }
-
-  const targetIndex = targetBeforeGroup
-    ? orderWithoutDragged.findIndex((group) => group === targetBeforeGroup)
-    : -1
-
-  const nextOrder = [...orderWithoutDragged]
-  if (targetIndex >= 0) {
-    nextOrder.splice(targetIndex, 0, draggedGroup)
-  } else {
-    const lastIndexInTargetColumn = nextOrder.reduce((result, group, index) => (
-      nextColumns[group] === targetColumn ? index : result
-    ), -1)
-    nextOrder.splice(lastIndexInTargetColumn + 1, 0, draggedGroup)
-  }
-
-  return {
-    order: nextOrder,
-    columns: nextColumns,
-  }
+  const collections = block.entityCollections ?? {}
+  return Object.values(collections).reduce((total, items) => total + items.length, 0)
 }

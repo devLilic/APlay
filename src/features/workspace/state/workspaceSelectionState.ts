@@ -1,42 +1,31 @@
-import type { EditorialBlock, EditorialDocument } from '@/core/models/editorial'
-
-export const entityGroupKeys = [
-  'titles',
-  'supertitles',
-  'persons',
-  'locations',
-  'breakingNews',
-  'waitingTitles',
-  'waitingLocations',
-  'phones',
-] as const
-
-export type EntityGroupKey = typeof entityGroupKeys[number]
+import type { EditorialBlock, EditorialDocument, GraphicConfigEntityItem } from '@/core/models/editorial'
+import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 
 export interface WorkspaceSelection {
   selectedBlockIndex?: number
-  selectedEntityGroup?: EntityGroupKey
+  selectedGraphicConfigId?: string
   selectedEntityIndex?: number
 }
 
-export interface GroupedEntityList {
-  entityType: EntityGroupKey
-  items: EditorialBlock[EntityGroupKey]
+export interface GraphicConfigEntityList {
+  graphicConfigId: string
+  graphic: GraphicInstanceConfig
+  items: GraphicConfigEntityItem[]
 }
 
 export interface SelectedEntityContext {
   blockIndex: number
   blockName: string
-  entityGroup: EntityGroupKey
+  graphicConfigId: string
   entityIndex: number
-  entity: EditorialBlock[EntityGroupKey][number]
+  entity: GraphicConfigEntityItem
 }
 
 export interface WorkspaceSelectionStateController {
   document: EditorialDocument
   selection: WorkspaceSelection
   selectBlock: (blockIndex: number) => WorkspaceSelectionStateController
-  selectEntityGroup: (entityGroup: EntityGroupKey) => WorkspaceSelectionStateController
+  selectGraphicConfig: (graphicConfigId: string) => WorkspaceSelectionStateController
   selectEntity: (entityIndex: number) => WorkspaceSelectionStateController
   getSelectedBlock: () => EditorialBlock | undefined
 }
@@ -47,7 +36,8 @@ export function deriveBlockList(document: EditorialDocument): EditorialBlock[] {
 
 export function createWorkspaceSelectionState(
   document: EditorialDocument,
-  selection: WorkspaceSelection = createInitialSelection(document),
+  graphics: GraphicInstanceConfig[],
+  selection: WorkspaceSelection = createInitialSelection(document, graphics),
 ): WorkspaceSelectionStateController {
   const reconciledSelection = reconcileWorkspaceSelection(document, selection)
 
@@ -55,37 +45,37 @@ export function createWorkspaceSelectionState(
     document,
     selection: reconciledSelection,
     selectBlock(blockIndex: number) {
-      return createWorkspaceSelectionState(document, {
+      return createWorkspaceSelectionState(document, graphics, {
         selectedBlockIndex: isValidBlockIndex(document, blockIndex) ? blockIndex : undefined,
       })
     },
-    selectEntityGroup(entityGroup: EntityGroupKey) {
+    selectGraphicConfig(graphicConfigId: string) {
       if (reconciledSelection.selectedBlockIndex === undefined) {
-        return createWorkspaceSelectionState(document, reconciledSelection)
+        return createWorkspaceSelectionState(document, graphics, reconciledSelection)
       }
 
-      return createWorkspaceSelectionState(document, {
+      return createWorkspaceSelectionState(document, graphics, {
         selectedBlockIndex: reconciledSelection.selectedBlockIndex,
-        selectedEntityGroup: entityGroup,
+        selectedGraphicConfigId: isKnownGraphicConfig(graphics, graphicConfigId) ? graphicConfigId : undefined,
       })
     },
     selectEntity(entityIndex: number) {
       if (
         reconciledSelection.selectedBlockIndex === undefined ||
-        reconciledSelection.selectedEntityGroup === undefined
+        reconciledSelection.selectedGraphicConfigId === undefined
       ) {
-        return createWorkspaceSelectionState(document, reconciledSelection)
+        return createWorkspaceSelectionState(document, graphics, reconciledSelection)
       }
 
-      const groupedItems = getGroupItems(
+      const groupedItems = getGraphicConfigItems(
         document,
         reconciledSelection.selectedBlockIndex,
-        reconciledSelection.selectedEntityGroup,
+        reconciledSelection.selectedGraphicConfigId,
       )
 
-      return createWorkspaceSelectionState(document, {
+      return createWorkspaceSelectionState(document, graphics, {
         selectedBlockIndex: reconciledSelection.selectedBlockIndex,
-        selectedEntityGroup: reconciledSelection.selectedEntityGroup,
+        selectedGraphicConfigId: reconciledSelection.selectedGraphicConfigId,
         selectedEntityIndex: isValidEntityIndex(groupedItems, entityIndex) ? entityIndex : undefined,
       })
     },
@@ -95,19 +85,25 @@ export function createWorkspaceSelectionState(
   }
 }
 
-export function resolveGroupedEntityLists(
+export function resolveGraphicConfigEntityLists(
   document: EditorialDocument,
   selection: WorkspaceSelection,
-): GroupedEntityList[] {
+  graphics: GraphicInstanceConfig[],
+): GraphicConfigEntityList[] {
   const block = getSelectedBlock(document, selection)
   if (!block) {
     return []
   }
 
-  return entityGroupKeys.map((entityType) => ({
-    entityType,
-    items: block[entityType],
-  }))
+  const collections = block.entityCollections ?? {}
+
+  return graphics
+    .filter((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'staticImage')
+    .map((graphic) => ({
+      graphicConfigId: graphic.id,
+      graphic,
+      items: collections[graphic.id] ?? [],
+    }))
 }
 
 export function deriveSelectedEntityContext(
@@ -116,19 +112,19 @@ export function deriveSelectedEntityContext(
 ): SelectedEntityContext | undefined {
   const block = getSelectedBlock(document, selection)
   const selectedBlockIndex = selection.selectedBlockIndex
-  const selectedEntityGroup = selection.selectedEntityGroup
+  const selectedGraphicConfigId = selection.selectedGraphicConfigId
   const selectedEntityIndex = selection.selectedEntityIndex
 
   if (
     !block ||
     selectedBlockIndex === undefined ||
-    selectedEntityGroup === undefined ||
+    selectedGraphicConfigId === undefined ||
     selectedEntityIndex === undefined
   ) {
     return undefined
   }
 
-  const entity = block[selectedEntityGroup][selectedEntityIndex]
+  const entity = block.entityCollections?.[selectedGraphicConfigId]?.[selectedEntityIndex]
   if (entity === undefined) {
     return undefined
   }
@@ -136,7 +132,7 @@ export function deriveSelectedEntityContext(
   return {
     blockIndex: selectedBlockIndex,
     blockName: block.name,
-    entityGroup: selectedEntityGroup,
+    graphicConfigId: selectedGraphicConfigId,
     entityIndex: selectedEntityIndex,
     entity,
   }
@@ -151,12 +147,12 @@ export function reconcileWorkspaceSelection(
     return {}
   }
 
-  const selectedEntityGroup = selection.selectedEntityGroup
-  if (!selectedEntityGroup) {
+  const selectedGraphicConfigId = selection.selectedGraphicConfigId
+  if (!selectedGraphicConfigId) {
     return { selectedBlockIndex }
   }
 
-  const groupedItems = getGroupItems(document, selectedBlockIndex, selectedEntityGroup)
+  const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, selectedGraphicConfigId)
   if (!groupedItems) {
     return { selectedBlockIndex }
   }
@@ -165,28 +161,37 @@ export function reconcileWorkspaceSelection(
   if (selectedEntityIndex === undefined) {
     return {
       selectedBlockIndex,
-      selectedEntityGroup,
+      selectedGraphicConfigId,
     }
   }
 
   if (!isValidEntityIndex(groupedItems, selectedEntityIndex)) {
-    return { selectedBlockIndex }
+    return {
+      selectedBlockIndex,
+      selectedGraphicConfigId,
+    }
   }
 
   return {
     selectedBlockIndex,
-    selectedEntityGroup,
+    selectedGraphicConfigId,
     selectedEntityIndex,
   }
 }
 
-function createInitialSelection(document: EditorialDocument): WorkspaceSelection {
+function createInitialSelection(
+  document: EditorialDocument,
+  graphics: GraphicInstanceConfig[],
+): WorkspaceSelection {
   if (document.blocks.length === 0) {
     return {}
   }
 
+  const firstGraphicConfigId = graphics.find((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'staticImage')?.id
+
   return {
     selectedBlockIndex: 0,
+    ...(firstGraphicConfigId ? { selectedGraphicConfigId: firstGraphicConfigId } : {}),
   }
 }
 
@@ -216,13 +221,17 @@ function isValidBlockIndex(document: EditorialDocument, blockIndex: number): boo
   return Number.isInteger(blockIndex) && blockIndex >= 0 && blockIndex < document.blocks.length
 }
 
-function getGroupItems(
+function isKnownGraphicConfig(graphics: GraphicInstanceConfig[], graphicConfigId: string): boolean {
+  return graphics.some((graphic) => graphic.id === graphicConfigId)
+}
+
+function getGraphicConfigItems(
   document: EditorialDocument,
   blockIndex: number,
-  entityGroup: EntityGroupKey,
-): EditorialBlock[EntityGroupKey] | undefined {
+  graphicConfigId: string,
+): GraphicConfigEntityItem[] | undefined {
   const block = document.blocks[blockIndex]
-  return block?.[entityGroup]
+  return block?.entityCollections?.[graphicConfigId]
 }
 
 function isValidEntityIndex(
