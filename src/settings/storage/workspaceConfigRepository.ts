@@ -14,6 +14,12 @@ import {
   type ProfileLibraryImportResult,
   type ProfileImportConflictPolicy,
 } from '@/settings/storage/profileConfigImport'
+import {
+  createGraphicConfigLibraryService,
+  type GraphicConfigDeleteResult,
+  type GraphicConfigMutationResult,
+  type GraphicConfigProfileAssignmentResult,
+} from '@/settings/storage/graphicConfigLibraryService'
 
 export interface GraphicConfigFileMap {
   [fileName: string]: string
@@ -32,6 +38,21 @@ export interface KeyValueStorage {
 export interface WorkspaceConfigRepository {
   load: () => WorkspaceConfigSnapshot
   save: (settings: unknown) => WorkspaceConfigSnapshot
+  createGraphicConfig: (graphic: GraphicInstanceConfig) => GraphicConfigMutationResult
+  updateGraphicConfig: (
+    graphicId: string,
+    updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig,
+  ) => GraphicConfigMutationResult
+  duplicateGraphicConfig: (graphicId: string) => GraphicConfigMutationResult
+  deleteGraphicConfig: (graphicId: string) => GraphicConfigDeleteResult
+  attachGraphicConfigToProfile: (
+    profileId: string,
+    graphicId: string,
+  ) => GraphicConfigProfileAssignmentResult
+  detachGraphicConfigFromProfile: (
+    profileId: string,
+    graphicId: string,
+  ) => GraphicConfigProfileAssignmentResult
   importGraphicConfig: (
     content: string | unknown,
     options?: { conflictPolicy?: GraphicConfigIdConflictPolicy },
@@ -57,6 +78,7 @@ export function createWorkspaceConfigRepository(
   const settingsRepository = createSettingsRepository(
     createKeyValueSettingsStorage(storage, defaults.settings),
   )
+  const libraryService = createGraphicConfigLibraryService()
 
   return {
     load(): WorkspaceConfigSnapshot {
@@ -82,6 +104,45 @@ export function createWorkspaceConfigRepository(
         settings: persistedSettings,
         graphicFiles,
       }
+    },
+    createGraphicConfig(graphic: GraphicInstanceConfig): GraphicConfigMutationResult {
+      const result = libraryService.createGraphicConfig(this.load(), graphic)
+      persistWorkspaceSnapshot(storage, settingsRepository, result)
+      return result
+    },
+    updateGraphicConfig(
+      graphicId: string,
+      updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig,
+    ): GraphicConfigMutationResult {
+      const result = libraryService.updateGraphicConfig(this.load(), graphicId, updater)
+      persistWorkspaceSnapshot(storage, settingsRepository, result)
+      return result
+    },
+    duplicateGraphicConfig(graphicId: string): GraphicConfigMutationResult {
+      const result = libraryService.duplicateGraphicConfig(this.load(), graphicId)
+      persistWorkspaceSnapshot(storage, settingsRepository, result)
+      return result
+    },
+    deleteGraphicConfig(graphicId: string): GraphicConfigDeleteResult {
+      const result = libraryService.deleteGraphicConfig(this.load(), graphicId)
+      persistWorkspaceSnapshot(storage, settingsRepository, result)
+      return result
+    },
+    attachGraphicConfigToProfile(
+      profileId: string,
+      graphicId: string,
+    ): GraphicConfigProfileAssignmentResult {
+      const result = libraryService.attachGraphicConfigToProfile(this.load(), profileId, graphicId)
+      persistWorkspaceSnapshot(storage, settingsRepository, result)
+      return result
+    },
+    detachGraphicConfigFromProfile(
+      profileId: string,
+      graphicId: string,
+    ): GraphicConfigProfileAssignmentResult {
+      const result = libraryService.detachGraphicConfigFromProfile(this.load(), profileId, graphicId)
+      persistWorkspaceSnapshot(storage, settingsRepository, result)
+      return result
     },
     importGraphicConfig(content, options): GraphicConfigLibraryImportResult {
       const currentSnapshot = this.load()
@@ -130,6 +191,15 @@ function createKeyValueSettingsStorage(
       storage.setItem(settingsStorageKey, content)
     },
   }
+}
+
+function persistWorkspaceSnapshot(
+  storage: KeyValueStorage,
+  settingsRepository: ReturnType<typeof createSettingsRepository>,
+  snapshot: WorkspaceConfigSnapshot,
+): void {
+  settingsRepository.save(snapshot.settings)
+  storage.setItem(graphicFilesStorageKey, JSON.stringify(snapshot.graphicFiles, null, 2))
 }
 
 function loadGraphicFiles(

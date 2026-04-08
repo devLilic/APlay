@@ -25,6 +25,11 @@ import {
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 import type { GraphicConfigLibraryImportResult } from '@/settings/storage/graphicConfigImport'
 import type { ProfileLibraryImportResult } from '@/settings/storage/profileConfigImport'
+import {
+  createGraphicConfigLibraryService,
+  findGraphicConfigReferences,
+  type GraphicConfigReference,
+} from '@/settings/storage/graphicConfigLibraryService'
 import { Panel } from '@/shared/ui/panel'
 
 export interface SettingsFeedback {
@@ -70,6 +75,7 @@ interface SettingsPanelProps {
 const transformOrigins: TransformOrigin[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']
 const previewElementKinds: PreviewElementKind[] = ['text', 'box', 'image']
 const oscArgTypes: OscArgType[] = ['s', 'i', 'f']
+const graphicConfigLibraryService = createGraphicConfigLibraryService()
 type SettingsTabId = 'show' | 'osc' | 'graphics' | 'preview' | 'assets'
 
 const settingsTabs: Array<{
@@ -126,6 +132,13 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const selectedProfile = settings.profiles.find((profile) => profile.id === settings.selectedProfileId)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(selectedProfile?.graphicConfigIds[0] ?? null)
+  const [draftGraphicEntityType, setDraftGraphicEntityType] = useState<GraphicInstanceConfig['entityType']>('title')
+  const [draftGraphicId, setDraftGraphicId] = useState('')
+  const [libraryFeedback, setLibraryFeedback] = useState<SettingsFeedback | null>(null)
+  const [pendingGraphicDelete, setPendingGraphicDelete] = useState<{
+    graphicId: string
+    references: GraphicConfigReference[]
+  } | null>(null)
   const [draftReferenceImageName, setDraftReferenceImageName] = useState('')
   const [draftReferenceImagePath, setDraftReferenceImagePath] = useState('')
   const [isPickingReferenceImage, setIsPickingReferenceImage] = useState(false)
@@ -140,20 +153,38 @@ export function SettingsPanel({
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
 
-    if (!selectedProfile) {
+    if (!selectedProfile && settings.graphics.length === 0) {
       setSelectedGraphicId(null)
       return
     }
 
-    if (!selectedGraphicId || !selectedProfile.graphicConfigIds.includes(selectedGraphicId)) {
-      setSelectedGraphicId(nextGraphicId)
+    if (!selectedGraphicId) {
+      setSelectedGraphicId(nextGraphicId ?? settings.graphics[0]?.id ?? null)
+      return
     }
-  }, [selectedGraphicId, selectedProfile])
+
+    if (!settings.graphics.some((graphic) => graphic.id === selectedGraphicId)) {
+      setSelectedGraphicId(nextGraphicId ?? settings.graphics[0]?.id ?? null)
+    }
+  }, [selectedGraphicId, selectedProfile, settings.graphics])
 
   const selectedGraphic = selectedGraphicId
     ? settings.graphics.find((graphic) => graphic.id === selectedGraphicId)
     : undefined
   const activeTabMeta = settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0]
+
+  const applySettingsResult = (
+    nextSettings: AppSettings,
+    nextFeedback: SettingsFeedback | null = null,
+    nextSelectedGraphicId?: string | null,
+  ) => {
+    onSettingsChange(nextSettings)
+    setLibraryFeedback(nextFeedback)
+    setPendingGraphicDelete(null)
+    if (nextSelectedGraphicId !== undefined) {
+      setSelectedGraphicId(nextSelectedGraphicId)
+    }
+  }
 
   const updateProfile = (updater: (profile: ShowProfileConfig) => ShowProfileConfig) => {
     if (!selectedProfile) {
@@ -171,10 +202,23 @@ export function SettingsPanel({
       return
     }
 
-    onSettingsChange({
-      ...settings,
-      graphics: settings.graphics.map((graphic) => graphic.id === selectedGraphic.id ? updater(graphic) : graphic),
-    })
+    try {
+      const result = graphicConfigLibraryService.updateGraphicConfig(
+        { settings, graphicFiles: {} },
+        selectedGraphic.id,
+        updater,
+      )
+      applySettingsResult(
+        result.settings,
+        null,
+        result.graphic.id,
+      )
+    } catch (error) {
+      setLibraryFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config update failed.',
+      })
+    }
   }
 
   const updateBinding = (bindingIndex: number, updater: (binding: GraphicFieldBinding) => GraphicFieldBinding) => {
@@ -238,6 +282,155 @@ export function SettingsPanel({
         },
       })),
     })
+  }
+
+  const handleCreateGraphicConfig = () => {
+    try {
+      const nextGraphic = createDefaultGraphicConfig(
+        settings,
+        draftGraphicEntityType,
+        draftGraphicId.trim() || undefined,
+      )
+      const result = graphicConfigLibraryService.createGraphicConfig(
+        { settings, graphicFiles: {} },
+        nextGraphic,
+      )
+      applySettingsResult(
+        result.settings,
+        {
+          kind: 'success',
+          message: `Graphic config "${result.graphic.id}" created in the library.`,
+        },
+        result.graphic.id,
+      )
+      setDraftGraphicId('')
+    } catch (error) {
+      setLibraryFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config creation failed.',
+      })
+    }
+  }
+
+  const handleDuplicateGraphicConfig = (graphicId: string) => {
+    try {
+      const result = graphicConfigLibraryService.duplicateGraphicConfig(
+        { settings, graphicFiles: {} },
+        graphicId,
+      )
+      applySettingsResult(
+        result.settings,
+        {
+          kind: 'success',
+          message: `Graphic config "${graphicId}" duplicated as "${result.graphic.id}".`,
+        },
+        result.graphic.id,
+      )
+    } catch (error) {
+      setLibraryFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config duplication failed.',
+      })
+    }
+  }
+
+  const handleDeleteGraphicRequest = (graphicId: string) => {
+    setPendingGraphicDelete({
+      graphicId,
+      references: findGraphicConfigReferences(settings, graphicId),
+    })
+  }
+
+  const handleConfirmDeleteGraphic = () => {
+    if (!pendingGraphicDelete) {
+      return
+    }
+
+    try {
+      const result = graphicConfigLibraryService.deleteGraphicConfig(
+        { settings, graphicFiles: {} },
+        pendingGraphicDelete.graphicId,
+      )
+      const nextSelectedId = selectedGraphicId === pendingGraphicDelete.graphicId
+        ? selectedProfile?.graphicConfigIds.find((id) => id !== pendingGraphicDelete.graphicId)
+          ?? result.settings.graphics[0]?.id
+          ?? null
+        : selectedGraphicId
+      applySettingsResult(
+        result.settings,
+        {
+          kind: 'success',
+          message: `Graphic config "${pendingGraphicDelete.graphicId}" deleted from the library.`,
+        },
+        nextSelectedId,
+      )
+    } catch (error) {
+      setLibraryFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config deletion failed.',
+      })
+    }
+  }
+
+  const handleAttachGraphicToProfile = (graphicId: string) => {
+    if (!selectedProfile) {
+      return
+    }
+
+    try {
+      const result = graphicConfigLibraryService.attachGraphicConfigToProfile(
+        { settings, graphicFiles: {} },
+        selectedProfile.id,
+        graphicId,
+      )
+      applySettingsResult(
+        result.settings,
+        {
+          kind: 'success',
+          message: result.status === 'already-attached'
+            ? `Graphic config "${graphicId}" is already assigned to profile "${selectedProfile.label}".`
+            : `Graphic config "${graphicId}" added to profile "${selectedProfile.label}".`,
+        },
+        graphicId,
+      )
+    } catch (error) {
+      setLibraryFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Profile assignment failed.',
+      })
+    }
+  }
+
+  const handleDetachGraphicFromProfile = (graphicId: string) => {
+    if (!selectedProfile) {
+      return
+    }
+
+    try {
+      const result = graphicConfigLibraryService.detachGraphicConfigFromProfile(
+        { settings, graphicFiles: {} },
+        selectedProfile.id,
+        graphicId,
+      )
+      const nextSelectedId = selectedGraphicId === graphicId
+        ? selectedProfile.graphicConfigIds.find((id) => id !== graphicId) ?? selectedGraphicId
+        : selectedGraphicId
+      applySettingsResult(
+        result.settings,
+        {
+          kind: 'success',
+          message: result.status === 'already-detached'
+            ? `Graphic config "${graphicId}" is already removed from profile "${selectedProfile.label}".`
+            : `Graphic config "${graphicId}" removed from profile "${selectedProfile.label}".`,
+        },
+        nextSelectedId,
+      )
+    } catch (error) {
+      setLibraryFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Profile removal failed.',
+      })
+    }
   }
 
   const handlePickReferenceImage = async () => {
@@ -438,6 +631,12 @@ export function SettingsPanel({
           </div>
         ) : null}
 
+        {libraryFeedback ? (
+          <div className={`rounded-2xl border px-4 py-3 text-sm ${libraryFeedback.kind === 'success' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+            {libraryFeedback.message}
+          </div>
+        ) : null}
+
         {pendingImportSummary ? (
           <ImportSummaryCard
             summary={pendingImportSummary}
@@ -462,6 +661,8 @@ export function SettingsPanel({
                 onSettingsChange={onSettingsChange}
                 onProfileUpdate={updateProfile}
                 onPickSourceFile={handlePickSourceFile}
+                onAttachGraphicConfig={handleAttachGraphicToProfile}
+                onDetachGraphicConfig={handleDetachGraphicFromProfile}
               />
             </div>
 
@@ -494,6 +695,18 @@ export function SettingsPanel({
                 selectedProfile={selectedProfile}
                 selectedGraphicId={selectedGraphicId}
                 onSelectedGraphicIdChange={setSelectedGraphicId}
+                draftGraphicEntityType={draftGraphicEntityType}
+                draftGraphicId={draftGraphicId}
+                pendingGraphicDelete={pendingGraphicDelete}
+                onDraftGraphicEntityTypeChange={setDraftGraphicEntityType}
+                onDraftGraphicIdChange={setDraftGraphicId}
+                onCreateGraphicConfig={handleCreateGraphicConfig}
+                onDuplicateGraphicConfig={handleDuplicateGraphicConfig}
+                onRequestDeleteGraphicConfig={handleDeleteGraphicRequest}
+                onConfirmDeleteGraphicConfig={handleConfirmDeleteGraphic}
+                onCancelDeleteGraphicConfig={() => setPendingGraphicDelete(null)}
+                onAttachGraphicConfig={handleAttachGraphicToProfile}
+                onDetachGraphicConfig={handleDetachGraphicFromProfile}
               />
             </div>
 
@@ -533,6 +746,18 @@ export function SettingsPanel({
                 selectedProfile={selectedProfile}
                 selectedGraphicId={selectedGraphicId}
                 onSelectedGraphicIdChange={setSelectedGraphicId}
+                draftGraphicEntityType={draftGraphicEntityType}
+                draftGraphicId={draftGraphicId}
+                pendingGraphicDelete={pendingGraphicDelete}
+                onDraftGraphicEntityTypeChange={setDraftGraphicEntityType}
+                onDraftGraphicIdChange={setDraftGraphicId}
+                onCreateGraphicConfig={handleCreateGraphicConfig}
+                onDuplicateGraphicConfig={handleDuplicateGraphicConfig}
+                onRequestDeleteGraphicConfig={handleDeleteGraphicRequest}
+                onConfirmDeleteGraphicConfig={handleConfirmDeleteGraphic}
+                onCancelDeleteGraphicConfig={() => setPendingGraphicDelete(null)}
+                onAttachGraphicConfig={handleAttachGraphicToProfile}
+                onDetachGraphicConfig={handleDetachGraphicFromProfile}
               />
             </div>
 
@@ -704,6 +929,54 @@ function createDefaultPreviewElement(index: number): PreviewElementDefinition {
     textColor: '#ffffff',
     behavior: defaultBehavior,
     text: defaultBehavior,
+  }
+}
+
+function createUniqueGraphicConfigId(settings: AppSettings, preferredId?: string): string {
+  const baseId = (preferredId?.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    || 'graphic-config')
+  let candidate = baseId
+  let index = 2
+
+  while (settings.graphics.some((graphic) => graphic.id === candidate)) {
+    candidate = `${baseId}-${index}`
+    index += 1
+  }
+
+  return candidate
+}
+
+function createDefaultGraphicConfig(
+  settings: AppSettings,
+  entityType: GraphicInstanceConfig['entityType'],
+  preferredId?: string,
+): GraphicInstanceConfig {
+  const id = createUniqueGraphicConfigId(settings, preferredId ?? entityType)
+  const dataFileName = `${id}.json`
+
+  return {
+    id,
+    entityType,
+    dataFileName,
+    datasourcePath: `datasources/${dataFileName}`,
+    control: {
+      play: `/graphics/${entityType}/play`,
+      stop: `/graphics/${entityType}/stop`,
+      resume: `/graphics/${entityType}/resume`,
+      templateName: id.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
+    },
+    bindings: [createDefaultBinding()],
+    preview: {
+      id: `${id}-preview`,
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [createDefaultPreviewElement(1)],
+    },
+    actions: [
+      { actionType: 'playGraphic', label: 'Play' },
+      { actionType: 'stopGraphic', label: 'Stop' },
+      { actionType: 'resumeGraphic', label: 'Resume' },
+    ],
   }
 }
 
@@ -1105,6 +1378,8 @@ function ProfileSection({
   onSettingsChange,
   onProfileUpdate,
   onPickSourceFile,
+  onAttachGraphicConfig,
+  onDetachGraphicConfig,
 }: {
   settings: AppSettings
   selectedProfile: ShowProfileConfig | undefined
@@ -1112,7 +1387,18 @@ function ProfileSection({
   onSettingsChange: (settings: AppSettings) => void
   onProfileUpdate: (updater: (profile: ShowProfileConfig) => ShowProfileConfig) => void
   onPickSourceFile: () => Promise<void>
+  onAttachGraphicConfig: (graphicId: string) => void
+  onDetachGraphicConfig: (graphicId: string) => void
 }) {
+  const availableGraphics = settings.graphics.filter((graphic) => !(selectedProfile?.graphicConfigIds ?? []).includes(graphic.id))
+  const [graphicToAttach, setGraphicToAttach] = useState<string>(availableGraphics[0]?.id ?? '')
+
+  useEffect(() => {
+    if (!availableGraphics.some((graphic) => graphic.id === graphicToAttach)) {
+      setGraphicToAttach(availableGraphics[0]?.id ?? '')
+    }
+  }, [availableGraphics, graphicToAttach])
+
   const addProfile = () => {
     const nextId = createUniqueProfileId(settings)
     const nextProfile: ShowProfileConfig = {
@@ -1247,30 +1533,79 @@ function ProfileSection({
         <ProfileSourceStatus profile={selectedProfile} />
       </div>
 
-      <div className='space-y-3'>
-        <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Loaded graphic configs</p>
-        {settings.graphics.map((graphic) => {
-          const checked = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
+      <div className='space-y-4 rounded-2xl border border-border bg-surface/30 p-4'>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
+          <div>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile graphic configs</p>
+            <p className='mt-1 text-sm text-muted'>
+              Remove from profile only detaches the config from this show. It does not delete it from the global library.
+            </p>
+          </div>
+          <span className='rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700'>
+            Profile assignment only
+          </span>
+        </div>
 
-          return (
-            <label key={graphic.id} className='flex items-center gap-3 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
-              <input
-                type='checkbox'
-                checked={checked}
-                onChange={(event) =>
-                  onProfileUpdate((profile) => ({
-                    ...profile,
-                    graphicConfigIds: event.target.checked
-                      ? Array.from(new Set([...profile.graphicConfigIds, graphic.id]))
-                      : profile.graphicConfigIds.filter((graphicId) => graphicId !== graphic.id),
-                  }))}
-                className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
-              />
-              <span className='font-medium'>{graphic.id}</span>
-              <span className='text-muted'>{graphic.entityType}</span>
-            </label>
-          )
-        })}
+        {(selectedProfile?.graphicConfigIds.length ?? 0) > 0 ? (
+          <div className='space-y-2'>
+            {selectedProfile?.graphicConfigIds.map((graphicId) => {
+              const graphic = settings.graphics.find((item) => item.id === graphicId)
+              if (!graphic) {
+                return (
+                  <div key={graphicId} className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+                    Missing graphic config reference: <span className='font-semibold'>{graphicId}</span>
+                  </div>
+                )
+              }
+
+              return (
+                <div key={graphic.id} className='flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-white px-4 py-3'>
+                  <div className='min-w-0'>
+                    <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                    <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                  </div>
+                  <button
+                    type='button'
+                    onClick={() => onDetachGraphicConfig(graphic.id)}
+                    className='rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-400 hover:bg-amber-100'
+                  >
+                    Remove from profile
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className='rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted'>
+            No graphic configs are assigned to this profile yet.
+          </div>
+        )}
+
+        <div className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),auto] md:items-end'>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Add existing library config</span>
+            <select
+              value={graphicToAttach}
+              onChange={(event) => setGraphicToAttach(event.target.value)}
+              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            >
+              {availableGraphics.length === 0 ? <option value=''>No unassigned configs available</option> : null}
+              {availableGraphics.map((graphic) => (
+                <option key={graphic.id} value={graphic.id}>
+                  {graphic.id} | {graphic.entityType}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type='button'
+            onClick={() => graphicToAttach && onAttachGraphicConfig(graphicToAttach)}
+            disabled={!graphicToAttach}
+            className='rounded-xl border border-accent bg-accent px-4 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            Add to profile
+          </button>
+        </div>
       </div>
     </FormSection>
   )
@@ -1952,75 +2287,213 @@ function GraphicSelectionSection({
   selectedProfile,
   selectedGraphicId,
   onSelectedGraphicIdChange,
+  draftGraphicEntityType,
+  draftGraphicId,
+  pendingGraphicDelete,
+  onDraftGraphicEntityTypeChange,
+  onDraftGraphicIdChange,
+  onCreateGraphicConfig,
+  onDuplicateGraphicConfig,
+  onRequestDeleteGraphicConfig,
+  onConfirmDeleteGraphicConfig,
+  onCancelDeleteGraphicConfig,
+  onAttachGraphicConfig,
+  onDetachGraphicConfig,
 }: {
   settings: AppSettings
   selectedProfile: ShowProfileConfig | undefined
   selectedGraphicId: string | null
   onSelectedGraphicIdChange: (graphicId: string | null) => void
+  draftGraphicEntityType: GraphicInstanceConfig['entityType']
+  draftGraphicId: string
+  pendingGraphicDelete: { graphicId: string; references: GraphicConfigReference[] } | null
+  onDraftGraphicEntityTypeChange: (entityType: GraphicInstanceConfig['entityType']) => void
+  onDraftGraphicIdChange: (value: string) => void
+  onCreateGraphicConfig: () => void
+  onDuplicateGraphicConfig: (graphicId: string) => void
+  onRequestDeleteGraphicConfig: (graphicId: string) => void
+  onConfirmDeleteGraphicConfig: () => void
+  onCancelDeleteGraphicConfig: () => void
+  onAttachGraphicConfig: (graphicId: string) => void
+  onDetachGraphicConfig: (graphicId: string) => void
 }) {
   return (
-    <FormSection title='Graphic config selection' description='Edit one graphic config at a time. Changes update the current preview and output behavior.'>
+    <FormSection title='Graphic config library' description='Create, select, duplicate, and delete reusable graphic configs. Editing happens in the panel on the right.'>
+      <div className='grid gap-3 rounded-2xl border border-border bg-surface/30 p-4'>
+        <div>
+          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Create new graphic config</p>
+          <p className='mt-1 text-sm text-muted'>
+            Start from a practical default, then fine-tune bindings, OSC, and preview settings after creation.
+          </p>
+        </div>
+
+        <div className='grid gap-3 md:grid-cols-[9rem,minmax(0,1fr),auto] md:items-end'>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
+            <select
+              value={draftGraphicEntityType}
+              onChange={(event) => onDraftGraphicEntityTypeChange(event.target.value as GraphicInstanceConfig['entityType'])}
+              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            >
+              {supportedEntityTypes.map((entityType) => (
+                <option key={entityType} value={entityType}>
+                  {entityType}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preferred id</span>
+            <input
+              value={draftGraphicId}
+              onChange={(event) => onDraftGraphicIdChange(event.target.value)}
+              placeholder={`${draftGraphicEntityType}-main`}
+              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            />
+          </label>
+          <button
+            type='button'
+            onClick={onCreateGraphicConfig}
+            className='rounded-xl border border-accent bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90'
+          >
+            Create config
+          </button>
+        </div>
+      </div>
+
       <label className='space-y-2'>
-        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config</span>
+        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Editing target</span>
         <select
           value={selectedGraphicId ?? ''}
           onChange={(event) => onSelectedGraphicIdChange(event.target.value || null)}
           className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
         >
-          {(selectedProfile?.graphicConfigIds ?? []).map((graphicId) => {
-            const graphic = settings.graphics.find((candidate) => candidate.id === graphicId)
+          <option value=''>Select a graphic config</option>
+          {settings.graphics.map((graphic) => {
+            const isAssigned = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
 
-            return graphic ? (
+            return (
               <option key={graphic.id} value={graphic.id}>
-                {graphic.id} | {graphic.entityType}
+                {graphic.id} | {graphic.entityType} | {isAssigned ? 'Assigned to active profile' : 'Library only'}
               </option>
-            ) : null
+            )
           })}
         </select>
       </label>
 
       {!selectedGraphicId ? (
         <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
-          This profile does not currently load any graphic config.
+          Select any library graphic config to edit it, even if it is not assigned to the active profile.
         </div>
       ) : null}
 
       <div className='space-y-3'>
-        <div>
-          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config library</p>
-          <p className='mt-1 text-sm text-muted'>
-            Imported configs are added to the local library first. Enable them on a profile from the Show tab when needed.
-          </p>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
+          <div>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config library</p>
+            <p className='mt-1 text-sm text-muted'>
+              Remove from profile only detaches from the active show. Delete from library removes the config globally.
+            </p>
+          </div>
+          <span className='rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700'>
+            Delete from library is global
+          </span>
         </div>
 
         <div className='space-y-2'>
           {settings.graphics.map((graphic) => {
             const isLoadedByProfile = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
             const isSelected = selectedGraphicId === graphic.id
+            const deleteIsPending = pendingGraphicDelete?.graphicId === graphic.id
 
             return (
-              <button
+              <div
                 key={graphic.id}
-                type='button'
-                onClick={() => onSelectedGraphicIdChange(isLoadedByProfile ? graphic.id : selectedGraphicId)}
                 className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
                   isSelected
                     ? 'border-accent bg-accent/5'
                     : 'border-border bg-white hover:border-accent/40'
                 }`}
               >
-                <div className='min-w-0'>
-                  <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
-                  <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                <div className='min-w-0 flex-1'>
+                  <button
+                    type='button'
+                    onClick={() => onSelectedGraphicIdChange(graphic.id)}
+                    className='w-full text-left'
+                  >
+                    <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                    <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                  </button>
                 </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                  isLoadedByProfile
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {isLoadedByProfile ? 'Loaded by profile' : 'Library only'}
-                </span>
-              </button>
+                <div className='flex flex-wrap items-center justify-end gap-2'>
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    isLoadedByProfile
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {isLoadedByProfile ? 'Assigned to profile' : 'Library only'}
+                  </span>
+                  <button
+                    type='button'
+                    onClick={() => isLoadedByProfile ? onDetachGraphicConfig(graphic.id) : onAttachGraphicConfig(graphic.id)}
+                    className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                      isLoadedByProfile
+                        ? 'border border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400 hover:bg-amber-100'
+                        : 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400 hover:bg-emerald-100'
+                    }`}
+                  >
+                    {isLoadedByProfile ? 'Remove from profile' : 'Add to profile'}
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => onDuplicateGraphicConfig(graphic.id)}
+                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                  >
+                    Duplicate
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => onRequestDeleteGraphicConfig(graphic.id)}
+                    className='rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-400 hover:bg-rose-100'
+                  >
+                    Delete from library
+                  </button>
+                </div>
+                {deleteIsPending ? (
+                  <div className='basis-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700'>
+                    <p className='font-semibold'>Delete "{graphic.id}" from the library?</p>
+                    {pendingGraphicDelete.references.length > 0 ? (
+                      <div className='mt-2 space-y-2'>
+                        <p>
+                          This config is still used by: {pendingGraphicDelete.references.map((reference) => reference.profileLabel).join(', ')}.
+                        </p>
+                        <p>Remove it from those profiles first. Library deletion is blocked while references exist.</p>
+                      </div>
+                    ) : (
+                      <p className='mt-2'>
+                        This permanently removes the config from the reusable library for all profiles.
+                      </p>
+                    )}
+                    <div className='mt-3 flex flex-wrap gap-2'>
+                      <button
+                        type='button'
+                        onClick={onCancelDeleteGraphicConfig}
+                        className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type='button'
+                        onClick={onConfirmDeleteGraphicConfig}
+                        disabled={pendingGraphicDelete.references.length > 0}
+                        className='rounded-xl border border-rose-500 bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50'
+                      >
+                        Confirm delete
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             )
           })}
         </div>
@@ -2377,8 +2850,8 @@ function GraphicBindingSection({
           </button>
         </div>
 
-        {(graphic.bindings ?? []).map((binding, bindingIndex) => (
-          <div key={`${binding.targetField}-${bindingIndex}`} className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
+          {(graphic.bindings ?? []).map((binding, bindingIndex) => (
+            <div key={bindingIndex} className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
             <label className='space-y-2'>
               <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
               <input
