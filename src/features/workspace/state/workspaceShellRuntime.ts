@@ -120,9 +120,26 @@ export async function runWorkspaceMultiGraphicAction(
   for (const selectedEntity of selectedEntities) {
     const graphic = resolveGraphicControlForSelectedEntity(graphicsById, selectedEntity)
     if (!graphic) {
+      logGroupedGraphicAction({
+        stage: 'missing-config',
+        actionType,
+        selectedEntity,
+        graphicId: selectedEntity.graphicConfigId,
+      })
       errors.push(`No graphic configuration is loaded for "${selectedEntity.graphicConfigId}".`)
       continue
     }
+
+    const requiresDatasource = doesGraphicRequireDatasource(actionType, graphic)
+    logGroupedGraphicAction({
+      stage: requiresDatasource ? 'start' : 'skip',
+      actionType,
+      selectedEntity,
+      graphicId: graphic.id,
+      graphicName: graphic.name,
+      targetFile: requiresDatasource ? resolveGroupedDatasourceTargetFile(graphic) : undefined,
+      reason: requiresDatasource ? undefined : 'static graphic or non-play action',
+    })
 
     const result = await runGraphicsAdapterActionWithAdapter(
       adapter,
@@ -133,9 +150,31 @@ export async function runWorkspaceMultiGraphicAction(
     )
 
     if (!result.success) {
+      logGroupedGraphicAction({
+        stage: 'error',
+        actionType,
+        selectedEntity,
+        graphicId: graphic.id,
+        graphicName: graphic.name,
+        targetFile: result.targetFile,
+        oscAddress: result.command?.address,
+        oscArgs: result.command?.args,
+        diagnostics: result.diagnostics.map((diagnostic) => diagnostic.message),
+      })
       errors.push(...result.diagnostics.map((diagnostic) => `[${graphic.name}] ${diagnostic.message}`))
       continue
     }
+
+    logGroupedGraphicAction({
+      stage: 'success',
+      actionType,
+      selectedEntity,
+      graphicId: graphic.id,
+      graphicName: graphic.name,
+      targetFile: result.targetFile,
+      oscAddress: result.command?.address,
+      oscArgs: result.command?.args,
+    })
 
     details.push(...formatGraphicsAdapterSuccessDetails(result, actionType, graphic.name))
   }
@@ -300,6 +339,49 @@ function formatGraphicsAdapterSuccessDetails(
       : []),
     ...(graphicName ? [`${prefix}${actionType} completed`] : []),
   ]
+}
+
+function doesGraphicRequireDatasource(
+  actionType: ActionType,
+  graphic: GraphicInstanceConfig,
+): boolean {
+  return actionType === 'playGraphic' && graphic.kind !== 'static' && graphic.entityType !== 'staticImage'
+}
+
+function resolveGroupedDatasourceTargetFile(graphic: GraphicInstanceConfig): string {
+  const configuredPath = graphic.datasourcePath?.trim()
+  if (configuredPath) {
+    return configuredPath
+  }
+
+  return `datasources/${graphic.dataFileName}`
+}
+
+function logGroupedGraphicAction(input: {
+  stage: 'start' | 'success' | 'skip' | 'error' | 'missing-config'
+  actionType: ActionType
+  selectedEntity: SelectedMultiEntityContext
+  graphicId: string
+  graphicName?: string
+  targetFile?: string
+  oscAddress?: string
+  oscArgs?: unknown[]
+  reason?: string
+  diagnostics?: string[]
+}) {
+  console.log('GROUPED GRAPHIC ACTION', {
+    stage: input.stage,
+    actionType: input.actionType,
+    graphicId: input.graphicId,
+    graphicName: input.graphicName,
+    blockName: input.selectedEntity.blockName,
+    entityIndex: input.selectedEntity.entityIndex,
+    targetFile: input.targetFile,
+    oscAddress: input.oscAddress,
+    oscArgs: input.oscArgs,
+    reason: input.reason,
+    diagnostics: input.diagnostics,
+  })
 }
 
 function createWorkspaceGraphicsAdapter() {

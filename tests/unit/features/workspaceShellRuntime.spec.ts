@@ -101,6 +101,29 @@ const staticLogoGraphic: GraphicInstanceConfig = {
   actions: [],
 }
 
+const localOverrideTitleGraphic: GraphicInstanceConfig = {
+  ...titleWaitingGraphic,
+  id: 'pa_title_local_override',
+  name: 'PA title local override',
+  dataFileName: 'pa_title_local_override.json',
+  datasourcePath: 'datasources/pa_title_local_override.json',
+  control: {
+    templateName: 'PA_TITLE_LOCAL_OVERRIDE',
+    play: {
+      address: '/local/play',
+      args: [{ type: 's', value: '{{templateName}}' }],
+    },
+    stop: {
+      address: '/local/stop',
+      args: [{ type: 's', value: '{{templateName}}' }],
+    },
+    resume: {
+      address: '/local/resume',
+      args: [{ type: 's', value: '{{templateName}}' }],
+    },
+  },
+}
+
 const selectedWaitingItem: SelectedEntityContext = {
   blockIndex: 0,
   blockName: 'INVITATI',
@@ -152,6 +175,17 @@ const selectedLogoItem: SelectedMultiEntityContext = {
   entityIndex: 0,
   entity: {
     staticAsset: 'assets/logo.png',
+  },
+}
+
+const selectedLocalOverrideItem: SelectedMultiEntityContext = {
+  blockIndex: 0,
+  blockName: 'INVITATI',
+  graphicConfigId: 'pa_title_local_override',
+  entityIndex: 0,
+  entity: {
+    text: 'LOCAL OVERRIDE TITLE',
+    location: 'STUDIO',
   },
 }
 
@@ -361,6 +395,42 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     expect(sendOscMessage).toHaveBeenCalledTimes(3)
   })
 
+  it('each selected item uses its own resolved OSC command', async () => {
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn(),
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocalOverrideItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        pa_title_local_override: localOverrideTitleGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(sendOscMessage).toHaveBeenNthCalledWith(
+      1,
+      '127.0.0.1',
+      53000,
+      '/global/play',
+      [{ type: 's', value: 'PA_TITLE_WAITING' }],
+    )
+    expect(sendOscMessage).toHaveBeenNthCalledWith(
+      2,
+      '127.0.0.1',
+      53000,
+      '/local/play',
+      [{ type: 's', value: 'PA_TITLE_LOCAL_OVERRIDE' }],
+    )
+  })
+
   it('stop selected runs all selected items', async () => {
     const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
     vi.stubGlobal('window', {
@@ -441,6 +511,97 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     ])
   })
 
+  it('play selected writes datasource for each selected dynamic item to its own target file', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(writeDatasourceFileSync).toHaveBeenCalledTimes(2)
+    expect(writeDatasourceFileSync).toHaveBeenNthCalledWith(
+      1,
+      'datasources/pa_title_waiting.json',
+      '{\n  "text": "DECLARATII IMPORTANTE",\n  "location": "PIATA MARII ADUNARI NATIONALE"\n}',
+    )
+    expect(writeDatasourceFileSync).toHaveBeenNthCalledWith(
+      2,
+      'datasources/window-box.json',
+      '{\n  "title": "DECLARATII IMPORTANTE",\n  "location": "PIATA MARII ADUNARI NATIONALE"\n}',
+    )
+  })
+
+  it('each selected item uses its own payload mapping when grouped play writes datasources', async () => {
+    const writtenPayloads = new Map<string, string>()
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string, content: string) => {
+          writtenPayloads.set(targetFile, content)
+        }),
+        sendOscMessage: vi.fn(async () => ['opened', 'ready', 'sent']),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(writtenPayloads.get('datasources/pa_title_waiting.json')).toBe(
+      '{\n  "text": "DECLARATII IMPORTANTE",\n  "location": "PIATA MARII ADUNARI NATIONALE"\n}',
+    )
+    expect(writtenPayloads.get('datasources/window-box.json')).toBe(
+      '{\n  "title": "DECLARATII IMPORTANTE",\n  "location": "PIATA MARII ADUNARI NATIONALE"\n}',
+    )
+  })
+
+  it('datasource writes for multiple selected items are deterministic', async () => {
+    const writtenFiles: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          writtenFiles.push(targetFile)
+        }),
+        sendOscMessage: vi.fn(async () => ['opened', 'ready', 'sent']),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(writtenFiles).toEqual([
+      'datasources/pa_title_waiting.json',
+      'datasources/window-box.json',
+    ])
+  })
+
   it('static items skip datasource writes and still send OSC when configured', async () => {
     const writeDatasourceFileSync = vi.fn()
     const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
@@ -468,6 +629,36 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
       '/global/play',
       [{ type: 's', value: 'LOGO_MAIN' }],
     )
+  })
+
+  it('datasource write failure for one selected item is handled safely according to grouped error policy', async () => {
+    const writeDatasourceFileSync = vi.fn((targetFile: string) => {
+      if (targetFile === 'datasources/window-box.json') {
+        throw new Error('disk full')
+      }
+    })
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('error')
+    expect(sendOscMessage).toHaveBeenCalledTimes(1)
+    expect(result.details.some((detail) => detail.includes('[PA title waiting] Datasource updated: datasources/pa_title_waiting.json'))).toBe(true)
+    expect(result.details.some((detail) => detail.includes('[Window Box] Unable to write datasource file "datasources/window-box.json"'))).toBe(true)
   })
 
   it('grouped action fails safely and reports partial progress according to error policy', async () => {
@@ -550,5 +741,35 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     expect(result.details).toEqual(['Select at least one item before sending commands to LiveBoard.'])
     expect(writeDatasourceFileSync).not.toHaveBeenCalled()
     expect(sendOscMessage).not.toHaveBeenCalled()
+  })
+
+  it('missing OSC config is handled safely for grouped actions', async () => {
+    const sendOscMessage = vi.fn()
+    const writeDatasourceFileSync = vi.fn()
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem],
+      {
+        pa_title_waiting: {
+          ...titleWaitingGraphic,
+          control: {
+            templateName: 'PA_TITLE_WAITING',
+          },
+        },
+      },
+      undefined,
+    )
+
+    expect(result.kind).toBe('error')
+    expect(result.details.some((detail) => detail.includes('Missing OSC target for graphic "pa_title_waiting"'))).toBe(true)
+    expect(sendOscMessage).not.toHaveBeenCalled()
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
   })
 })

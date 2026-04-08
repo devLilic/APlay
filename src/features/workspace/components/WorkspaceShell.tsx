@@ -113,8 +113,33 @@ export function WorkspaceShell() {
   const graphicCollections = resolveGraphicConfigEntityLists(workspace.document, workspace.selection, workspaceData.graphics)
   const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection)
   const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsById, selectedEntity)
-  const previewContent = createEntityPreviewContent(selectedEntity)
-  const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, selectedGraphic)
+  const selectedMultiItems = workspace.getSelectedItems()
+  const multiSelectionCount = workspace.selectedCount()
+  const isCompositePreviewActive = multiSelectionCount > 1
+  const previewBaseEntity = selectedEntity ?? selectedMultiItems[0]
+  const previewGraphic = resolveGraphicForSelection(workspaceData.graphicsById, previewBaseEntity)
+  const previewContent = createEntityPreviewContent(previewBaseEntity)
+  const compositePreviewItems = selectedMultiItems.flatMap((item) => {
+    const isPreviewBaseItem = (
+      previewBaseEntity?.graphicConfigId === item.graphicConfigId &&
+      previewBaseEntity.entityIndex === item.entityIndex
+    )
+    if (isPreviewBaseItem) {
+      return []
+    }
+
+    const graphic = workspaceData.graphicsById[item.graphicConfigId]
+    if (!graphic) {
+      return []
+    }
+
+    return [{
+      graphicConfigId: item.graphicConfigId,
+      template: graphic.preview,
+      content: createEntityPreviewContent(item),
+    }]
+  })
+  const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, previewGraphic)
   const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
     const nextData = loadWorkspaceShellData(snapshot)
     setLoadState({
@@ -516,7 +541,7 @@ export function WorkspaceShell() {
           settings={loadState.snapshot.settings}
           diagnostics={workspaceData.diagnostics}
           feedback={settingsFeedback}
-          selectedGraphic={selectedGraphic}
+          selectedGraphic={selectedGraphic ?? previewGraphic}
           previewContent={previewContent}
           isImportingGraphicConfig={isImportingGraphicConfig}
           isImportingProfile={isImportingProfile}
@@ -583,42 +608,66 @@ export function WorkspaceShell() {
             <EmptyState title='No selected block' description='Choose a block from the left panel to inspect its entity collections.' />
           ) : (
             <div className='space-y-4'>
-              <div className='flex flex-col gap-3 rounded-2xl border border-border bg-surface/30 p-4 md:flex-row md:items-center md:justify-between'>
+              <div className={`flex flex-col gap-3 rounded-2xl border p-4 md:flex-row md:items-center md:justify-between ${
+                multiSelectionCount > 0
+                  ? 'border-emerald-200 bg-emerald-50/70'
+                  : 'border-border bg-surface/30'
+              }`}>
                 <div className='space-y-1'>
                   <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Grouped actions</p>
-                  <div className='flex items-center gap-2'>
-                    <span className='rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink'>
-                      {workspace.selectedCount()} selected
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      multiSelectionCount > 0
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white text-ink'
+                    }`}>
+                      {multiSelectionCount} selected
                     </span>
-                    <span className='text-sm text-muted'>Single click still controls preview.</span>
+                    {isCompositePreviewActive ? (
+                      <span className='rounded-full bg-slate-950 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200'>
+                        Composite preview active
+                      </span>
+                    ) : null}
+                    {multiSelectionCount === 1 ? (
+                      <span className='rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted'>
+                        Ready as grouped set
+                      </span>
+                    ) : null}
+                    <span className='text-sm text-muted'>
+                      Multi-selection drives grouped preview, datasource publish, and OSC actions.
+                    </span>
                   </div>
                 </div>
                 <div className='flex flex-wrap gap-2'>
                   <button
                     type='button'
                     onClick={() => handleGroupedAction('playGraphic')}
-                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+                    disabled={multiSelectionCount === 0}
+                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
                   >
                     Play selected
                   </button>
                   <button
                     type='button'
                     onClick={() => handleGroupedAction('stopGraphic')}
-                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+                    disabled={multiSelectionCount === 0}
+                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
                   >
                     Stop selected
                   </button>
                   <button
                     type='button'
                     onClick={() => handleGroupedAction('resumeGraphic')}
-                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+                    disabled={multiSelectionCount === 0}
+                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
                   >
                     Resume selected
                   </button>
                   <button
                     type='button'
                     onClick={handleClearMultiSelection}
-                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-muted transition hover:border-rose-300 hover:text-rose-600'
+                    disabled={multiSelectionCount === 0}
+                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-muted transition hover:border-rose-300 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50'
                   >
                     Clear selection
                   </button>
@@ -680,7 +729,7 @@ export function WorkspaceShell() {
                                     }`}
                                     title={isMultiSelected ? 'Remove from grouped selection' : 'Add to grouped selection'}
                                   >
-                                    ✓
+                                    +
                                   </button>
                                   <button
                                     type='button'
@@ -716,7 +765,7 @@ export function WorkspaceShell() {
         </Panel>
 
         <Panel title='Selected entity' eyebrow='Right panel'>
-          {!selectedEntity || !selectedGraphic ? (
+          {!previewGraphic ? (
             <div className='flex h-full flex-col gap-4'>
               <div className='rounded-3xl border border-border bg-slate-950 p-4 text-white'>
                 <div className='mb-3 flex items-center justify-between text-xs uppercase tracking-[0.22em] text-slate-400'>
@@ -731,39 +780,109 @@ export function WorkspaceShell() {
             <div className='flex h-full flex-col gap-4'>
               <div className='rounded-3xl border border-border bg-slate-950 p-4 text-white'>
                 <div className='mb-3 flex items-center justify-between text-xs uppercase tracking-[0.22em] text-slate-400'>
-                  <span>Preview16x9</span>
-                  <span>{selectedGraphic.name}</span>
+                  <div className='flex items-center gap-2'>
+                    <span>Preview16x9</span>
+                    {multiSelectionCount > 0 ? (
+                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] ${
+                        isCompositePreviewActive
+                          ? 'bg-emerald-400/15 text-emerald-200'
+                          : 'bg-white/10 text-slate-200'
+                      }`}>
+                        {isCompositePreviewActive ? 'Composite set' : 'Grouped ready'}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span>{selectedGraphic?.name ?? `${previewGraphic.name} composite`}</span>
                 </div>
+                {multiSelectionCount > 0 ? (
+                  <div className='mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100'>
+                    <span className='font-semibold uppercase tracking-[0.18em]'>Preview mode</span>
+                    <span>
+                      Showing {multiSelectionCount} grouped item{multiSelectionCount === 1 ? '' : 's'} in the same 16:9 frame.
+                    </span>
+                    <span className='text-emerald-200/80'>
+                      Single click still controls detail inspection.
+                    </span>
+                  </div>
+                ) : null}
                 <PreviewCanvas
-                  template={selectedGraphic.preview}
+                  template={previewGraphic.preview}
                   content={previewContent}
                   backgroundImagePath={selectedBackground.resolvedFilePath}
+                  compositeItems={compositePreviewItems}
                 />
               </div>
 
               <div className='rounded-2xl border border-border bg-surface/30 p-4'>
-                <p className='text-xs font-semibold uppercase tracking-[0.22em] text-muted'>Selected content</p>
-                <p className='mt-2 text-sm font-semibold text-ink'>{formatEntityLabel(selectedEntity.entity)}</p>
-                <p className='mt-1 text-sm text-muted'>
-                  Block: {selectedEntity.blockName} | Graphic config: {selectedGraphic.name}
+                <p className='text-xs font-semibold uppercase tracking-[0.22em] text-muted'>
+                  {selectedEntity ? 'Selected content' : 'Composite preview'}
                 </p>
+                {selectedEntity && selectedGraphic ? (
+                  <>
+                    <p className='mt-2 text-sm font-semibold text-ink'>{formatEntityLabel(selectedEntity.entity)}</p>
+                    <p className='mt-1 text-sm text-muted'>
+                      Block: {selectedEntity.blockName} | Graphic config: {selectedGraphic.name}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className='mt-2 text-sm font-semibold text-ink'>
+                      {selectedMultiItems.length} grouped item{selectedMultiItems.length === 1 ? '' : 's'} in preview
+                    </p>
+                    <p className='mt-1 text-sm text-muted'>
+                      Multi-selection drives the composite preview and grouped output, while single-click selection still controls detail and per-item playback.
+                    </p>
+                  </>
+                )}
               </div>
 
-              <div className='grid grid-cols-3 gap-3'>
-                {Object.values(actionTypes).map((actionType) => (
-                  <button
-                    key={actionType}
-                    type='button'
-                    onClick={() => handleAction(actionType)}
-                    className='rounded-2xl border border-border bg-panel px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
-                  >
-                    {actionType === 'playGraphic' ? 'Play' : actionType === 'stopGraphic' ? 'Stop' : 'Resume'}
-                  </button>
-                ))}
-              </div>
+              {multiSelectionCount > 0 ? (
+                <div className='rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4'>
+                  <p className='text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700'>Grouped set</p>
+                  <p className='mt-2 text-sm font-semibold text-ink'>
+                    {multiSelectionCount} item{multiSelectionCount === 1 ? '' : 's'} prepared for composite preview and grouped output.
+                  </p>
+                  <p className='mt-1 text-sm text-muted'>
+                    Use the action bar in the middle panel to publish datasources and send OSC for the whole set.
+                  </p>
+                </div>
+              ) : null}
+
+              {selectedEntity && selectedGraphic ? (
+                <div className='grid grid-cols-3 gap-3'>
+                  {Object.values(actionTypes).map((actionType) => (
+                    <button
+                      key={actionType}
+                      type='button'
+                      onClick={() => handleAction(actionType)}
+                      className='rounded-2xl border border-border bg-panel px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+                    >
+                      {actionType === 'playGraphic' ? 'Play' : actionType === 'stopGraphic' ? 'Stop' : 'Resume'}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
               {feedback ? (
-                <div className={`rounded-2xl border px-4 py-3 text-sm ${feedback.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                <div className={`rounded-2xl border px-4 py-3 text-sm ${
+                  feedback.kind === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-rose-200 bg-rose-50 text-rose-700'
+                }`}>
+                  <div className='mb-2 flex flex-wrap items-center gap-2'>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                      feedback.kind === 'success'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {multiSelectionCount > 0 ? 'Grouped execution' : 'Single item'}
+                    </span>
+                    {multiSelectionCount > 0 ? (
+                      <span className='rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted'>
+                        {multiSelectionCount} selected
+                      </span>
+                    ) : null}
+                  </div>
                   <p className='font-semibold'>{feedback.title}</p>
                   <div className='mt-1 space-y-1'>
                     {feedback.details.map((detail) => <p key={detail}>{detail}</p>)}

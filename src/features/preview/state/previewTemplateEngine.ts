@@ -60,6 +60,23 @@ export interface PreviewTemplateLayout {
   elements: PreviewTemplateLayoutElement[]
 }
 
+export interface CompositePreviewItemInput {
+  graphicConfigId: string
+  template: PreviewTemplateDefinition
+  content: Record<string, string | undefined>
+}
+
+export interface CompositePreviewItemLayout {
+  graphicConfigId: string
+  templateId: string
+  elements: PreviewTemplateLayoutElement[]
+}
+
+export interface CompositePreviewLayout {
+  items: CompositePreviewItemLayout[]
+  overlayElements: PreviewTemplateLayoutElement[]
+}
+
 export interface TextMeasurement {
   measuredTextWidth: number
 }
@@ -113,6 +130,38 @@ export function calculatePreviewTemplateLayout(
     elements: template.elements.map((element) =>
       calculatePreviewElementLayout(element, scale, content[element.sourceField]),
     ).filter((element): element is PreviewTemplateLayoutElement => element !== undefined),
+  }
+}
+
+export function calculateCompositePreviewLayout(
+  items: CompositePreviewItemInput[],
+  previewSize: PreviewSize,
+): CompositePreviewLayout {
+  const validItems = items.flatMap((item) => {
+    if (!isValidPreviewTemplate(item.template)) {
+      return []
+    }
+
+    try {
+      const layout = calculatePreviewTemplateLayout(item.template, previewSize, item.content)
+      return [{
+        graphicConfigId: item.graphicConfigId,
+        templateId: item.template.id,
+        elements: layout.elements,
+      }]
+    } catch {
+      return []
+    }
+  })
+
+  return {
+    items: validItems,
+    overlayElements: validItems.flatMap((item) =>
+      item.elements.map((element) => ({
+        ...element,
+        id: `${item.graphicConfigId}:${element.id}`,
+      }))
+    ),
   }
 }
 
@@ -235,4 +284,15 @@ function calculatePreviewElementLayout(
     content,
     style: baseStyle,
   }
+}
+
+function isValidPreviewTemplate(template: PreviewTemplateDefinition | undefined): template is PreviewTemplateDefinition {
+  return Boolean(
+    template &&
+    Number.isFinite(template.designWidth) &&
+    template.designWidth > 0 &&
+    Number.isFinite(template.designHeight) &&
+    template.designHeight > 0 &&
+    Array.isArray(template.elements),
+  )
 }

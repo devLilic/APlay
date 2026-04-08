@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PreviewTemplateDefinition } from '@/settings/models/appConfig'
 import {
+  calculateCompositePreviewLayout,
   calculatePreviewBackgroundStyle,
   calculatePreviewTemplateLayout,
+  type CompositePreviewItemInput,
   type PreviewTemplateLayoutElement,
 } from '@/features/preview/state/previewTemplateEngine'
 import { useScaleToFit } from '@/features/preview/state/scaleToFit'
@@ -11,9 +13,10 @@ interface PreviewCanvasProps {
   template: PreviewTemplateDefinition
   content: Record<string, string | undefined>
   backgroundImagePath?: string
+  compositeItems?: CompositePreviewItemInput[]
 }
 
-export function PreviewCanvas({ template, content, backgroundImagePath }: PreviewCanvasProps) {
+export function PreviewCanvas({ template, content, backgroundImagePath, compositeItems = [] }: PreviewCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [resolvedBackgroundImageSrc, setResolvedBackgroundImageSrc] = useState<string | undefined>()
@@ -69,18 +72,43 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
     }
   }, [backgroundImagePath])
 
-  const layout = size.width > 0 && size.height > 0
-    ? calculatePreviewTemplateLayout(template, size, content)
-    : null
-  const backgroundStyle = calculatePreviewBackgroundStyle(template, resolvedBackgroundImageSrc)
+  const layout = useMemo(
+    () => (size.width > 0 && size.height > 0
+      ? calculatePreviewTemplateLayout(template, size, content)
+      : null),
+    [content, size, template],
+  )
+  const compositeLayout = useMemo(
+    () => (size.width > 0 && size.height > 0
+      ? calculateCompositePreviewLayout(compositeItems, size)
+      : { items: [], overlayElements: [] }),
+    [compositeItems, size],
+  )
+  const backgroundStyle = useMemo(
+    () => calculatePreviewBackgroundStyle(template, resolvedBackgroundImageSrc),
+    [template, resolvedBackgroundImageSrc],
+  )
+  const renderedElements = useMemo(
+    () => [...(layout?.elements ?? []), ...compositeLayout.overlayElements],
+    [compositeLayout.overlayElements, layout],
+  )
+  const imageElements = useMemo(
+    () => renderedElements.filter((element) => element.kind === 'image'),
+    [renderedElements],
+  )
+  const imageElementsSignature = useMemo(
+    () => imageElements.map((element) => `${element.id}:${element.content ?? ''}`).join('|'),
+    [imageElements],
+  )
 
   useEffect(() => {
     let cancelled = false
 
     const resolveElementImages = async () => {
-      const imageElements = (layout?.elements ?? []).filter((element) => element.kind === 'image')
       if (imageElements.length === 0) {
-        setResolvedElementImageSources({})
+        setResolvedElementImageSources((current) => (
+          Object.keys(current).length === 0 ? current : {}
+        ))
         return
       }
 
@@ -92,7 +120,10 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
       )
 
       if (!cancelled) {
-        setResolvedElementImageSources(Object.fromEntries(resolvedEntries))
+        const nextSources = Object.fromEntries(resolvedEntries)
+        setResolvedElementImageSources((current) => (
+          areResolvedImageSourcesEqual(current, nextSources) ? current : nextSources
+        ))
       }
     }
 
@@ -101,7 +132,7 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
     return () => {
       cancelled = true
     }
-  }, [layout])
+  }, [imageElements, imageElementsSignature])
 
   return (
     <div
@@ -122,7 +153,7 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
         </div>
       ) : null}
 
-      {layout ? layout.elements.map((element) => {
+      {renderedElements.map((element) => {
         if (element.kind === 'text') {
           return <PreviewTextElement key={element.id} element={element} />
         }
@@ -180,9 +211,22 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
             }}
           />
         )
-      }) : null}
+      })}
     </div>
   )
+}
+
+function areResolvedImageSourcesEqual(
+  current: Record<string, string | undefined>,
+  next: Record<string, string | undefined>,
+): boolean {
+  const currentKeys = Object.keys(current)
+  const nextKeys = Object.keys(next)
+  if (currentKeys.length !== nextKeys.length) {
+    return false
+  }
+
+  return currentKeys.every((key) => current[key] === next[key])
 }
 
 function isDirectPreviewImageSource(source: string): boolean {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PreviewTemplateDefinition } from '@/settings/models/appConfig'
 import {
+  calculateCompositePreviewLayout,
   calculatePreviewBackgroundStyle,
   calculatePreviewScale,
   calculatePreviewTemplateLayout,
@@ -55,6 +56,63 @@ const previewTemplate: PreviewTemplateDefinition = {
         y: 80,
         width: 180,
         height: 180,
+      },
+    },
+  ],
+}
+
+const compositeTitleTemplate: PreviewTemplateDefinition = {
+  id: 'composite-title-preview',
+  designWidth: 1920,
+  designHeight: 1080,
+  elements: [
+    {
+      id: 'title-text',
+      kind: 'text',
+      sourceField: 'text',
+      box: {
+        x: 120,
+        y: 180,
+        width: 840,
+        height: 140,
+      },
+    },
+  ],
+}
+
+const compositeLocationTemplate: PreviewTemplateDefinition = {
+  id: 'composite-location-preview',
+  designWidth: 1920,
+  designHeight: 1080,
+  elements: [
+    {
+      id: 'location-text',
+      kind: 'text',
+      sourceField: 'value',
+      box: {
+        x: 120,
+        y: 340,
+        width: 840,
+        height: 120,
+      },
+    },
+  ],
+}
+
+const compositeLogoTemplate: PreviewTemplateDefinition = {
+  id: 'composite-logo-preview',
+  designWidth: 1920,
+  designHeight: 1080,
+  elements: [
+    {
+      id: 'logo-image',
+      kind: 'image',
+      sourceField: 'staticAsset',
+      box: {
+        x: 1560,
+        y: 80,
+        width: 220,
+        height: 220,
       },
     },
   ],
@@ -1060,5 +1118,218 @@ describe('preview background rendering', () => {
     expect(backgroundOn).toBeDefined()
     expect(backgroundOff).toBeUndefined()
     expect(layout.elements).toHaveLength(3)
+  })
+})
+
+describe('composite preview rendering from multi-selection', () => {
+  it('can render multiple selected items together', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items).toHaveLength(2)
+    expect(layout.items[0]?.elements).toHaveLength(1)
+    expect(layout.items[1]?.elements).toHaveLength(1)
+  })
+
+  it('renders items from different graphic configs together in the same Preview16x9', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
+      'title-main',
+      'location-main',
+    ])
+    expect(layout.items.flatMap((item) => item.elements.map((element) => element.content))).toEqual([
+      'Main title',
+      'Chisinau',
+    ])
+  })
+
+  it('allows dynamic and static graphic items to coexist in the same composite preview', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'logo-main',
+          template: compositeLogoTemplate,
+          content: { staticAsset: 'C:\\APlay\\assets\\branding\\logo.png' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
+      'title-main',
+      'logo-main',
+    ])
+    expect(layout.items[1]?.elements[0]).toMatchObject({
+      kind: 'image',
+      content: 'C:\\APlay\\assets\\branding\\logo.png',
+    })
+  })
+
+  it('uses each selected item own preview template and config', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items[0]?.templateId).toBe('composite-title-preview')
+    expect(layout.items[1]?.templateId).toBe('composite-location-preview')
+  })
+
+  it('preserves per-item positioning and layout inside the composite preview', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items[0]?.elements[0]?.style).toMatchObject({
+      left: 60,
+      top: 90,
+      width: 420,
+      height: 70,
+    })
+    expect(layout.items[1]?.elements[0]?.style).toMatchObject({
+      left: 60,
+      top: 170,
+      width: 420,
+      height: 60,
+    })
+  })
+
+  it('preserves deterministic render order', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+        },
+        {
+          graphicConfigId: 'logo-main',
+          template: compositeLogoTemplate,
+          content: { staticAsset: 'C:\\APlay\\assets\\branding\\logo.png' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
+      'title-main',
+      'location-main',
+      'logo-main',
+    ])
+  })
+
+  it('updates correctly when one selected item is removed', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual(['title-main'])
+  })
+
+  it('clears the composite preview when selection is cleared', () => {
+    const layout = calculateCompositePreviewLayout([], { width: 960, height: 540 })
+
+    expect(layout.items).toEqual([])
+  })
+
+  it('returns no composite overlay for empty multi-selection', () => {
+    const layout = calculateCompositePreviewLayout([], { width: 960, height: 540 })
+
+    expect(layout.items).toHaveLength(0)
+    expect(layout.overlayElements).toEqual([])
+  })
+
+  it('does not replace single-item detail context unless intentionally requested', () => {
+    const singleLayout = calculatePreviewTemplateLayout(
+      compositeTitleTemplate,
+      { width: 960, height: 540 },
+      { text: 'Main title' },
+    )
+    const compositeLayout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+        },
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(singleLayout.elements).toEqual(compositeLayout.items[0]?.elements)
+    expect(compositeLayout.items).toHaveLength(2)
   })
 })
