@@ -187,12 +187,18 @@ export function WorkspaceShell() {
   }
 
   const handleGroupedAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    setFeedback(await runWorkspaceMultiGraphicAction(
+    const result = await runWorkspaceMultiGraphicAction(
       actionType,
       workspace.getSelectedItems(),
       workspaceData.graphicsById,
       loadState.snapshot.settings.osc,
-    ))
+    )
+
+    setFeedback(result)
+
+    if (actionType === 'playGraphic' && result.kind === 'success') {
+      setSelection(workspace.clearSelectedItems().selection)
+    }
   }
 
   const handleClearMultiSelection = () => {
@@ -635,7 +641,7 @@ export function WorkspaceShell() {
                       </span>
                     ) : null}
                     <span className='text-sm text-muted'>
-                      Multi-selection drives grouped preview, datasource publish, and OSC actions.
+                      Multi-selection drives grouped preview, datasource publish, and OSC actions. One item per graphic config group.
                     </span>
                   </div>
                 </div>
@@ -679,6 +685,7 @@ export function WorkspaceShell() {
                 {graphicCollections.map((group) => {
                   const isSelectedGroup = workspace.selection.selectedGraphicConfigId === group.graphicConfigId
                   const isEmptyGroup = group.items.length === 0
+                  const groupedSelection = workspace.getSelectedItemForGroup(group.graphicConfigId)
 
                   return (
                     <article
@@ -698,7 +705,14 @@ export function WorkspaceShell() {
                             {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
                           </p>
                         </div>
-                        <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
+                        <div className='flex flex-wrap items-center justify-end gap-2'>
+                          {groupedSelection ? (
+                            <span className='rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700'>
+                              Grouped: 1
+                            </span>
+                          ) : null}
+                          <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
+                        </div>
                       </button>
 
                       {!isEmptyGroup ? (
@@ -706,6 +720,11 @@ export function WorkspaceShell() {
                           {group.items.map((item, index) => {
                             const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
                             const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
+                            const willReplaceGroupedItem = Boolean(
+                              groupedSelection &&
+                              groupedSelection.entityIndex !== index &&
+                              !isMultiSelected,
+                            )
 
                             return (
                               <div
@@ -728,7 +747,13 @@ export function WorkspaceShell() {
                                         ? 'border-emerald-500 bg-emerald-500 text-white'
                                         : 'border-border bg-white text-transparent hover:border-emerald-400'
                                     }`}
-                                    title={isMultiSelected ? 'Remove from grouped selection' : 'Add to grouped selection'}
+                                    title={
+                                      isMultiSelected
+                                        ? 'Remove from grouped selection'
+                                        : willReplaceGroupedItem
+                                          ? 'Replace the grouped item for this graphic config'
+                                          : 'Add to grouped selection'
+                                    }
                                   >
                                     +
                                   </button>
@@ -745,10 +770,20 @@ export function WorkspaceShell() {
                                         <span className='rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700'>
                                           Grouped
                                         </span>
+                                      ) : willReplaceGroupedItem ? (
+                                        <span className='rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-700'>
+                                          Replaces grouped
+                                        </span>
                                       ) : null}
                                     </div>
                                     <p className='mt-1 text-xs text-muted'>
-                                      {isSelectedItem ? 'Preview selected' : 'Click for preview'} | {isMultiSelected ? 'Included in grouped actions' : 'Available for grouped actions'}
+                                      {isSelectedItem ? 'Preview selected' : 'Click for preview'}
+                                      {' | '}
+                                      {isMultiSelected
+                                        ? 'Included in grouped actions'
+                                        : willReplaceGroupedItem
+                                          ? 'Selecting this replaces the grouped item in this graphic config'
+                                          : 'Available for grouped actions'}
                                     </p>
                                   </button>
                                 </div>
