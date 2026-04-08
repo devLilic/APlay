@@ -4,6 +4,8 @@ import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
   createWorkspaceSelectionState,
   deriveSelectedEntityContext,
+  deriveSelectedItemCount,
+  deriveSelectedMultiEntityContexts,
   reconcileWorkspaceSelection,
   resolveGraphicConfigEntityLists,
 } from '@/features/workspace/state/workspaceSelectionState'
@@ -69,6 +71,59 @@ const graphicsFixture: GraphicInstanceConfig[] = [
     actions: [],
   },
 ]
+
+const multiSelectionGraphicsFixture: GraphicInstanceConfig[] = [
+  ...graphicsFixture,
+  {
+    id: 'location-main',
+    name: 'Location main',
+    entityType: 'location',
+    dataFileName: 'location-main.json',
+    datasourcePath: 'datasources/location-main.json',
+    control: { templateName: 'LOCATION_MAIN' },
+    bindings: [{ sourceField: 'Locatie', targetField: 'value', required: true }],
+    preview: {
+      id: 'location-main-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [{ id: 'location-text', kind: 'text', sourceField: 'value', box: { x: 0, y: 0, width: 100, height: 20 } }],
+    },
+    actions: [],
+  },
+  {
+    id: 'logo-main',
+    name: 'Logo main',
+    entityType: 'staticImage',
+    kind: 'static',
+    dataFileName: 'logo-main.json',
+    control: { templateName: 'LOGO_MAIN' },
+    staticAsset: { assetPath: 'assets/logo.png', assetType: 'image' },
+    preview: {
+      id: 'logo-main-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [{ id: 'logo-image', kind: 'image', sourceField: 'staticAsset', box: { x: 0, y: 0, width: 100, height: 20 } }],
+    },
+    actions: [],
+  },
+]
+
+const multiDocumentFixture: EditorialDocument = {
+  blocks: [
+    {
+      name: 'Opening',
+      titles: [],
+      persons: [],
+      locations: [],
+      phones: [],
+      entityCollections: {
+        pa_title_main: [{ text: 'Title One', number: '1' }],
+        'location-main': [{ value: 'Chisinau' }],
+        'logo-main': [{ staticAsset: 'assets/logo.png' }],
+      },
+    },
+  ],
+}
 
 describe('block selection', () => {
   it('selects a block from the left panel by index', () => {
@@ -241,6 +296,112 @@ describe('selection reconciliation after source reload', () => {
       selectedBlockIndex: 1,
       selectedGraphicConfigId: 'pa_title_main',
       selectedEntityIndex: 0,
+      selectedItems: [],
     })
+  })
+})
+
+describe('multi-selection state', () => {
+  it('can store selected items from different graphic config collections', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, graphicsFixture)
+    const multiState = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+    const result = multiState
+      .selectGraphicConfig('pa_title_main')
+      .selectEntity(0)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('location-main', 0)
+      .addSelectedItem('logo-main', 0)
+
+    expect(result.selection.selectedItems).toEqual([
+      { graphicConfigId: 'pa_title_main', entityIndex: 0 },
+      { graphicConfigId: 'location-main', entityIndex: 0 },
+      { graphicConfigId: 'logo-main', entityIndex: 0 },
+    ])
+  })
+
+  it('adds one item to multi-selection', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+
+    expect(state.selection.selectedItems).toEqual([
+      { graphicConfigId: 'pa_title_main', entityIndex: 0 },
+    ])
+  })
+
+  it('removes one item from multi-selection', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('location-main', 0)
+      .removeSelectedItem('pa_title_main', 0)
+
+    expect(state.selection.selectedItems).toEqual([
+      { graphicConfigId: 'location-main', entityIndex: 0 },
+    ])
+  })
+
+  it('clears all selected items', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('location-main', 0)
+      .clearSelectedItems()
+
+    expect(state.selection.selectedItems).toEqual([])
+  })
+
+  it('prevents duplicate selection of the same item', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('pa_title_main', 0)
+
+    expect(state.selection.selectedItems).toEqual([
+      { graphicConfigId: 'pa_title_main', entityIndex: 0 },
+    ])
+  })
+
+  it('does not break single selected item preview state', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .selectGraphicConfig('pa_title_main')
+      .selectEntity(0)
+      .addSelectedItem('location-main', 0)
+
+    expect(deriveSelectedEntityContext(state.document, state.selection)).toEqual({
+      blockIndex: 0,
+      blockName: 'Opening',
+      graphicConfigId: 'pa_title_main',
+      entityIndex: 0,
+      entity: { text: 'Title One', number: '1' },
+    })
+  })
+
+  it('allows static and dynamic items to coexist in the same selection group', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('logo-main', 0)
+
+    expect(deriveSelectedMultiEntityContexts(state.document, state.selection)).toEqual([
+      {
+        blockIndex: 0,
+        blockName: 'Opening',
+        graphicConfigId: 'pa_title_main',
+        entityIndex: 0,
+        entity: { text: 'Title One', number: '1' },
+      },
+      {
+        blockIndex: 0,
+        blockName: 'Opening',
+        graphicConfigId: 'logo-main',
+        entityIndex: 0,
+        entity: { staticAsset: 'assets/logo.png' },
+      },
+    ])
+  })
+
+  it('derives the selected item count correctly', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('location-main', 0)
+      .addSelectedItem('logo-main', 0)
+
+    expect(deriveSelectedItemCount(state.selection)).toBe(3)
   })
 })

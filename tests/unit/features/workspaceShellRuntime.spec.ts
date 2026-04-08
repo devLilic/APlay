@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GraphicInstanceConfig, OscSettingsConfig } from '@/settings/models/appConfig'
-import type { SelectedEntityContext } from '@/features/workspace/state/workspaceSelectionState'
+import type { SelectedEntityContext, SelectedMultiEntityContext } from '@/features/workspace/state/workspaceSelectionState'
 import {
   createEntityPreviewContent,
   resolveGraphicForSelection,
   runWorkspaceGraphicAction,
+  runWorkspaceMultiGraphicAction,
 } from '@/features/workspace/state/workspaceShellRuntime'
 
 const titleMainGraphic: GraphicInstanceConfig = {
@@ -79,6 +80,27 @@ const windowBoxGraphic: GraphicInstanceConfig = {
   actions: [],
 }
 
+const staticLogoGraphic: GraphicInstanceConfig = {
+  id: 'logo-main',
+  name: 'Logo main',
+  entityType: 'staticImage',
+  kind: 'static',
+  dataFileName: 'logo-main.json',
+  control: {
+    templateName: 'LOGO_MAIN',
+  },
+  staticAsset: { assetPath: 'assets/logo.png', assetType: 'image' },
+  preview: {
+    id: 'logo-main-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      { id: 'logo-image', kind: 'image', sourceField: 'staticAsset', box: { x: 0, y: 0, width: 100, height: 20 } },
+    ],
+  },
+  actions: [],
+}
+
 const selectedWaitingItem: SelectedEntityContext = {
   blockIndex: 0,
   blockName: 'INVITATI',
@@ -98,6 +120,38 @@ const selectedWindowBoxItem: SelectedEntityContext = {
   entity: {
     title: 'DECLARATII IMPORTANTE',
     location: 'PIATA MARII ADUNARI NATIONALE',
+  },
+}
+
+const selectedTitleItem: SelectedMultiEntityContext = {
+  blockIndex: 0,
+  blockName: 'INVITATI',
+  graphicConfigId: 'pa_title_waiting',
+  entityIndex: 0,
+  entity: {
+    text: 'DECLARATII IMPORTANTE',
+    location: 'PIATA MARII ADUNARI NATIONALE',
+  },
+}
+
+const selectedLocationItem: SelectedMultiEntityContext = {
+  blockIndex: 0,
+  blockName: 'INVITATI',
+  graphicConfigId: 'window-box',
+  entityIndex: 0,
+  entity: {
+    title: 'DECLARATII IMPORTANTE',
+    location: 'PIATA MARII ADUNARI NATIONALE',
+  },
+}
+
+const selectedLogoItem: SelectedMultiEntityContext = {
+  blockIndex: 0,
+  blockName: 'INVITATI',
+  graphicConfigId: 'logo-main',
+  entityIndex: 0,
+  entity: {
+    staticAsset: 'assets/logo.png',
   },
 }
 
@@ -278,5 +332,223 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
       '/global/play',
       [{ type: 's', value: 'WINDOW_BOX' }],
     )
+  })
+})
+
+describe('workspace shell runtime grouped multi-selection actions', () => {
+  it('play selected runs all selected items', async () => {
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    const writeDatasourceFileSync = vi.fn()
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(sendOscMessage).toHaveBeenCalledTimes(3)
+  })
+
+  it('stop selected runs all selected items', async () => {
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn(),
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'stopGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(sendOscMessage).toHaveBeenCalledTimes(3)
+  })
+
+  it('resume selected runs all selected items', async () => {
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn(),
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'resumeGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(sendOscMessage).toHaveBeenCalledTimes(3)
+  })
+
+  it('dynamic items write datasource before sending OSC for each selected item', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((filePath: string) => {
+          calls.push(`write:${filePath}`)
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, address: string, args: unknown[]) => {
+          calls.push(`osc:${address}:${JSON.stringify(args)}`)
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(calls).toEqual([
+      'write:datasources/pa_title_waiting.json',
+      'osc:/global/play:[{"type":"s","value":"PA_TITLE_WAITING"}]',
+      'write:datasources/window-box.json',
+      'osc:/global/play:[{"type":"s","value":"WINDOW_BOX"}]',
+    ])
+  })
+
+  it('static items skip datasource writes and still send OSC when configured', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedLogoItem],
+      {
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+    expect(sendOscMessage).toHaveBeenCalledWith(
+      '127.0.0.1',
+      53000,
+      '/global/play',
+      [{ type: 's', value: 'LOGO_MAIN' }],
+    )
+  })
+
+  it('grouped action fails safely and reports partial progress according to error policy', async () => {
+    const sendOscMessage = vi.fn(async (_host: string, _port: number, _address: string, args: Array<{ value: string }>) => {
+      if (args[0]?.value === 'WINDOW_BOX') {
+        throw new Error('osc failed')
+      }
+
+      return ['opened', 'ready', 'sent']
+    })
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn(),
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('error')
+    expect(result.details.some((detail) => detail.includes('osc failed'))).toBe(true)
+  })
+
+  it('execution order is deterministic across selected items', async () => {
+    const orderedAddresses: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn(),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, _address: string, args: Array<{ value: string }>) => {
+          orderedAddresses.push(args[0]?.value ?? '')
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(orderedAddresses).toEqual([
+      'PA_TITLE_WAITING',
+      'WINDOW_BOX',
+      'LOGO_MAIN',
+    ])
+  })
+
+  it('empty multi-selection does nothing safely', async () => {
+    const sendOscMessage = vi.fn()
+    const writeDatasourceFileSync = vi.fn()
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [],
+      {},
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('error')
+    expect(result.details).toEqual(['Select at least one item before sending commands to LiveBoard.'])
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+    expect(sendOscMessage).not.toHaveBeenCalled()
   })
 })

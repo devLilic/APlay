@@ -68,6 +68,8 @@ const oscSettings: OscSettingsConfig = {
   },
 }
 
+const transportStages = ['opened', 'ready', 'sent'] as const
+
 describe('GraphicsAdapter', () => {
   it('writes datasource first, then sends OSC play', async () => {
     const calls: string[] = []
@@ -77,6 +79,7 @@ describe('GraphicsAdapter', () => {
         return {
           send: vi.fn(async () => {
             calls.push('osc')
+            return [...transportStages]
           }),
         }
       },
@@ -126,7 +129,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('does not send OSC when datasource write fails', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return { send }
@@ -153,7 +156,7 @@ describe('GraphicsAdapter', () => {
 
   it('sends stop without forcing a datasource write', async () => {
     const write = vi.fn()
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const adapter = createGraphicsAdapter({
       createOscClient(config) {
         expect(config).toEqual({
@@ -181,7 +184,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('sends resume with the configured address and typed args', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return { send }
@@ -209,7 +212,7 @@ describe('GraphicsAdapter', () => {
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return {
-          send: vi.fn(async () => undefined),
+          send: vi.fn(async () => [...transportStages]),
         }
       },
       fileWriter: {
@@ -245,7 +248,7 @@ describe('GraphicsAdapter', () => {
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return {
-          send: vi.fn(async () => undefined),
+          send: vi.fn(async () => [...transportStages]),
         }
       },
       fileWriter: {
@@ -297,7 +300,7 @@ describe('GraphicsAdapter', () => {
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return {
-          send: vi.fn(async () => undefined),
+          send: vi.fn(async () => [...transportStages]),
         }
       },
       fileWriter: {
@@ -355,7 +358,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('prefers graphic-specific OSC commands over global command addresses', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return { send }
@@ -387,7 +390,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('uses a local play command override before the global play command', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const adapter = createGraphicsAdapter({
       createOscClient() {
@@ -429,7 +432,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('uses the global play command when no explicit local override exists', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return { send }
@@ -471,7 +474,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('falls back to the global play command when the local override is empty or invalid', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const adapter = createGraphicsAdapter({
       createOscClient() {
@@ -519,7 +522,7 @@ describe('GraphicsAdapter', () => {
   })
 
   it('uses the global stop and resume commands when no explicit local override exists', async () => {
-    const send = vi.fn(async () => undefined)
+    const send = vi.fn(async () => [...transportStages])
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return { send }

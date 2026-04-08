@@ -1,5 +1,5 @@
 import type { EditorialDocument } from '@/core/models/editorial'
-import type { SelectedEntityContext } from '@/features/workspace/state/workspaceSelectionState'
+import type { SelectedEntityContext, SelectedMultiEntityContext } from '@/features/workspace/state/workspaceSelectionState'
 import { createCsvEditorialSourceAdapter } from '@/adapters/content-source/csvEditorialSource'
 import { createJsonEditorialSourceAdapter } from '@/adapters/content-source/jsonEditorialSource'
 import { createProfileContentSourceLoader } from '@/adapters/content-source/profileContentSourceLoader'
@@ -99,6 +99,62 @@ export function runWorkspaceGraphicAction(
   return runWorkspaceGraphicsAdapterAction(actionType, selectedEntity, graphicsById, oscSettings)
 }
 
+export async function runWorkspaceMultiGraphicAction(
+  actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
+  selectedEntities: SelectedMultiEntityContext[],
+  graphicsById: Partial<Record<string, GraphicInstanceConfig>>,
+  oscSettings?: OscSettingsConfig,
+): Promise<SelectedEntityControlFeedback> {
+  if (selectedEntities.length === 0) {
+    return {
+      kind: 'error',
+      title: 'No entities selected',
+      details: ['Select at least one item before sending commands to LiveBoard.'],
+    }
+  }
+
+  const adapter = createWorkspaceGraphicsAdapter()
+  const details: string[] = []
+  const errors: string[] = []
+
+  for (const selectedEntity of selectedEntities) {
+    const graphic = resolveGraphicControlForSelectedEntity(graphicsById, selectedEntity)
+    if (!graphic) {
+      errors.push(`No graphic configuration is loaded for "${selectedEntity.graphicConfigId}".`)
+      continue
+    }
+
+    const result = await runGraphicsAdapterActionWithAdapter(
+      adapter,
+      actionType,
+      selectedEntity,
+      graphic,
+      oscSettings,
+    )
+
+    if (!result.success) {
+      errors.push(...result.diagnostics.map((diagnostic) => `[${graphic.name}] ${diagnostic.message}`))
+      continue
+    }
+
+    details.push(...formatGraphicsAdapterSuccessDetails(result, actionType, graphic.name))
+  }
+
+  if (errors.length > 0) {
+    return {
+      kind: 'error',
+      title: 'Grouped action failed',
+      details: [...details, ...errors],
+    }
+  }
+
+  return {
+    kind: 'success',
+    title: `${actionType} completed`,
+    details,
+  }
+}
+
 export function runWorkspaceGraphicDebugAction(
   actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   graphic: GraphicInstanceConfig,
@@ -159,40 +215,22 @@ async function runWorkspaceGraphicsAdapterAction(
       details: [`No graphic configuration is loaded for "${selectedEntity.graphicConfigId}".`],
     }
   }
-  const entityType = graphic.entityType
-
   const adapter = createWorkspaceGraphicsAdapter()
 
   return runGraphicsAdapterFeedback(
-    actionType === 'playGraphic'
-      ? adapter.play({
-      entityType,
-      entity: selectedEntity.entity as never,
+    runGraphicsAdapterActionWithAdapter(
+      adapter,
+      actionType,
+      selectedEntity,
       graphic,
-      bindings: graphic.bindings ?? [],
       oscSettings,
-    })
-      : actionType === 'stopGraphic'
-        ? adapter.stop({
-        entityType,
-        entity: selectedEntity.entity as never,
-        graphic,
-        bindings: graphic.bindings ?? [],
-        oscSettings,
-      })
-        : adapter.resume({
-        entityType,
-        entity: selectedEntity.entity as never,
-        graphic,
-        bindings: graphic.bindings ?? [],
-        oscSettings,
-      }),
+    ),
     actionType,
   )
 }
 
 async function runGraphicsAdapterFeedback(
-  resultPromise: ReturnType<ReturnType<typeof createWorkspaceGraphicsAdapter>['play']>,
+  resultPromise: Promise<Awaited<ReturnType<ReturnType<typeof createWorkspaceGraphicsAdapter>['play']>>>,
   actionType: ActionType,
 ): Promise<SelectedEntityControlFeedback> {
   const result = await resultPromise
@@ -209,11 +247,59 @@ async function runGraphicsAdapterFeedback(
   return {
     kind: 'success',
     title: `${actionType} completed`,
-    details: [
-      ...(result.targetFile ? [`Datasource updated: ${result.targetFile}`] : []),
-      `OSC sent: ${result.command?.address ?? ''}`,
-    ],
+    details: formatGraphicsAdapterSuccessDetails(result, actionType),
   }
+}
+
+async function runGraphicsAdapterActionWithAdapter(
+  adapter: ReturnType<typeof createWorkspaceGraphicsAdapter>,
+  actionType: ActionType,
+  selectedEntity: SelectedEntityContext | SelectedMultiEntityContext,
+  graphic: GraphicInstanceConfig,
+  oscSettings?: OscSettingsConfig,
+) {
+  const entityType = graphic.entityType
+
+  return actionType === 'playGraphic'
+    ? adapter.play({
+      entityType,
+      entity: selectedEntity.entity as never,
+      graphic,
+      bindings: graphic.bindings ?? [],
+      oscSettings,
+    })
+    : actionType === 'stopGraphic'
+      ? adapter.stop({
+        entityType,
+        entity: selectedEntity.entity as never,
+        graphic,
+        bindings: graphic.bindings ?? [],
+        oscSettings,
+      })
+      : adapter.resume({
+        entityType,
+        entity: selectedEntity.entity as never,
+        graphic,
+        bindings: graphic.bindings ?? [],
+        oscSettings,
+      })
+}
+
+function formatGraphicsAdapterSuccessDetails(
+  result: Awaited<ReturnType<ReturnType<typeof createWorkspaceGraphicsAdapter>['play']>>,
+  actionType: ActionType,
+  graphicName?: string,
+): string[] {
+  const prefix = graphicName ? `[${graphicName}] ` : ''
+
+  return [
+    ...(result.targetFile ? [`${prefix}Datasource updated: ${result.targetFile}`] : []),
+    `${prefix}OSC sent: ${result.command?.address ?? ''}`,
+    ...(result.transportStages && result.transportStages.length > 0
+      ? [`${prefix}OSC transport: ${result.transportStages.join(' -> ')}`]
+      : []),
+    ...(graphicName ? [`${prefix}${actionType} completed`] : []),
+  ]
 }
 
 function createWorkspaceGraphicsAdapter() {
@@ -224,7 +310,7 @@ function createWorkspaceGraphicsAdapter() {
       return {
         async send(address, args) {
           sentOscAddresses.push(`${config.host}:${config.port}${address}`)
-          await oscClient.send(address, args)
+          return await oscClient.send(address, args)
         },
       }
     },

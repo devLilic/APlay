@@ -5,6 +5,12 @@ export interface WorkspaceSelection {
   selectedBlockIndex?: number
   selectedGraphicConfigId?: string
   selectedEntityIndex?: number
+  selectedItems?: MultiSelectionItem[]
+}
+
+export interface MultiSelectionItem {
+  graphicConfigId: string
+  entityIndex: number
 }
 
 export interface GraphicConfigEntityList {
@@ -21,12 +27,20 @@ export interface SelectedEntityContext {
   entity: GraphicConfigEntityItem
 }
 
+export interface SelectedMultiEntityContext extends SelectedEntityContext {}
+
 export interface WorkspaceSelectionStateController {
   document: EditorialDocument
   selection: WorkspaceSelection
   selectBlock: (blockIndex: number) => WorkspaceSelectionStateController
   selectGraphicConfig: (graphicConfigId: string) => WorkspaceSelectionStateController
   selectEntity: (entityIndex: number) => WorkspaceSelectionStateController
+  addSelectedItem: (graphicConfigId: string, entityIndex: number) => WorkspaceSelectionStateController
+  removeSelectedItem: (graphicConfigId: string, entityIndex: number) => WorkspaceSelectionStateController
+  clearSelectedItems: () => WorkspaceSelectionStateController
+  isSelected: (graphicConfigId: string, entityIndex: number) => boolean
+  selectedCount: () => number
+  getSelectedItems: () => SelectedMultiEntityContext[]
   getSelectedBlock: () => EditorialBlock | undefined
 }
 
@@ -47,6 +61,7 @@ export function createWorkspaceSelectionState(
     selectBlock(blockIndex: number) {
       return createWorkspaceSelectionState(document, graphics, {
         selectedBlockIndex: isValidBlockIndex(document, blockIndex) ? blockIndex : undefined,
+        selectedItems: [],
       })
     },
     selectGraphicConfig(graphicConfigId: string) {
@@ -57,6 +72,7 @@ export function createWorkspaceSelectionState(
       return createWorkspaceSelectionState(document, graphics, {
         selectedBlockIndex: reconciledSelection.selectedBlockIndex,
         selectedGraphicConfigId: isKnownGraphicConfig(graphics, graphicConfigId) ? graphicConfigId : undefined,
+        selectedItems: reconciledSelection.selectedItems,
       })
     },
     selectEntity(entityIndex: number) {
@@ -77,7 +93,45 @@ export function createWorkspaceSelectionState(
         selectedBlockIndex: reconciledSelection.selectedBlockIndex,
         selectedGraphicConfigId: reconciledSelection.selectedGraphicConfigId,
         selectedEntityIndex: isValidEntityIndex(groupedItems, entityIndex) ? entityIndex : undefined,
+        selectedItems: reconciledSelection.selectedItems,
       })
+    },
+    addSelectedItem(graphicConfigId: string, entityIndex: number) {
+      if (reconciledSelection.selectedBlockIndex === undefined) {
+        return createWorkspaceSelectionState(document, graphics, reconciledSelection)
+      }
+
+      const nextSelection = addSelectedItemToSelection(
+        document,
+        reconciledSelection,
+        graphicConfigId,
+        entityIndex,
+      )
+
+      return createWorkspaceSelectionState(document, graphics, nextSelection)
+    },
+    removeSelectedItem(graphicConfigId: string, entityIndex: number) {
+      return createWorkspaceSelectionState(document, graphics, {
+        ...reconciledSelection,
+        selectedItems: (reconciledSelection.selectedItems ?? []).filter(
+          (item) => item.graphicConfigId !== graphicConfigId || item.entityIndex !== entityIndex,
+        ),
+      })
+    },
+    clearSelectedItems() {
+      return createWorkspaceSelectionState(document, graphics, {
+        ...reconciledSelection,
+        selectedItems: [],
+      })
+    },
+    isSelected(graphicConfigId: string, entityIndex: number) {
+      return isSelected(reconciledSelection, graphicConfigId, entityIndex)
+    },
+    selectedCount() {
+      return deriveSelectedItemCount(reconciledSelection)
+    },
+    getSelectedItems() {
+      return deriveSelectedMultiEntityContexts(document, reconciledSelection)
     },
     getSelectedBlock() {
       return getSelectedBlock(document, reconciledSelection)
@@ -138,6 +192,48 @@ export function deriveSelectedEntityContext(
   }
 }
 
+export function deriveSelectedMultiEntityContexts(
+  document: EditorialDocument,
+  selection: WorkspaceSelection,
+): SelectedMultiEntityContext[] {
+  const block = getSelectedBlock(document, selection)
+  const selectedBlockIndex = selection.selectedBlockIndex
+  const selectedItems = selection.selectedItems ?? []
+
+  if (!block || selectedBlockIndex === undefined) {
+    return []
+  }
+
+  return selectedItems.flatMap((item) => {
+    const entity = block.entityCollections?.[item.graphicConfigId]?.[item.entityIndex]
+    if (entity === undefined) {
+      return []
+    }
+
+    return [{
+      blockIndex: selectedBlockIndex,
+      blockName: block.name,
+      graphicConfigId: item.graphicConfigId,
+      entityIndex: item.entityIndex,
+      entity,
+    }]
+  })
+}
+
+export function deriveSelectedItemCount(selection: WorkspaceSelection): number {
+  return selection.selectedItems?.length ?? 0
+}
+
+export function isSelected(
+  selection: WorkspaceSelection,
+  graphicConfigId: string,
+  entityIndex: number,
+): boolean {
+  return (selection.selectedItems ?? []).some(
+    (item) => item.graphicConfigId === graphicConfigId && item.entityIndex === entityIndex,
+  )
+}
+
 export function reconcileWorkspaceSelection(
   document: EditorialDocument,
   selection: WorkspaceSelection,
@@ -147,14 +243,16 @@ export function reconcileWorkspaceSelection(
     return {}
   }
 
+  const selectedItems = reconcileSelectedItems(document, selectedBlockIndex, selection.selectedItems)
+
   const selectedGraphicConfigId = selection.selectedGraphicConfigId
   if (!selectedGraphicConfigId) {
-    return { selectedBlockIndex }
+    return { selectedBlockIndex, selectedItems }
   }
 
   const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, selectedGraphicConfigId)
   if (!groupedItems) {
-    return { selectedBlockIndex }
+    return { selectedBlockIndex, selectedItems }
   }
 
   const selectedEntityIndex = selection.selectedEntityIndex
@@ -162,6 +260,7 @@ export function reconcileWorkspaceSelection(
     return {
       selectedBlockIndex,
       selectedGraphicConfigId,
+      selectedItems,
     }
   }
 
@@ -169,6 +268,7 @@ export function reconcileWorkspaceSelection(
     return {
       selectedBlockIndex,
       selectedGraphicConfigId,
+      selectedItems,
     }
   }
 
@@ -176,6 +276,7 @@ export function reconcileWorkspaceSelection(
     selectedBlockIndex,
     selectedGraphicConfigId,
     selectedEntityIndex,
+    selectedItems,
   }
 }
 
@@ -192,6 +293,7 @@ function createInitialSelection(
   return {
     selectedBlockIndex: 0,
     ...(firstGraphicConfigId ? { selectedGraphicConfigId: firstGraphicConfigId } : {}),
+    selectedItems: [],
   }
 }
 
@@ -232,6 +334,50 @@ function getGraphicConfigItems(
 ): GraphicConfigEntityItem[] | undefined {
   const block = document.blocks[blockIndex]
   return block?.entityCollections?.[graphicConfigId]
+}
+
+function addSelectedItemToSelection(
+  document: EditorialDocument,
+  selection: WorkspaceSelection,
+  graphicConfigId: string,
+  entityIndex: number,
+): WorkspaceSelection {
+  const selectedBlockIndex = selection.selectedBlockIndex
+  if (selectedBlockIndex === undefined) {
+    return selection
+  }
+
+  const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, graphicConfigId)
+  if (!isValidEntityIndex(groupedItems, entityIndex)) {
+    return selection
+  }
+
+  if (isSelected(selection, graphicConfigId, entityIndex)) {
+    return selection
+  }
+
+  return {
+    ...selection,
+    selectedItems: [
+      ...(selection.selectedItems ?? []),
+      { graphicConfigId, entityIndex },
+    ],
+  }
+}
+
+function reconcileSelectedItems(
+  document: EditorialDocument,
+  selectedBlockIndex: number,
+  selectedItems: MultiSelectionItem[] | undefined,
+): MultiSelectionItem[] {
+  if (!selectedItems || selectedItems.length === 0) {
+    return []
+  }
+
+  return selectedItems.filter((item) => {
+    const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, item.graphicConfigId)
+    return isValidEntityIndex(groupedItems, item.entityIndex)
+  })
 }
 
 function isValidEntityIndex(

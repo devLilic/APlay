@@ -41,6 +41,7 @@ export interface GraphicsAdapterExecutionResult {
   actionType: ActionType
   targetFile?: string
   command?: GraphicsAdapterResolvedCommand
+  transportStages?: string[]
   diagnostics: GraphicsAdapterDiagnostic[]
 }
 
@@ -102,8 +103,9 @@ async function runGraphicsAction(
 
   const bindings = input.bindings ?? input.graphic.bindings ?? []
   const targetFile = resolveDatasourceTargetPath(input.graphic)
+  const requiresDatasource = actionType === 'playGraphic' && !isStaticGraphic(input.graphic)
 
-  if (actionType === 'playGraphic') {
+  if (requiresDatasource) {
     if (bindings.length === 0) {
       return {
         success: false,
@@ -192,35 +194,39 @@ async function runGraphicsAction(
         commandSource: builtCommand.source,
         address: command.address,
         args: command.args as OscArgConfig[],
-        targetFile,
+        targetFile: requiresDatasource ? targetFile : undefined,
       })
     }
 
-    await oscClient.send(command.address, command.args as OscArgConfig[])
+    const transportStages = await oscClient.send(command.address, command.args as OscArgConfig[])
 
     return {
       success: true,
       actionType,
-      targetFile: actionType === 'playGraphic' ? targetFile : undefined,
+      targetFile: requiresDatasource ? targetFile : undefined,
       command: {
         host: target.host,
         port: target.port,
         address: command.address,
         args: command.args as OscArgConfig[],
       },
+      transportStages,
       diagnostics: [],
     }
   } catch (error) {
     return {
       success: false,
       actionType,
-      targetFile: actionType === 'playGraphic' ? targetFile : undefined,
+      targetFile: requiresDatasource ? targetFile : undefined,
       command: {
         host: target.host,
         port: target.port,
         address: builtCommand.command.address,
         args: builtCommand.command.args as OscArgConfig[],
       },
+      transportStages: error instanceof Error && 'stages' in error && Array.isArray((error as { stages?: unknown }).stages)
+        ? ((error as { stages: string[] }).stages)
+        : undefined,
       diagnostics: [
         {
           severity: 'error',
@@ -350,6 +356,10 @@ function resolveCommand(
     },
     source: 'fallback',
   }
+}
+
+function isStaticGraphic(graphic: GraphicInstanceConfig): boolean {
+  return graphic.kind === 'static' || graphic.entityType === 'staticImage'
 }
 
 function resolveGraphicCommandOverride(

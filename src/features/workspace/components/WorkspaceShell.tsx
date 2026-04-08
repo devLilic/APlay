@@ -18,6 +18,7 @@ import {
   runWorkspaceGraphicDebugAction,
   resolveGraphicForSelection,
   runWorkspaceGraphicAction,
+  runWorkspaceMultiGraphicAction,
   type WorkspaceShellData,
 } from '@/features/workspace/state/workspaceShellRuntime'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
@@ -141,6 +142,15 @@ export function WorkspaceShell() {
     setFeedback(null)
   }
 
+  const handleMultiSelectionToggle = (graphicConfigId: string, entityIndex: number) => {
+    const nextState = workspace.isSelected(graphicConfigId, entityIndex)
+      ? workspace.removeSelectedItem(graphicConfigId, entityIndex)
+      : workspace.addSelectedItem(graphicConfigId, entityIndex)
+
+    setSelection(nextState.selection)
+    setFeedback(null)
+  }
+
   const handleAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
     setFeedback(await runWorkspaceGraphicAction(
       actionType,
@@ -148,6 +158,20 @@ export function WorkspaceShell() {
       workspaceData.graphicsById,
       loadState.snapshot.settings.osc,
     ))
+  }
+
+  const handleGroupedAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
+    setFeedback(await runWorkspaceMultiGraphicAction(
+      actionType,
+      workspace.getSelectedItems(),
+      workspaceData.graphicsById,
+      loadState.snapshot.settings.osc,
+    ))
+  }
+
+  const handleClearMultiSelection = () => {
+    setSelection(workspace.clearSelectedItems().selection)
+    setFeedback(null)
   }
 
   const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
@@ -558,57 +582,135 @@ export function WorkspaceShell() {
           {!selectedBlock ? (
             <EmptyState title='No selected block' description='Choose a block from the left panel to inspect its entity collections.' />
           ) : (
-            <div className='grid gap-3 md:grid-cols-2'>
-              {graphicCollections.map((group) => {
-                const isSelectedGroup = workspace.selection.selectedGraphicConfigId === group.graphicConfigId
-                const isEmptyGroup = group.items.length === 0
-
-                return (
-                  <article
-                    key={group.graphicConfigId}
-                    className={`rounded-2xl border p-4 transition ${
-                      isSelectedGroup ? 'border-accent bg-accent/5' : 'border-border bg-surface/40'
-                    }`}
+            <div className='space-y-4'>
+              <div className='flex flex-col gap-3 rounded-2xl border border-border bg-surface/30 p-4 md:flex-row md:items-center md:justify-between'>
+                <div className='space-y-1'>
+                  <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Grouped actions</p>
+                  <div className='flex items-center gap-2'>
+                    <span className='rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink'>
+                      {workspace.selectedCount()} selected
+                    </span>
+                    <span className='text-sm text-muted'>Single click still controls preview.</span>
+                  </div>
+                </div>
+                <div className='flex flex-wrap gap-2'>
+                  <button
+                    type='button'
+                    onClick={() => handleGroupedAction('playGraphic')}
+                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
                   >
-                    <button
-                      type='button'
-                      onClick={() => handleGraphicConfigSelect(group.graphicConfigId)}
-                      className='flex w-full items-center justify-between gap-3 text-left'
+                    Play selected
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => handleGroupedAction('stopGraphic')}
+                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+                  >
+                    Stop selected
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => handleGroupedAction('resumeGraphic')}
+                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+                  >
+                    Resume selected
+                  </button>
+                  <button
+                    type='button'
+                    onClick={handleClearMultiSelection}
+                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-muted transition hover:border-rose-300 hover:text-rose-600'
+                  >
+                    Clear selection
+                  </button>
+                </div>
+              </div>
+
+              <div className='grid gap-3 md:grid-cols-2'>
+                {graphicCollections.map((group) => {
+                  const isSelectedGroup = workspace.selection.selectedGraphicConfigId === group.graphicConfigId
+                  const isEmptyGroup = group.items.length === 0
+
+                  return (
+                    <article
+                      key={group.graphicConfigId}
+                      className={`rounded-2xl border p-4 transition ${
+                        isSelectedGroup ? 'border-accent bg-accent/5' : 'border-border bg-surface/40'
+                      }`}
                     >
-                      <div className='min-w-0'>
-                        <h3 className='text-sm font-semibold text-ink'>{group.graphic.name}</h3>
-                        <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-muted'>
-                          {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
-                        </p>
-                      </div>
-                      <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
-                    </button>
+                      <button
+                        type='button'
+                        onClick={() => handleGraphicConfigSelect(group.graphicConfigId)}
+                        className='flex w-full items-center justify-between gap-3 text-left'
+                      >
+                        <div className='min-w-0'>
+                          <h3 className='text-sm font-semibold text-ink'>{group.graphic.name}</h3>
+                          <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-muted'>
+                            {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
+                          </p>
+                        </div>
+                        <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
+                      </button>
 
-                    {!isEmptyGroup ? (
-                      <div className='mt-3 space-y-2'>
-                        {group.items.map((item, index) => {
-                          const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
+                      {!isEmptyGroup ? (
+                        <div className='mt-3 space-y-2'>
+                          {group.items.map((item, index) => {
+                            const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
+                            const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
 
-                          return (
-                            <button
-                              key={`${group.graphicConfigId}-${index}`}
-                              type='button'
-                              onClick={() => handleEntitySelect(group.graphicConfigId, index)}
-                              className={`w-full rounded-xl border px-3 py-2 text-left text-sm ${
-                                isSelectedItem
-                                  ? 'border-accent bg-white text-ink'
-                                  : 'border-border/80 bg-white/70 text-muted hover:border-accent/40 hover:text-ink'
-                              }`}
-                            >
-                              {formatEntityCollectionLabel(item)}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : null}
-                  </article>
-                )
-              })}
+                            return (
+                              <div
+                                key={`${group.graphicConfigId}-${index}`}
+                                className={`rounded-xl border px-3 py-2 transition ${
+                                  isMultiSelected
+                                    ? 'border-emerald-300 bg-emerald-50/70'
+                                    : isSelectedItem
+                                      ? 'border-accent bg-white'
+                                      : 'border-border/80 bg-white/70'
+                                }`}
+                              >
+                                <div className='flex items-start gap-3'>
+                                  <button
+                                    type='button'
+                                    onClick={() => handleMultiSelectionToggle(group.graphicConfigId, index)}
+                                    aria-pressed={isMultiSelected}
+                                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition ${
+                                      isMultiSelected
+                                        ? 'border-emerald-500 bg-emerald-500 text-white'
+                                        : 'border-border bg-white text-transparent hover:border-emerald-400'
+                                    }`}
+                                    title={isMultiSelected ? 'Remove from grouped selection' : 'Add to grouped selection'}
+                                  >
+                                    ✓
+                                  </button>
+                                  <button
+                                    type='button'
+                                    onClick={() => handleEntitySelect(group.graphicConfigId, index)}
+                                    className='min-w-0 flex-1 text-left'
+                                  >
+                                    <div className='flex items-center justify-between gap-3'>
+                                      <p className={`text-sm ${isSelectedItem ? 'font-semibold text-ink' : 'text-ink'}`}>
+                                        {formatEntityCollectionLabel(item)}
+                                      </p>
+                                      {isMultiSelected ? (
+                                        <span className='rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700'>
+                                          Grouped
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <p className='mt-1 text-xs text-muted'>
+                                      {isSelectedItem ? 'Preview selected' : 'Click for preview'} | {isMultiSelected ? 'Included in grouped actions' : 'Available for grouped actions'}
+                                    </p>
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : null}
+                    </article>
+                  )
+                })}
+              </div>
             </div>
           )}
         </Panel>
