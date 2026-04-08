@@ -248,6 +248,28 @@ describe('JSON datasource publishing', () => {
     expect(result.diagnostics).toEqual([])
   })
 
+  it('publishes both optional fields for a composite window-box item', () => {
+    const adapter = createJsonDatasourcePublishTargetAdapter()
+
+    const result = adapter.mapEntityToPayload({
+      entityType: 'title',
+      entity: {
+        title: 'Declaratii importante',
+        location: 'Piata Marii Adunari Nationale',
+      } as unknown as TitleEntity,
+      bindings: [
+        { sourceField: 'title', targetField: 'title' },
+        { sourceField: 'location', targetField: 'location' },
+      ],
+    })
+
+    expect(result.payload).toEqual({
+      title: 'Declaratii importante',
+      location: 'Piata Marii Adunari Nationale',
+    })
+    expect(result.diagnostics).toEqual([])
+  })
+
   it('keeps publish logic modular and independent from UI concerns', () => {
     const adapter = createJsonDatasourcePublishTargetAdapter()
 

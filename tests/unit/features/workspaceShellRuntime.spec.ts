@@ -54,6 +54,31 @@ const titleWaitingGraphic: GraphicInstanceConfig = {
   actions: [],
 }
 
+const windowBoxGraphic: GraphicInstanceConfig = {
+  id: 'window-box',
+  name: 'Window Box',
+  entityType: 'title',
+  dataFileName: 'window-box.json',
+  datasourcePath: 'datasources/window-box.json',
+  control: {
+    templateName: 'WINDOW_BOX',
+  },
+  bindings: [
+    { sourceField: 'Titlu Asteptare', targetField: 'title' },
+    { sourceField: 'Locatie Asteptare', targetField: 'location' },
+  ],
+  preview: {
+    id: 'window-box-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      { id: 'window-box-title', kind: 'text', sourceField: 'title', box: { x: 0, y: 0, width: 100, height: 20 } },
+      { id: 'window-box-location', kind: 'text', sourceField: 'location', box: { x: 0, y: 20, width: 100, height: 20 } },
+    ],
+  },
+  actions: [],
+}
+
 const selectedWaitingItem: SelectedEntityContext = {
   blockIndex: 0,
   blockName: 'INVITATI',
@@ -61,6 +86,17 @@ const selectedWaitingItem: SelectedEntityContext = {
   entityIndex: 0,
   entity: {
     text: 'DECLARATII IMPORTANTE',
+    location: 'PIATA MARII ADUNARI NATIONALE',
+  },
+}
+
+const selectedWindowBoxItem: SelectedEntityContext = {
+  blockIndex: 0,
+  blockName: 'INVITATI',
+  graphicConfigId: 'window-box',
+  entityIndex: 0,
+  entity: {
+    title: 'DECLARATII IMPORTANTE',
     location: 'PIATA MARII ADUNARI NATIONALE',
   },
 }
@@ -98,6 +134,13 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
     })
   })
 
+  it('passes composite window-box fields to preview content', () => {
+    expect(createEntityPreviewContent(selectedWindowBoxItem)).toEqual({
+      title: 'DECLARATII IMPORTANTE',
+      location: 'PIATA MARII ADUNARI NATIONALE',
+    })
+  })
+
   it('resolves preview/play graphic by graphicConfigId even when multiple graphics share the same entityType', () => {
     const graphic = resolveGraphicForSelection(
       {
@@ -113,7 +156,7 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
 
   it('play writes the correct datasource JSON and sends OSC for the selected graphic config', async () => {
     const writeDatasourceFileSync = vi.fn()
-    const sendOscMessage = vi.fn(async () => undefined)
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
     vi.stubGlobal('window', {
       settingsApi: {
         writeDatasourceFileSync,
@@ -153,6 +196,7 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
         }),
         sendOscMessage: vi.fn(async () => {
           calls.push('osc')
+          return ['opened', 'ready', 'sent']
         }),
       },
     })
@@ -169,7 +213,7 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
   })
 
   it('stop and resume use the same global resolution rule when no local override exists', async () => {
-    const sendOscMessage = vi.fn(async () => undefined)
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
     vi.stubGlobal('window', {
       settingsApi: {
         writeDatasourceFileSync: vi.fn(),
@@ -203,6 +247,36 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
       53000,
       '/global/resume',
       [{ type: 's', value: 'PA_TITLE_WAITING' }],
+    )
+  })
+
+  it('play writes both fields for a composite window-box graphic item', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceGraphicAction(
+      'playGraphic',
+      selectedWindowBoxItem,
+      { 'window-box': windowBoxGraphic },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(writeDatasourceFileSync).toHaveBeenCalledWith(
+      'datasources/window-box.json',
+      '{\n  "title": "DECLARATII IMPORTANTE",\n  "location": "PIATA MARII ADUNARI NATIONALE"\n}',
+    )
+    expect(sendOscMessage).toHaveBeenCalledWith(
+      '127.0.0.1',
+      53000,
+      '/global/play',
+      [{ type: 's', value: 'WINDOW_BOX' }],
     )
   })
 })

@@ -179,6 +179,38 @@ const graphicConfigCollectionGraphics: GraphicInstanceConfig[] = [
   },
 ]
 
+const windowBoxGraphic: GraphicInstanceConfig = {
+  id: 'window-box',
+  name: 'Window Box',
+  entityType: 'title',
+  dataFileName: 'window-box.json',
+  datasourcePath: 'datasources/window-box.json',
+  control: { templateName: 'WINDOW_BOX' },
+  bindings: [
+    { sourceField: 'Titlu Asteptare', targetField: 'title' },
+    { sourceField: 'Locatie Asteptare', targetField: 'location' },
+  ],
+  preview: {
+    id: 'window-box-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      { id: 'window-box-title', kind: 'text', sourceField: 'title', box: { x: 0, y: 0, width: 100, height: 50 } },
+      { id: 'window-box-location', kind: 'text', sourceField: 'location', box: { x: 0, y: 50, width: 100, height: 50 } },
+    ],
+  },
+  actions: [],
+}
+
+const windowBoxCsv = [
+  'Nr;Titlu Asteptare;Locatie Asteptare',
+  '--- INVITATI ---;;',
+  '1.;Declaratii importante;Piata Marii Adunari Nationale',
+  '2.;Doar titlu;',
+  '3.;;Doar locatie',
+  '4.;;',
+].join('\n')
+
 describe('CSV editorial parser with configurable schema', () => {
   it('receives CsvSourceSchemaConfig and uses it', () => {
     const parsed = parseCsvEditorialDocument(sampleCsv, {
@@ -511,6 +543,85 @@ describe('GraphicConfig-based entity collections', () => {
       { text: 'INTRA PE CALEA INTEGRARII IN UE', number: '1.' },
       { text: 'GROSU: CINE ESTE ACASA?', number: '2.' },
       { text: 'PRIMA ZI LA SCOALA', number: '3.' },
+    ])
+  })
+
+  it('builds one composite window-box item when both title and location are present', () => {
+    const parsed = parseCsvEditorialDocument(windowBoxCsv, {
+      schema: {
+        ...newsCsvSchema,
+        entityMappings: {
+          title: { enabled: false },
+          person: { enabled: false },
+          location: { enabled: false },
+          phone: { enabled: false },
+        },
+      },
+      graphics: [windowBoxGraphic],
+    })
+
+    expect(parsed.document.blocks[0]?.entityCollections?.['window-box']?.[0]).toEqual({
+      title: 'Declaratii importante',
+      location: 'Piata Marii Adunari Nationale',
+    })
+  })
+
+  it('keeps a title-only window-box row as one playable item', () => {
+    const parsed = parseCsvEditorialDocument(windowBoxCsv, {
+      schema: {
+        ...newsCsvSchema,
+        entityMappings: {
+          title: { enabled: false },
+          person: { enabled: false },
+          location: { enabled: false },
+          phone: { enabled: false },
+        },
+      },
+      graphics: [windowBoxGraphic],
+    })
+
+    expect(parsed.document.blocks[0]?.entityCollections?.['window-box']?.[1]).toEqual({
+      title: 'Doar titlu',
+    })
+  })
+
+  it('keeps a location-only window-box row as one playable item', () => {
+    const parsed = parseCsvEditorialDocument(windowBoxCsv, {
+      schema: {
+        ...newsCsvSchema,
+        entityMappings: {
+          title: { enabled: false },
+          person: { enabled: false },
+          location: { enabled: false },
+          phone: { enabled: false },
+        },
+      },
+      graphics: [windowBoxGraphic],
+    })
+
+    expect(parsed.document.blocks[0]?.entityCollections?.['window-box']?.[2]).toEqual({
+      location: 'Doar locatie',
+    })
+  })
+
+  it('rejects an empty window-box row where both title and location are missing', () => {
+    const parsed = parseCsvEditorialDocument(windowBoxCsv, {
+      schema: {
+        ...newsCsvSchema,
+        entityMappings: {
+          title: { enabled: false },
+          person: { enabled: false },
+          location: { enabled: false },
+          phone: { enabled: false },
+        },
+      },
+      graphics: [windowBoxGraphic],
+    })
+
+    expect(parsed.document.blocks[0]?.entityCollections?.['window-box']).toEqual([
+      { title: 'Declaratii importante', location: 'Piata Marii Adunari Nationale' },
+      { title: 'Doar titlu' },
+      { location: 'Doar locatie' },
     ])
   })
 })

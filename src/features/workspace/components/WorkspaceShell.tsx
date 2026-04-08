@@ -21,6 +21,10 @@ import {
   type WorkspaceShellData,
 } from '@/features/workspace/state/workspaceShellRuntime'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
+import {
+  formatEntityCollectionLabel,
+  formatEntityLabel,
+} from '@/features/workspace/state/entityCollectionLabels'
 import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
   importGraphicConfigToLibrary,
@@ -725,48 +729,6 @@ function EmptyState({ title, description }: { title: string; description: string
       <p className='mt-1'>{description}</p>
     </div>
   )
-}
-
-function formatEntityLabel(entity: unknown): string {
-  if (!entity || typeof entity !== 'object') {
-    return ''
-  }
-
-  if ('text' in entity && typeof entity.text === 'string') {
-    return entity.text
-  }
-
-  if ('name' in entity && typeof entity.name === 'string') {
-    const role = 'role' in entity && typeof entity.role === 'string' ? ` | ${entity.role}` : ''
-    return `${entity.name}${role}`
-  }
-
-  if ('value' in entity && typeof entity.value === 'string') {
-    return entity.value
-  }
-
-  if ('label' in entity && typeof entity.label === 'string' && 'number' in entity && typeof entity.number === 'string') {
-    return `${entity.label} | ${entity.number}`
-  }
-
-  return ''
-}
-
-function formatEntityCollectionLabel(entity: unknown): string {
-  if (!entity || typeof entity !== 'object') {
-    return ''
-  }
-
-  if (
-    'text' in entity &&
-    typeof entity.text === 'string' &&
-    'number' in entity &&
-    typeof entity.number === 'string'
-  ) {
-    return `${entity.number} ${entity.text}`.trim()
-  }
-
-  return formatEntityLabel(entity)
 }
 
 function countBlockEntities(block: WorkspaceShellData['document']['blocks'][number]): number {

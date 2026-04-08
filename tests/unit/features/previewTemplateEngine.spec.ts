@@ -697,18 +697,18 @@ describe('preview element calculations', () => {
     })
   })
 
-  it('renders a logo asset in preview', () => {
+  it('renders a static image asset in preview', () => {
     const layout = calculatePreviewTemplateLayout(
       {
-        id: 'logo-preview',
+        id: 'static-image-preview',
         designWidth: 1920,
         designHeight: 1080,
         elements: [
           {
-            id: 'logo-image',
+            id: 'static-image',
             kind: 'image',
             sourceField: 'staticAsset',
-            previewText: 'C:\\APlay\\assets\\branding\\logo.png',
+            previewText: 'C:\\APlay\\assets\\branding\\static-image.png',
             box: {
               x: 40,
               y: 40,
@@ -723,24 +723,24 @@ describe('preview element calculations', () => {
     )
 
     expect(layout.elements[0]).toMatchObject({
-      id: 'logo-image',
+      id: 'static-image',
       kind: 'image',
-      content: 'C:\\APlay\\assets\\branding\\logo.png',
+      content: 'C:\\APlay\\assets\\branding\\static-image.png',
     })
   })
 
   it('respects positioning and sizing config for static preview images', () => {
     const layout = calculatePreviewTemplateLayout(
       {
-        id: 'logo-preview',
+        id: 'static-image-preview',
         designWidth: 1920,
         designHeight: 1080,
         elements: [
           {
-            id: 'logo-image',
+            id: 'static-image',
             kind: 'image',
             sourceField: 'staticAsset',
-            previewText: 'C:\\APlay\\assets\\branding\\logo.png',
+            previewText: 'C:\\APlay\\assets\\branding\\static-image.png',
             box: {
               x: 100,
               y: 200,
@@ -765,15 +765,15 @@ describe('preview element calculations', () => {
   it('renders static preview images without datasource content', () => {
     const layout = calculatePreviewTemplateLayout(
       {
-        id: 'logo-preview',
+        id: 'static-image-preview',
         designWidth: 1920,
         designHeight: 1080,
         elements: [
           {
-            id: 'logo-image',
+            id: 'static-image',
             kind: 'image',
             sourceField: 'staticAsset',
-            previewText: 'C:\\APlay\\assets\\branding\\logo.png',
+            previewText: 'C:\\APlay\\assets\\branding\\static-image.png',
             box: {
               x: 100,
               y: 120,
@@ -788,17 +788,17 @@ describe('preview element calculations', () => {
     )
 
     expect(layout.elements).toHaveLength(1)
-    expect(layout.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\logo.png')
+    expect(layout.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\static-image.png')
   })
 
   it('updates preview image content when the static asset path changes', () => {
     const template: PreviewTemplateDefinition = {
-      id: 'logo-preview',
+      id: 'static-image-preview',
       designWidth: 1920,
       designHeight: 1080,
       elements: [
         {
-          id: 'logo-image',
+          id: 'static-image',
           kind: 'image',
           sourceField: 'staticAsset',
           box: {
@@ -814,16 +814,109 @@ describe('preview element calculations', () => {
     const first = calculatePreviewTemplateLayout(
       template,
       { width: 960, height: 540 },
-      { staticAsset: 'C:\\APlay\\assets\\branding\\logo-a.png' },
+      { staticAsset: 'C:\\APlay\\assets\\branding\\static-image-a.png' },
     )
     const second = calculatePreviewTemplateLayout(
       template,
       { width: 960, height: 540 },
-      { staticAsset: 'C:\\APlay\\assets\\branding\\logo-b.png' },
+      { staticAsset: 'C:\\APlay\\assets\\branding\\static-image-b.png' },
     )
 
-    expect(first.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\logo-a.png')
-    expect(second.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\logo-b.png')
+    expect(first.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\static-image-a.png')
+    expect(second.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\static-image-b.png')
+  })
+
+  it('renders both window-box fields when title and location are present', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'window-box-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'window-box-title',
+            kind: 'text',
+            sourceField: 'title',
+            box: { x: 0, y: 0, width: 400, height: 80 },
+          },
+          {
+            id: 'window-box-location',
+            kind: 'text',
+            sourceField: 'location',
+            box: { x: 0, y: 80, width: 400, height: 80 },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { title: 'Declaratii importante', location: 'Piata Marii Adunari Nationale' },
+    )
+
+    expect(layout.elements.map((element) => element.content)).toEqual([
+      'Declaratii importante',
+      'Piata Marii Adunari Nationale',
+    ])
+  })
+
+  it('renders only the window-box title when location is missing', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'window-box-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'window-box-title',
+            kind: 'text',
+            sourceField: 'title',
+            box: { x: 0, y: 0, width: 400, height: 80 },
+          },
+          {
+            id: 'window-box-location',
+            kind: 'text',
+            sourceField: 'location',
+            box: { x: 0, y: 80, width: 400, height: 80 },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { title: 'Declaratii importante' },
+    )
+
+    expect(layout.elements.map((element) => element.content)).toEqual([
+      'Declaratii importante',
+      '',
+    ])
+  })
+
+  it('renders only the window-box location when title is missing', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'window-box-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'window-box-title',
+            kind: 'text',
+            sourceField: 'title',
+            box: { x: 0, y: 0, width: 400, height: 80 },
+          },
+          {
+            id: 'window-box-location',
+            kind: 'text',
+            sourceField: 'location',
+            box: { x: 0, y: 80, width: 400, height: 80 },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { location: 'Piata Marii Adunari Nationale' },
+    )
+
+    expect(layout.elements.map((element) => element.content)).toEqual([
+      '',
+      'Piata Marii Adunari Nationale',
+    ])
   })
 })
 
