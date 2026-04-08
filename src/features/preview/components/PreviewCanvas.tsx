@@ -162,7 +162,10 @@ function isDirectPreviewImageSource(source: string): boolean {
 function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement }) {
   const textRef = useRef<HTMLSpanElement | null>(null)
   const scaleX = useScaleToFit({
-    availableWidth: element.style.width,
+    availableWidth: Math.max(
+      element.style.width - (element.style.paddingLeft ?? 0) - (element.style.paddingRight ?? 0),
+      0,
+    ),
     fitInBox: element.style.fitInBox,
     minScaleX: element.style.minScaleX,
     measureRef: textRef,
@@ -193,6 +196,9 @@ function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement
         zIndex: element.style.zIndex,
         justifyContent: element.style.textAlign === 'center' ? 'center' : 'flex-start',
         textAlign: element.style.textAlign ?? 'left',
+        paddingLeft: element.style.paddingLeft !== undefined ? `${element.style.paddingLeft}px` : undefined,
+        paddingRight: element.style.paddingRight !== undefined ? `${element.style.paddingRight}px` : undefined,
+        boxSizing: 'border-box',
       }}
     >
       <span

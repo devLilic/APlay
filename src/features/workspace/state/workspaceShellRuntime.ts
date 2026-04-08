@@ -5,7 +5,7 @@ import { createJsonEditorialSourceAdapter } from '@/adapters/content-source/json
 import { createProfileContentSourceLoader } from '@/adapters/content-source/profileContentSourceLoader'
 import { createGraphicsAdapter } from '@/adapters/graphics/graphicsAdapter'
 import { createInMemoryGraphicConfigStorage, createProfileGraphicConfigLoader } from '@/settings/storage/profileGraphicConfigLoader'
-import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
+import type { AppSettings, GraphicInstanceConfig, OscSettingsConfig } from '@/settings/models/appConfig'
 import type { WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 import { sampleGraphicFiles, sampleSettings, sampleSourceFiles } from '@/features/workspace/data/sampleWorkspaceConfig'
 import {
@@ -15,7 +15,6 @@ import {
 } from '@/features/workspace/state/selectedEntityControl'
 import { serializeGraphicConfigExport } from '@/settings/storage/graphicConfigExport'
 import type { ActionType } from '@/core/actions/actionTypes'
-import { createOscClient } from '@/integrations/osc/oscClient'
 
 export interface WorkspaceShellData {
   document: EditorialDocument
@@ -92,13 +91,15 @@ export function runWorkspaceGraphicAction(
   actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   selectedEntity: SelectedEntityContext | undefined,
   graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+  oscSettings?: OscSettingsConfig,
 ): Promise<SelectedEntityControlFeedback> {
-  return runWorkspaceGraphicsAdapterAction(actionType, selectedEntity, graphicsByEntityType)
+  return runWorkspaceGraphicsAdapterAction(actionType, selectedEntity, graphicsByEntityType, oscSettings)
 }
 
 export function runWorkspaceGraphicDebugAction(
   actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   graphic: GraphicInstanceConfig,
+  oscSettings: OscSettingsConfig | undefined,
   previewContent: Record<string, string | undefined> = {},
 ): Promise<SelectedEntityControlFeedback> {
   const adapter = createWorkspaceGraphicsAdapter()
@@ -112,6 +113,7 @@ export function runWorkspaceGraphicDebugAction(
         entity: entity as never,
         graphic,
         bindings: graphic.bindings ?? [],
+        oscSettings,
       })
       : actionType === 'stopGraphic'
         ? adapter.stop({
@@ -119,12 +121,14 @@ export function runWorkspaceGraphicDebugAction(
           entity: entity as never,
           graphic,
           bindings: graphic.bindings ?? [],
+          oscSettings,
         })
         : adapter.resume({
           entityType,
           entity: entity as never,
           graphic,
           bindings: graphic.bindings ?? [],
+          oscSettings,
         }),
     actionType,
   )
@@ -134,6 +138,7 @@ async function runWorkspaceGraphicsAdapterAction(
   actionType: ActionType,
   selectedEntity: SelectedEntityContext | undefined,
   graphicsByEntityType: Partial<Record<string, GraphicInstanceConfig>>,
+  oscSettings?: OscSettingsConfig,
 ): Promise<SelectedEntityControlFeedback> {
   if (!selectedEntity) {
     return {
@@ -162,6 +167,7 @@ async function runWorkspaceGraphicsAdapterAction(
       entity: selectedEntity.entity as never,
       graphic,
       bindings: graphic.bindings ?? [],
+      oscSettings,
     })
       : actionType === 'stopGraphic'
         ? adapter.stop({
@@ -169,12 +175,14 @@ async function runWorkspaceGraphicsAdapterAction(
         entity: selectedEntity.entity as never,
         graphic,
         bindings: graphic.bindings ?? [],
+        oscSettings,
       })
         : adapter.resume({
         entityType,
         entity: selectedEntity.entity as never,
         graphic,
         bindings: graphic.bindings ?? [],
+        oscSettings,
       }),
     actionType,
   )
@@ -211,12 +219,19 @@ function createWorkspaceGraphicsAdapter() {
       return {
         async send(address, args) {
           sentOscAddresses.push(`${config.host}:${config.port}${address}`)
-          await createOscClient(config).send(address, args)
+          if (!window.settingsApi?.sendOscMessage) {
+            throw new Error('OSC send is unavailable in this environment.')
+          }
+          await window.settingsApi.sendOscMessage(config.host, config.port, address, args)
         },
       }
     },
     fileWriter: {
       write(targetFile, content) {
+        if (window.settingsApi?.writeDatasourceFileSync) {
+          window.settingsApi.writeDatasourceFileSync(targetFile, content)
+        }
+
         datasourceFiles.set(targetFile, content)
       },
     },

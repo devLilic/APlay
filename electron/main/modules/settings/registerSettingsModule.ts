@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { app, dialog, ipcMain } from 'electron'
@@ -14,6 +14,7 @@ import { createSettingsStore } from './settingsStore'
 import type { AppSettings, SettingsKey } from '../../../../src/shared/settings/types'
 import { createGraphicConfigFileSaveService } from '../../../../src/settings/storage/graphicConfigExport'
 import { createProfileConfigFileSaveService } from '../../../../src/settings/storage/profileConfigExport'
+import { createOscClient } from '../../../../src/integrations/osc/oscClient'
 
 let settingsHandlersRegistered = false
 
@@ -77,6 +78,23 @@ export function registerSettingsModule() {
     }
   })
 
+  ipcMain.handle(ipcInvokeChannels.settingsPickDatasourceJsonFile, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Select datasource JSON file',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'JSON Files',
+          extensions: ['json'],
+        },
+      ],
+    })
+
+    return {
+      filePath: result.canceled ? null : (result.filePaths[0] ?? null),
+    }
+  })
+
   ipcMain.handle(
     ipcInvokeChannels.settingsReadReferenceImage,
     async (_event, payload: { filePath: string }): Promise<ReferenceImageDataResponse> => {
@@ -111,6 +129,34 @@ export function registerSettingsModule() {
         }
       } catch {
         event.returnValue = { content: null }
+      }
+    },
+  )
+
+  ipcMain.on(
+    ipcInvokeChannels.settingsWriteDatasourceFile,
+    (event, payload: { filePath: string; content: string }) => {
+      try {
+        const filePath = payload.filePath.trim()
+        if (filePath.length === 0) {
+          event.returnValue = {
+            ok: false,
+            error: 'Datasource file path is empty.',
+          }
+          return
+        }
+
+        mkdirSync(path.dirname(filePath), { recursive: true })
+        writeFileSync(filePath, payload.content, 'utf8')
+
+        event.returnValue = {
+          ok: true,
+        }
+      } catch (error) {
+        event.returnValue = {
+          ok: false,
+          error: error instanceof Error ? error.message : 'Failed to write datasource file.',
+        }
       }
     },
   )
@@ -173,6 +219,22 @@ export function registerSettingsModule() {
 
       return {
         filePath: result.filePath,
+      }
+    },
+  )
+
+  ipcMain.handle(
+    ipcInvokeChannels.settingsSendOscMessage,
+    async (_event, payload) => {
+      const client = createOscClient({
+        host: payload.host,
+        port: payload.port,
+      })
+
+      await client.send(payload.address, payload.args)
+
+      return {
+        ok: true,
       }
     },
   )

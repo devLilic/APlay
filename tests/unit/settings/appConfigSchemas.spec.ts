@@ -331,8 +331,14 @@ describe('GraphicControlConfig schema', () => {
     })
   })
 
-  it('rejects missing required commands', () => {
-    expect(() => graphicControlConfigSchema.parse({ play: '/play', stop: '/stop' })).toThrow('resume')
+  it('allows template-only graphic control config when OSC is defined globally', () => {
+    expect(
+      graphicControlConfigSchema.parse({
+        templateName: 'LOWER_THIRD_01',
+      }),
+    ).toEqual({
+      templateName: 'LOWER_THIRD_01',
+    })
   })
 })
 

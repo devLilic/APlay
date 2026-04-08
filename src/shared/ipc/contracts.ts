@@ -1,6 +1,6 @@
 import type { ProgressInfo } from 'electron-updater'
 import type { AppConfig, AppLanguage } from '../../../config/types'
-import type { AppSettings as WorkspaceAppSettings, GraphicInstanceConfig } from '../../settings/models/appConfig'
+import type { AppSettings as WorkspaceAppSettings, GraphicInstanceConfig, OscArgConfig } from '../../settings/models/appConfig'
 import type {
   LicenseActivationResult,
   LicenseEntitlementsRequest,
@@ -31,10 +31,13 @@ export const ipcInvokeChannels = {
   settingsSet: 'settings:set',
   settingsPickReferenceImage: 'settings:pick-reference-image',
   settingsPickSourceCsvFile: 'settings:pick-source-csv-file',
+  settingsPickDatasourceJsonFile: 'settings:pick-datasource-json-file',
   settingsReadReferenceImage: 'settings:read-reference-image',
   settingsReadSourceFile: 'settings:read-source-file',
+  settingsWriteDatasourceFile: 'settings:write-datasource-file',
   settingsExportGraphicConfig: 'settings:export-graphic-config',
   settingsExportProfileConfig: 'settings:export-profile-config',
+  settingsSendOscMessage: 'settings:send-osc-message',
 } as const
 
 export const ipcEventChannels = {
@@ -114,11 +117,22 @@ export interface ReferenceImagePickerResponse {
 export interface SourceCsvPickerResponse {
   filePath: string | null
 }
+export interface DatasourceJsonPickerResponse {
+  filePath: string | null
+}
 export interface ReferenceImageDataResponse {
   dataUrl: string | null
 }
 export interface SourceFileReadResponse {
   content: string | null
+}
+export interface DatasourceFileWriteRequest {
+  filePath: string
+  content: string
+}
+export interface DatasourceFileWriteResponse {
+  ok: boolean
+  error?: string
 }
 export interface GraphicConfigExportRequest {
   graphicConfig: GraphicInstanceConfig
@@ -134,6 +148,15 @@ export interface ProfileConfigExportRequest {
 }
 export interface ProfileConfigExportResponse {
   filePath: string | null
+}
+export interface OscSendRequest {
+  host: string
+  port: number
+  address: string
+  args: OscArgConfig[]
+}
+export interface OscSendResponse {
+  ok: true
 }
 
 export interface IpcInvokeContract {
@@ -213,6 +236,10 @@ export interface IpcInvokeContract {
     request: void
     response: SourceCsvPickerResponse
   }
+  [ipcInvokeChannels.settingsPickDatasourceJsonFile]: {
+    request: void
+    response: DatasourceJsonPickerResponse
+  }
   [ipcInvokeChannels.settingsReadReferenceImage]: {
     request: { filePath: string }
     response: ReferenceImageDataResponse
@@ -221,6 +248,10 @@ export interface IpcInvokeContract {
     request: { filePath: string }
     response: SourceFileReadResponse
   }
+  [ipcInvokeChannels.settingsWriteDatasourceFile]: {
+    request: DatasourceFileWriteRequest
+    response: DatasourceFileWriteResponse
+  }
   [ipcInvokeChannels.settingsExportGraphicConfig]: {
     request: GraphicConfigExportRequest
     response: GraphicConfigExportResponse
@@ -228,6 +259,10 @@ export interface IpcInvokeContract {
   [ipcInvokeChannels.settingsExportProfileConfig]: {
     request: ProfileConfigExportRequest
     response: ProfileConfigExportResponse
+  }
+  [ipcInvokeChannels.settingsSendOscMessage]: {
+    request: OscSendRequest
+    response: OscSendResponse
   }
 }
 

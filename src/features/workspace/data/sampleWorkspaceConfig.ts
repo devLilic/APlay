@@ -16,6 +16,26 @@ const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
 
 export const sampleSettings: AppSettings = {
   selectedProfileId: 'default-news',
+  osc: {
+    target: {
+      host: '127.0.0.1',
+      port: 53000,
+    },
+    commands: {
+      play: {
+        address: '/liveboard/play',
+        args: [{ type: 's', value: '{{templateName}}' }],
+      },
+      stop: {
+        address: '/liveboard/stop',
+        args: [{ type: 's', value: '{{templateName}}' }],
+      },
+      resume: {
+        address: '/liveboard/resume',
+        args: [{ type: 's', value: '{{templateName}}' }],
+      },
+    },
+  },
   referenceImages: [],
   sourceSchemas: [
     {
@@ -104,7 +124,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'title',
       dataFileName: 'title-main.json',
       datasourcePath: 'datasources/title-main.json',
-      control: { play: '/aplay/title/play', stop: '/aplay/title/stop', resume: '/aplay/title/resume' },
+      control: { templateName: 'TITLE_MAIN', play: '/aplay/title/play', stop: '/aplay/title/stop', resume: '/aplay/title/resume' },
       bindings: defaultGraphicBindingsByEntityType.title,
       preview: {
         id: 'title-preview',
@@ -122,7 +142,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'supertitle',
       dataFileName: 'supertitle-main.json',
       datasourcePath: 'datasources/supertitle-main.json',
-      control: { play: '/aplay/supertitle/play', stop: '/aplay/supertitle/stop', resume: '/aplay/supertitle/resume' },
+      control: { templateName: 'SUPERTITLE_MAIN', play: '/aplay/supertitle/play', stop: '/aplay/supertitle/stop', resume: '/aplay/supertitle/resume' },
       bindings: defaultGraphicBindingsByEntityType.supertitle,
       preview: {
         id: 'supertitle-preview',
@@ -140,7 +160,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'person',
       dataFileName: 'person-main.json',
       datasourcePath: 'datasources/person-main.json',
-      control: { play: '/aplay/person/play', stop: '/aplay/person/stop', resume: '/aplay/person/resume' },
+      control: { templateName: 'PERSON_MAIN', play: '/aplay/person/play', stop: '/aplay/person/stop', resume: '/aplay/person/resume' },
       bindings: defaultGraphicBindingsByEntityType.person,
       preview: {
         id: 'person-preview',
@@ -159,7 +179,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'location',
       dataFileName: 'location-main.json',
       datasourcePath: 'datasources/location-main.json',
-      control: { play: '/aplay/location/play', stop: '/aplay/location/stop', resume: '/aplay/location/resume' },
+      control: { templateName: 'LOCATION_MAIN', play: '/aplay/location/play', stop: '/aplay/location/stop', resume: '/aplay/location/resume' },
       bindings: defaultGraphicBindingsByEntityType.location,
       preview: {
         id: 'location-preview',
@@ -177,7 +197,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'breakingNews',
       dataFileName: 'breaking-main.json',
       datasourcePath: 'datasources/breaking-main.json',
-      control: { play: '/aplay/breaking/play', stop: '/aplay/breaking/stop', resume: '/aplay/breaking/resume' },
+      control: { templateName: 'BREAKING_MAIN', play: '/aplay/breaking/play', stop: '/aplay/breaking/stop', resume: '/aplay/breaking/resume' },
       bindings: defaultGraphicBindingsByEntityType.breakingNews,
       preview: {
         id: 'breaking-preview',
@@ -195,7 +215,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'waitingTitle',
       dataFileName: 'waiting-title-main.json',
       datasourcePath: 'datasources/waiting-title-main.json',
-      control: { play: '/aplay/waiting-title/play', stop: '/aplay/waiting-title/stop', resume: '/aplay/waiting-title/resume' },
+      control: { templateName: 'WAITING_TITLE_MAIN', play: '/aplay/waiting-title/play', stop: '/aplay/waiting-title/stop', resume: '/aplay/waiting-title/resume' },
       bindings: defaultGraphicBindingsByEntityType.waitingTitle,
       preview: {
         id: 'waiting-title-preview',
@@ -213,7 +233,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'waitingLocation',
       dataFileName: 'waiting-location-main.json',
       datasourcePath: 'datasources/waiting-location-main.json',
-      control: { play: '/aplay/waiting-location/play', stop: '/aplay/waiting-location/stop', resume: '/aplay/waiting-location/resume' },
+      control: { templateName: 'WAITING_LOCATION_MAIN', play: '/aplay/waiting-location/play', stop: '/aplay/waiting-location/stop', resume: '/aplay/waiting-location/resume' },
       bindings: defaultGraphicBindingsByEntityType.waitingLocation,
       preview: {
         id: 'waiting-location-preview',
@@ -231,7 +251,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'phone',
       dataFileName: 'phone-main.json',
       datasourcePath: 'datasources/phone-main.json',
-      control: { play: '/aplay/phone/play', stop: '/aplay/phone/stop', resume: '/aplay/phone/resume' },
+      control: { templateName: 'PHONE_MAIN', play: '/aplay/phone/play', stop: '/aplay/phone/stop', resume: '/aplay/phone/resume' },
       bindings: defaultGraphicBindingsByEntityType.phone,
       preview: {
         id: 'phone-preview',

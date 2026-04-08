@@ -50,6 +50,39 @@ interface SettingsPanelProps {
 const transformOrigins: TransformOrigin[] = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center']
 const previewElementKinds: PreviewElementKind[] = ['text', 'box', 'image']
 const oscArgTypes: OscArgType[] = ['s', 'i', 'f']
+type SettingsTabId = 'show' | 'osc' | 'graphics' | 'preview' | 'assets'
+
+const settingsTabs: Array<{
+  id: SettingsTabId
+  label: string
+  description: string
+}> = [
+  {
+    id: 'show',
+    label: 'Show',
+    description: 'Profile activ, sursa CSV si schema de lucru.',
+  },
+  {
+    id: 'osc',
+    label: 'OSC',
+    description: 'Target-ul general si comenzile globale LiveBoard.',
+  },
+  {
+    id: 'graphics',
+    label: 'Graphics',
+    description: 'Selectie graphic, datasource, bindings si template-ul LiveBoard.',
+  },
+  {
+    id: 'preview',
+    label: 'Preview',
+    description: 'Template preview si reglajele vizuale locale din APlay.',
+  },
+  {
+    id: 'assets',
+    label: 'Assets',
+    description: 'Imagini de referinta folosite doar pentru calibrare preview.',
+  },
+]
 
 export function SettingsPanel({
   settings,
@@ -70,10 +103,12 @@ export function SettingsPanel({
   const [draftReferenceImagePath, setDraftReferenceImagePath] = useState('')
   const [isPickingReferenceImage, setIsPickingReferenceImage] = useState(false)
   const [isPickingSourceFile, setIsPickingSourceFile] = useState(false)
+  const [isPickingDatasourceJson, setIsPickingDatasourceJson] = useState(false)
   const [isExportingGraphicConfig, setIsExportingGraphicConfig] = useState(false)
   const [isExportingProfile, setIsExportingProfile] = useState(false)
   const [oscArgDrafts, setOscArgDrafts] = useState<Record<string, string>>({})
   const [testingOscActionKey, setTestingOscActionKey] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<SettingsTabId>('show')
 
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
@@ -91,6 +126,7 @@ export function SettingsPanel({
   const selectedGraphic = selectedGraphicId
     ? settings.graphics.find((graphic) => graphic.id === selectedGraphicId)
     : undefined
+  const activeTabMeta = settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0]
 
   const updateProfile = (updater: (profile: ShowProfileConfig) => ShowProfileConfig) => {
     if (!selectedProfile) {
@@ -225,6 +261,28 @@ export function SettingsPanel({
     }
   }
 
+  const handlePickDatasourceJsonFile = async () => {
+    if (!window.settingsApi?.pickDatasourceJsonFile || !selectedGraphic) {
+      return
+    }
+
+    setIsPickingDatasourceJson(true)
+
+    try {
+      const filePath = await window.settingsApi.pickDatasourceJsonFile()
+      if (!filePath) {
+        return
+      }
+
+      updateGraphic((graphic) => ({
+        ...graphic,
+        datasourcePath: filePath,
+      }))
+    } finally {
+      setIsPickingDatasourceJson(false)
+    }
+  }
+
   const handleGraphicConfigExport = async () => {
     if (!selectedGraphic || isExportingGraphicConfig) {
       return
@@ -300,6 +358,34 @@ export function SettingsPanel({
           </p>
         </div>
 
+        <div className='rounded-3xl border border-border bg-panel p-3 shadow-panel'>
+          <div className='flex flex-wrap gap-2'>
+            {settingsTabs.map((tab) => {
+              const isActive = tab.id === activeTab
+
+              return (
+                <button
+                  key={tab.id}
+                  type='button'
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                    isActive
+                      ? 'border border-accent bg-accent text-white shadow-sm'
+                      : 'border border-border bg-surface text-ink hover:border-accent hover:text-accent'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className='mt-3 rounded-2xl border border-border bg-surface/30 px-4 py-3 text-sm text-muted'>
+            <span className='font-semibold text-ink'>{activeTabMeta.label}</span>
+            {' | '}
+            {activeTabMeta.description}
+          </div>
+        </div>
+
         {feedback ? (
           <div className={`rounded-2xl border px-4 py-3 text-sm ${feedback.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
             {feedback.message}
@@ -312,52 +398,59 @@ export function SettingsPanel({
           </div>
         ) : null}
 
-        <section className='grid gap-6 xl:grid-cols-[22rem,minmax(0,1fr)]'>
-          <div className='space-y-4'>
-            <ProfileSection
+        {activeTab === 'show' ? (
+          <section className='grid gap-6 xl:grid-cols-[22rem,minmax(0,1fr)]'>
+            <div className='space-y-4'>
+              <ProfileSection
+                settings={settings}
+                selectedProfile={selectedProfile}
+                isPickingSourceFile={isPickingSourceFile}
+                onSettingsChange={onSettingsChange}
+                onProfileUpdate={updateProfile}
+                onPickSourceFile={handlePickSourceFile}
+              />
+            </div>
+
+            <div className='space-y-4'>
+              <CsvSchemaSection
+                settings={settings}
+                selectedProfile={selectedProfile}
+                onSettingsChange={onSettingsChange}
+              />
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === 'osc' ? (
+          <section className='space-y-4'>
+            <GlobalOscSettingsSection
               settings={settings}
-              selectedProfile={selectedProfile}
-              isPickingSourceFile={isPickingSourceFile}
               onSettingsChange={onSettingsChange}
-              onProfileUpdate={updateProfile}
-              onPickSourceFile={handlePickSourceFile}
+              oscArgDrafts={oscArgDrafts}
+              onOscArgDraftChange={(draftKey, value) => setOscArgDrafts((current) => ({ ...current, [draftKey]: value }))}
             />
+          </section>
+        ) : null}
 
-            <CsvSchemaSection
-              settings={settings}
-              selectedProfile={selectedProfile}
-              onSettingsChange={onSettingsChange}
-            />
+        {activeTab === 'graphics' ? (
+          <section className='grid gap-6 xl:grid-cols-[22rem,minmax(0,1fr)]'>
+            <div className='space-y-4'>
+              <GraphicSelectionSection
+                settings={settings}
+                selectedProfile={selectedProfile}
+                selectedGraphicId={selectedGraphicId}
+                onSelectedGraphicIdChange={setSelectedGraphicId}
+              />
+            </div>
 
-            <GraphicSelectionSection
-              settings={settings}
-              selectedProfile={selectedProfile}
-              selectedGraphicId={selectedGraphicId}
-              onSelectedGraphicIdChange={setSelectedGraphicId}
-            />
-
-            <ReferenceImagesSection
-              referenceImages={settings.referenceImages}
-              draftName={draftReferenceImageName}
-              draftPath={draftReferenceImagePath}
-              isPickingReferenceImage={isPickingReferenceImage}
-              onDraftNameChange={setDraftReferenceImageName}
-              onDraftPathChange={setDraftReferenceImagePath}
-              onPickReferenceImage={handlePickReferenceImage}
-              onAddReferenceImage={addReferenceImage}
-              onRemoveReferenceImage={removeReferenceImage}
-            />
-          </div>
-
-          <div className='space-y-4'>
-            {selectedGraphic ? (
-              <>
+            <div className='space-y-4'>
+              {selectedGraphic ? (
                 <GraphicBindingSection
                   graphic={selectedGraphic}
                   updateGraphic={updateGraphic}
                   updateBinding={updateBinding}
-                  oscArgDrafts={oscArgDrafts}
-                  onOscArgDraftChange={(draftKey, value) => setOscArgDrafts((current) => ({ ...current, [draftKey]: value }))}
+                  isPickingDatasourceJson={isPickingDatasourceJson}
+                  onPickDatasourceJsonFile={handlePickDatasourceJsonFile}
                   testingOscActionKey={testingOscActionKey}
                   onTestOscCommand={async (graphic, actionType) => {
                     const actionKey = `${graphic.id}:${actionType}`
@@ -369,22 +462,58 @@ export function SettingsPanel({
                     }
                   }}
                 />
-                <PreviewTemplateSection
-                  settings={settings}
-                  graphic={selectedGraphic}
-                  activeGraphic={activeGraphic}
-                  previewContent={previewContent}
-                  updateGraphic={updateGraphic}
-                  updatePreviewElement={updatePreviewElement}
-                />
-              </>
+              ) : (
+                <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-6 text-sm text-muted'>
+                  Select a profile-loaded graphic config to edit datasource and LiveBoard template settings.
+                </div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === 'preview' ? (
+          <section className='space-y-4'>
+            <div className='max-w-[26rem]'>
+              <GraphicSelectionSection
+                settings={settings}
+                selectedProfile={selectedProfile}
+                selectedGraphicId={selectedGraphicId}
+                onSelectedGraphicIdChange={setSelectedGraphicId}
+              />
+            </div>
+
+            {selectedGraphic ? (
+              <PreviewTemplateSection
+                settings={settings}
+                graphic={selectedGraphic}
+                activeGraphic={activeGraphic}
+                previewContent={previewContent}
+                updateGraphic={updateGraphic}
+                updatePreviewElement={updatePreviewElement}
+              />
             ) : (
               <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-6 text-sm text-muted'>
-                Select a profile-loaded graphic config to edit preview and output settings.
+                Select a profile-loaded graphic config to edit preview settings.
               </div>
             )}
-          </div>
-        </section>
+          </section>
+        ) : null}
+
+        {activeTab === 'assets' ? (
+          <section className='space-y-4'>
+            <ReferenceImagesSection
+              referenceImages={settings.referenceImages}
+              draftName={draftReferenceImageName}
+              draftPath={draftReferenceImagePath}
+              isPickingReferenceImage={isPickingReferenceImage}
+              onDraftNameChange={setDraftReferenceImageName}
+              onDraftPathChange={setDraftReferenceImagePath}
+              onPickReferenceImage={handlePickReferenceImage}
+              onAddReferenceImage={addReferenceImage}
+              onRemoveReferenceImage={removeReferenceImage}
+            />
+          </section>
+        ) : null}
       </div>
     </Panel>
   )
@@ -499,7 +628,15 @@ function createDefaultBinding(): GraphicFieldBinding {
 }
 
 function createDefaultPreviewElement(index: number): PreviewElementDefinition {
-  const defaultBehavior = { fitInBox: true, minScaleX: 0.7, fontSize: 64, fontFamily: 'Arial', textAlign: 'left' as const }
+  const defaultBehavior = {
+    fitInBox: true,
+    minScaleX: 0.7,
+    fontSize: 64,
+    fontFamily: 'Arial',
+    textAlign: 'left' as const,
+    paddingLeft: 0,
+    paddingRight: 0,
+  }
 
   return {
     id: `element-${index}`,
@@ -748,6 +885,8 @@ function getElementBehavior(element: PreviewElementDefinition) {
   return {
     fontFamily: 'Arial',
     textAlign: 'left' as const,
+    paddingLeft: 0,
+    paddingRight: 0,
     ...(element.behavior ?? element.text ?? {}),
   }
 }
@@ -815,8 +954,7 @@ function getOscInputClass(hasError: boolean): string {
   }`
 }
 
-function getOscTargetValidationMessages(graphic: GraphicInstanceConfig): string[] {
-  const target = graphic.control.oscTarget
+function getOscTargetValidationMessages(target: { host: string; port: number } | undefined): string[] {
   if (!target) {
     return ['OSC target host and port are required before APlay can trigger this graphic.']
   }
@@ -1897,26 +2035,24 @@ function GraphicBindingSection({
   graphic,
   updateGraphic,
   updateBinding,
-  oscArgDrafts,
-  onOscArgDraftChange,
+  isPickingDatasourceJson,
+  onPickDatasourceJsonFile,
   testingOscActionKey,
   onTestOscCommand,
 }: {
   graphic: GraphicInstanceConfig
   updateGraphic: (updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig) => void
   updateBinding: (bindingIndex: number, updater: (binding: GraphicFieldBinding) => GraphicFieldBinding) => void
-  oscArgDrafts: Record<string, string>
-  onOscArgDraftChange: (draftKey: string, value: string) => void
+  isPickingDatasourceJson: boolean
+  onPickDatasourceJsonFile: () => Promise<void>
   testingOscActionKey: string | null
   onTestOscCommand: (
     graphic: GraphicInstanceConfig,
     actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   ) => Promise<void>
 }) {
-  const targetValidationMessages = getOscTargetValidationMessages(graphic)
-
   return (
-    <FormSection title='Graphic bindings' description='Datasource path, OSC target, typed trigger commands, and source field bindings live with the selected graphic config.'>
+    <FormSection title='Graphic bindings' description='Datasource path, LiveBoard template name, source field bindings, and debug trigger actions live with the selected graphic config.'>
       <div className='grid gap-3 md:grid-cols-2'>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic id</span>
@@ -1945,114 +2081,84 @@ function GraphicBindingSection({
           />
         </label>
         <label className='space-y-2'>
-          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Datasource JSON path</span>
+          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>LiveBoard template</span>
           <input
-            value={graphic.datasourcePath ?? ''}
-            onChange={(event) => updateGraphic((current) => ({ ...current, datasourcePath: event.target.value }))}
+            value={graphic.control.templateName ?? ''}
+            onChange={(event) => updateGraphic((current) => ({
+              ...current,
+              control: {
+                ...current.control,
+                templateName: normalizeOptionalInput(event.target.value),
+              },
+            }))}
+            placeholder='LOWER_THIRD_01'
             className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
           />
+        </label>
+        <label className='space-y-2'>
+          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Datasource JSON path</span>
+          <div className='flex gap-2'>
+            <input
+              value={graphic.datasourcePath ?? ''}
+              onChange={(event) => updateGraphic((current) => ({ ...current, datasourcePath: event.target.value }))}
+              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            />
+            <button
+              type='button'
+              onClick={() => void onPickDatasourceJsonFile()}
+              disabled={isPickingDatasourceJson}
+              className='shrink-0 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+            >
+              {isPickingDatasourceJson ? 'Choosing...' : 'Choose JSON'}
+            </button>
+          </div>
         </label>
       </div>
 
       <div className='space-y-4 rounded-3xl border border-border bg-surface/30 p-4'>
         <div className='flex flex-wrap items-start justify-between gap-3'>
           <div>
-            <p className='text-sm font-semibold text-ink'>OSC target</p>
+            <p className='text-sm font-semibold text-ink'>Graphic debug actions</p>
             <p className='mt-1 text-sm text-muted'>
-              These values tell APlay where to send trigger commands. This form edits config only and does not call the OSC client directly.
+              Trigger the global OSC commands using the selected graphic and its configured LiveBoard template name.
             </p>
           </div>
           <span className='rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-muted'>
-            Save or reload with the normal settings actions
+            Goes through GraphicsAdapter
           </span>
         </div>
 
-        <div className='grid gap-3 md:grid-cols-2'>
-          <label className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Host</span>
-            <input
-              value={graphic.control.oscTarget?.host ?? ''}
-              onChange={(event) => updateGraphic((current) => ({
-                ...current,
-                control: {
-                  ...current.control,
-                  oscTarget: {
-                    host: event.target.value,
-                    port: current.control.oscTarget?.port ?? 9000,
-                  },
-                },
-              }))}
-              placeholder='127.0.0.1'
-              className={getOscInputClass(targetValidationMessages.some((message) => message.includes('host')))}
-            />
-          </label>
-          <label className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Port</span>
-            <input
-              type='number'
-              min={1}
-              max={65535}
-              value={graphic.control.oscTarget?.port ?? 9000}
-              onChange={(event) => updateGraphic((current) => ({
-                ...current,
-                control: {
-                  ...current.control,
-                  oscTarget: {
-                    host: current.control.oscTarget?.host ?? '',
-                    port: Number(event.target.value),
-                  },
-                },
-              }))}
-              className={getOscInputClass(targetValidationMessages.some((message) => message.includes('port')))}
-            />
-          </label>
+        <div className='flex flex-wrap gap-2'>
+          {([
+            { actionType: 'playGraphic', label: 'Test play' },
+            { actionType: 'stopGraphic', label: 'Test stop' },
+            { actionType: 'resumeGraphic', label: 'Test resume' },
+          ] as const).map((action) => {
+            const isTesting = testingOscActionKey === `${graphic.id}:${action.actionType}`
+
+            return (
+              <button
+                key={action.actionType}
+                type='button'
+                onClick={() => onTestOscCommand(graphic, action.actionType)}
+                disabled={isTesting}
+                className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+              >
+                {isTesting ? 'Sending...' : action.label}
+              </button>
+            )
+          })}
         </div>
 
-        {targetValidationMessages.length > 0 ? (
-          <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
-            {targetValidationMessages.map((message) => <p key={message}>{message}</p>)}
+        {graphic.control.templateName?.trim() ? (
+          <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+            Template argument is ready: <span className='font-semibold'>{graphic.control.templateName}</span>
           </div>
         ) : (
-          <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
-            OSC target is configured and ready to save.
+          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+            Set a LiveBoard template name for this graphic if the global OSC commands use the <code>{'{{templateName}}'}</code> placeholder.
           </div>
         )}
-      </div>
-
-      <div className='space-y-4'>
-        <OscCommandEditor
-          graphic={graphic}
-          commandKey='play'
-          label='Play command'
-          command={graphic.control.play}
-          updateGraphic={updateGraphic}
-          oscArgDrafts={oscArgDrafts}
-          onOscArgDraftChange={onOscArgDraftChange}
-          testingOscActionKey={testingOscActionKey}
-          onTestOscCommand={onTestOscCommand}
-        />
-        <OscCommandEditor
-          graphic={graphic}
-          commandKey='stop'
-          label='Stop command'
-          command={graphic.control.stop}
-          updateGraphic={updateGraphic}
-          oscArgDrafts={oscArgDrafts}
-          onOscArgDraftChange={onOscArgDraftChange}
-          testingOscActionKey={testingOscActionKey}
-          onTestOscCommand={onTestOscCommand}
-        />
-        <OscCommandEditor
-          graphic={graphic}
-          commandKey='resume'
-          label='Resume command'
-          command={graphic.control.resume}
-          updateGraphic={updateGraphic}
-          oscArgDrafts={oscArgDrafts}
-          onOscArgDraftChange={onOscArgDraftChange}
-          testingOscActionKey={testingOscActionKey}
-          onTestOscCommand={onTestOscCommand}
-        />
       </div>
 
       <div className='space-y-3'>
@@ -2105,6 +2211,141 @@ function GraphicBindingSection({
         ))}
       </div>
     </FormSection>
+  )
+}
+
+function GlobalOscSettingsSection({
+  settings,
+  onSettingsChange,
+  oscArgDrafts,
+  onOscArgDraftChange,
+}: {
+  settings: AppSettings
+  onSettingsChange: (settings: AppSettings) => void
+  oscArgDrafts: Record<string, string>
+  onOscArgDraftChange: (draftKey: string, value: string) => void
+}) {
+  const oscSettings = settings.osc ?? {
+    target: {
+      host: '',
+      port: 9000,
+    },
+    commands: {
+      play: {
+        address: '/liveboard/play',
+        args: [{ type: 's' as const, value: '{{templateName}}' }],
+      },
+      stop: {
+        address: '/liveboard/stop',
+        args: [{ type: 's' as const, value: '{{templateName}}' }],
+      },
+      resume: {
+        address: '/liveboard/resume',
+        args: [{ type: 's' as const, value: '{{templateName}}' }],
+      },
+    },
+  }
+  const targetValidationMessages = getOscTargetValidationMessages(oscSettings.target)
+
+  const updateOscSettings = (updater: (current: NonNullable<AppSettings['osc']>) => NonNullable<AppSettings['osc']>) => {
+    onSettingsChange({
+      ...settings,
+      osc: updater(oscSettings),
+    })
+  }
+
+  return (
+    <div className='space-y-4'>
+      <FormSection title='OSC target' description='Target general pentru intreaga aplicatie. Toate graphic-urile trimit catre aceeasi destinatie LiveBoard.'>
+        <div className='grid gap-3 md:grid-cols-2'>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Host</span>
+            <input
+              value={oscSettings.target.host}
+              onChange={(event) => updateOscSettings((current) => ({
+                ...current,
+                target: {
+                  ...current.target,
+                  host: event.target.value,
+                },
+              }))}
+              placeholder='127.0.0.1'
+              className={getOscInputClass(targetValidationMessages.some((message) => message.includes('host')))}
+            />
+          </label>
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Port</span>
+            <input
+              type='number'
+              min={1}
+              max={65535}
+              value={oscSettings.target.port}
+              onChange={(event) => updateOscSettings((current) => ({
+                ...current,
+                target: {
+                  ...current.target,
+                  port: Number(event.target.value),
+                },
+              }))}
+              className={getOscInputClass(targetValidationMessages.some((message) => message.includes('port')))}
+            />
+          </label>
+        </div>
+
+        {targetValidationMessages.length > 0 ? (
+          <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+            {targetValidationMessages.map((message) => <p key={message}>{message}</p>)}
+          </div>
+        ) : (
+          <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+            OSC target general este configurat si gata de salvare.
+          </div>
+        )}
+      </FormSection>
+
+      <GlobalOscCommandEditor
+        label='Play command'
+        commandKey='play'
+        command={oscSettings.commands.play}
+        updateCommand={(command) => updateOscSettings((current) => ({
+          ...current,
+          commands: {
+            ...current.commands,
+            play: command,
+          },
+        }))}
+        oscArgDrafts={oscArgDrafts}
+        onOscArgDraftChange={onOscArgDraftChange}
+      />
+      <GlobalOscCommandEditor
+        label='Stop command'
+        commandKey='stop'
+        command={oscSettings.commands.stop}
+        updateCommand={(command) => updateOscSettings((current) => ({
+          ...current,
+          commands: {
+            ...current.commands,
+            stop: command,
+          },
+        }))}
+        oscArgDrafts={oscArgDrafts}
+        onOscArgDraftChange={onOscArgDraftChange}
+      />
+      <GlobalOscCommandEditor
+        label='Resume command'
+        commandKey='resume'
+        command={oscSettings.commands.resume}
+        updateCommand={(command) => updateOscSettings((current) => ({
+          ...current,
+          commands: {
+            ...current.commands,
+            resume: command,
+          },
+        }))}
+        oscArgDrafts={oscArgDrafts}
+        onOscArgDraftChange={onOscArgDraftChange}
+      />
+    </div>
   )
 }
 
@@ -2301,6 +2542,160 @@ function OscCommandEditor({
   )
 }
 
+function GlobalOscCommandEditor({
+  label,
+  commandKey,
+  command,
+  updateCommand,
+  oscArgDrafts,
+  onOscArgDraftChange,
+}: {
+  label: string
+  commandKey: 'play' | 'stop' | 'resume'
+  command: OscCommandConfig
+  updateCommand: (command: OscCommandConfig) => void
+  oscArgDrafts: Record<string, string>
+  onOscArgDraftChange: (draftKey: string, value: string) => void
+}) {
+  const validationMessages = getOscCommandValidationMessages(command)
+  const commandHasAddressError = validationMessages.some((message) => message.includes('start with "/"'))
+
+  return (
+    <section className='space-y-4 rounded-3xl border border-border bg-white p-5 shadow-sm'>
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <p className='text-sm font-semibold text-ink'>{label}</p>
+          <p className='mt-1 text-sm text-muted'>
+            Comanda generala LiveBoard. Foloseste <code>{'{{templateName}}'}</code> ca placeholder pentru numele template-ului setat pe graphic.
+          </p>
+        </div>
+        <button
+          type='button'
+          onClick={() => updateCommand({
+            ...command,
+            args: [...command.args, createDefaultOscArg()],
+          })}
+          className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+        >
+          Add arg
+        </button>
+      </div>
+
+      <label className='space-y-2'>
+        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Address</span>
+        <input
+          value={command.address}
+          onChange={(event) => updateCommand({
+            ...command,
+            address: event.target.value,
+          })}
+          placeholder='/liveboard/play'
+          className={getOscInputClass(commandHasAddressError)}
+        />
+      </label>
+
+      <div className='space-y-3'>
+        {command.args.map((arg, argIndex) => {
+          const draftKey = getOscArgDraftKey(`global-${commandKey}`, commandKey, argIndex)
+          const draftValue = oscArgDrafts[draftKey] ?? String(arg.value)
+          const argError = getOscArgInputError(arg, draftValue)
+
+          return (
+            <div key={draftKey} className='grid gap-3 rounded-2xl border border-border bg-surface/30 p-4 md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start'>
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Type</span>
+                <select
+                  value={arg.type}
+                  onChange={(event) => {
+                    const nextType = event.target.value as OscArgType
+                    updateCommand({
+                      ...command,
+                      args: command.args.map((currentArg, currentIndex) => currentIndex === argIndex
+                        ? { type: nextType, value: coerceOscArgValue(nextType, currentArg.value) }
+                        : currentArg),
+                    })
+                    onOscArgDraftChange(draftKey, String(coerceOscArgValue(nextType, arg.value)))
+                  }}
+                  className={getOscInputClass(false)}
+                >
+                  {oscArgTypes.map((argType) => (
+                    <option key={argType} value={argType}>
+                      {argType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Value</span>
+                <input
+                  type={arg.type === 's' ? 'text' : 'number'}
+                  step={arg.type === 'f' ? 'any' : 1}
+                  value={draftValue}
+                  onChange={(event) => {
+                    const nextDraftValue = event.target.value
+                    onOscArgDraftChange(draftKey, nextDraftValue)
+
+                    if (arg.type === 's') {
+                      updateCommand({
+                        ...command,
+                        args: command.args.map((currentArg, currentIndex) => currentIndex === argIndex
+                          ? { ...currentArg, value: nextDraftValue }
+                          : currentArg),
+                      })
+                      return
+                    }
+
+                    const numericValue = Number(nextDraftValue)
+                    if (!Number.isFinite(numericValue)) {
+                      return
+                    }
+                    if (arg.type === 'i' && !Number.isInteger(numericValue)) {
+                      return
+                    }
+
+                    updateCommand({
+                      ...command,
+                      args: command.args.map((currentArg, currentIndex) => currentIndex === argIndex
+                        ? { ...currentArg, value: arg.type === 'i' ? Math.trunc(numericValue) : numericValue }
+                        : currentArg),
+                    })
+                  }}
+                  className={getOscInputClass(argError !== null)}
+                />
+                {argError ? (
+                  <p className='text-xs font-medium text-rose-600'>{argError}</p>
+                ) : null}
+              </label>
+
+              <button
+                type='button'
+                onClick={() => updateCommand({
+                  ...command,
+                  args: command.args.filter((_, currentIndex) => currentIndex !== argIndex),
+                })}
+                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+              >
+                Remove
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {validationMessages.length > 0 ? (
+        <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+          {validationMessages.map((message) => <p key={message}>{message}</p>)}
+        </div>
+      ) : (
+        <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+          Global OSC command config is valid and ready to save.
+        </div>
+      )}
+    </section>
+  )
+}
+
 function PreviewTemplateSection({
   settings,
   graphic,
@@ -2323,7 +2718,7 @@ function PreviewTemplateSection({
 
   return (
     <FormSection title='Preview template' description='Edit the APlay-side preview approximation for the selected graphic.'>
-      <div className='grid gap-6 2xl:grid-cols-[minmax(0,1.2fr),minmax(22rem,0.8fr)]'>
+      <div className='grid gap-6 xl:grid-cols-2'>
         <div className='space-y-4'>
           <div className='grid gap-3 md:grid-cols-3'>
             <label className='space-y-2'>
@@ -2473,7 +2868,7 @@ function PreviewTemplateSection({
               const textBehavior = getElementBehavior(element)
 
               return (
-                <div key={element.id} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
+                <div key={`${elementIndex}`} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
                 <div className='flex items-center justify-between gap-3'>
                   <p className='text-sm font-semibold text-ink'>{element.id}</p>
                   <button
@@ -2599,6 +2994,10 @@ function PreviewTemplateSection({
                       updateElementBehavior(current, (behavior) => ({ ...behavior, minScaleX: value })))} />
                     <NumberField label='Font size' value={textBehavior?.fontSize ?? 64} min={0} max={300} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                       updateElementBehavior(current, (behavior) => ({ ...behavior, fontSize: value })))} />
+                    <NumberField label='Padding left' value={textBehavior?.paddingLeft ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                      updateElementBehavior(current, (behavior) => ({ ...behavior, paddingLeft: value })))} />
+                    <NumberField label='Padding right' value={textBehavior?.paddingRight ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                      updateElementBehavior(current, (behavior) => ({ ...behavior, paddingRight: value })))} />
                     <label className='space-y-2 md:col-span-2'>
                       <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
                       <input
@@ -2629,7 +3028,7 @@ function PreviewTemplateSection({
           </div>
         </div>
 
-        <aside className='space-y-4 self-start rounded-3xl border border-border bg-slate-950 p-5 text-white shadow-panel 2xl:sticky 2xl:top-6'>
+        <aside className='space-y-4 self-start rounded-3xl border border-border bg-slate-950 p-5 text-white shadow-panel xl:sticky xl:top-6'>
           <div className='flex items-center justify-between gap-3'>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300'>Preview</p>

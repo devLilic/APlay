@@ -2,8 +2,8 @@ import type { ActionType } from '@/core/actions/actionTypes'
 import { actionTypes } from '@/core/actions/actionTypes'
 import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
-  resolveOscCommandAddress,
-  resolveOscCommandArgs,
+  resolveOptionalOscCommandAddress,
+  resolveOptionalOscCommandArgs,
 } from '@/settings/schemas/oscConfigSchemas'
 import type {
   GraphicOutputAdapter,
@@ -46,8 +46,8 @@ export function createOscGraphicOutputAdapter(): OscGraphicOutputAdapter {
 
       return {
         actionType: input.actionType,
-        address: resolveOscCommandAddress(commandConfig),
-        args: resolveOscCommandArgs(commandConfig),
+        address: resolveOptionalOscCommandAddress(commandConfig),
+        args: resolveOptionalOscCommandArgs(commandConfig),
       }
     },
     sendForGraphic(
@@ -55,11 +55,11 @@ export function createOscGraphicOutputAdapter(): OscGraphicOutputAdapter {
       transport: OscTransport,
     ): GraphicOutputExecutionResult {
       const commandConfig = resolveOscCommand(input.graphic, input.actionType)
-      const address = resolveOscCommandAddress(commandConfig)
+      const address = resolveOptionalOscCommandAddress(commandConfig)
       const command: GraphicOutputCommand = {
         actionType: input.actionType,
         address,
-        args: resolveOscCommandArgs(commandConfig),
+        args: resolveOptionalOscCommandArgs(commandConfig),
       }
 
       if (!address) {
@@ -113,13 +113,13 @@ function resolveOscAddress(
   graphic: GraphicInstanceConfig,
   actionType: ActionType,
 ) {
-  return resolveOscCommandAddress(resolveOscCommand(graphic, actionType))
+  return resolveOptionalOscCommandAddress(resolveOscCommand(graphic, actionType))
 }
 
 function resolveOscCommand(
   graphic: GraphicInstanceConfig,
   actionType: ActionType,
-) {
+): GraphicInstanceConfig['control']['play'] {
   switch (actionType) {
     case 'playGraphic':
       return graphic.control.play

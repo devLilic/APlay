@@ -1,4 +1,4 @@
-import { UDPPort, type OscMessage, type UDPPortOptions } from 'osc'
+import osc, { type OscMessage, type UDPPortOptions } from 'osc'
 
 export interface OscArg {
   type: 's' | 'i' | 'f'
@@ -31,6 +31,7 @@ export interface OscClientDependencies {
 
 const defaultDependencies: OscClientDependencies = {
   createPort(options) {
+    const { UDPPort } = osc
     return new UDPPort(options)
   },
   log: console.log.bind(console),

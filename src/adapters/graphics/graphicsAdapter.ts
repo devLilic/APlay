@@ -1,6 +1,6 @@
 import type { ActionType } from '@/core/actions/actionTypes'
 import type { SupportedEntityType } from '@/core/entities/entityTypes'
-import type { GraphicInstanceConfig, OscArgConfig } from '@/settings/models/appConfig'
+import type { GraphicInstanceConfig, OscArgConfig, OscSettingsConfig } from '@/settings/models/appConfig'
 import type {
   EntityPublishInput,
   FieldBinding,
@@ -14,6 +14,7 @@ import { validateOscHost, validateOscPort } from '@/settings/schemas/oscConfigSc
 
 export type GraphicsAdapterDiagnosticCode =
   | 'missing-bindings'
+  | 'missing-template-name'
   | 'missing-osc-target'
   | 'publish-failed'
   | 'missing-osc-address'
@@ -46,6 +47,7 @@ export interface GraphicsAdapterActionInput {
   entity: EntityPublishInput['entity']
   graphic: GraphicInstanceConfig
   bindings?: FieldBinding[]
+  oscSettings?: OscSettingsConfig
 }
 
 export interface GraphicsAdapter {
@@ -87,7 +89,7 @@ async function runGraphicsAction(
   publishTarget: JsonDatasourcePublishTargetAdapter,
   graphicOutput: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'>,
 ): Promise<GraphicsAdapterExecutionResult> {
-  const target = resolveOscTarget(input.graphic)
+  const target = resolveOscTarget(input)
   if (!target.success) {
     return {
       success: false,
@@ -144,12 +146,17 @@ async function runGraphicsAction(
     }
   }
 
-  const builtCommand = graphicOutput.buildCommand({
-    actionType,
-    graphic: input.graphic,
-  })
+  const builtCommand = resolveCommand(input, actionType, graphicOutput)
+  if (!builtCommand.success) {
+    return {
+      success: false,
+      actionType,
+      targetFile: actionType === 'playGraphic' ? targetFile : undefined,
+      diagnostics: builtCommand.diagnostics,
+    }
+  }
 
-  if (!builtCommand.address) {
+  if (!builtCommand.command.address) {
     return {
       success: false,
       actionType,
@@ -174,7 +181,23 @@ async function runGraphicsAction(
   })
 
   try {
-    await oscClient.send(builtCommand.address, builtCommand.args as OscArgConfig[])
+    const command = builtCommand.command
+
+    if (actionType === 'playGraphic') {
+      console.log('OSC PLAY STRUCTURE', {
+        actionType,
+        graphicId: input.graphic.id,
+        targetFile,
+        osc: {
+          host: target.host,
+          port: target.port,
+          address: command.address,
+          args: command.args as OscArgConfig[],
+        },
+      })
+    }
+
+    await oscClient.send(command.address, command.args as OscArgConfig[])
 
     return {
       success: true,
@@ -183,8 +206,8 @@ async function runGraphicsAction(
       command: {
         host: target.host,
         port: target.port,
-        address: builtCommand.address,
-        args: builtCommand.args as OscArgConfig[],
+        address: command.address,
+        args: command.args as OscArgConfig[],
       },
       diagnostics: [],
     }
@@ -196,8 +219,8 @@ async function runGraphicsAction(
       command: {
         host: target.host,
         port: target.port,
-        address: builtCommand.address,
-        args: builtCommand.args as OscArgConfig[],
+        address: builtCommand.command.address,
+        args: builtCommand.command.args as OscArgConfig[],
       },
       diagnostics: [
         {
@@ -209,7 +232,7 @@ async function runGraphicsAction(
           details: {
             actionType,
             graphicId: input.graphic.id,
-            address: builtCommand.address,
+            address: builtCommand.command.address,
             host: target.host,
             port: target.port,
           },
@@ -219,10 +242,10 @@ async function runGraphicsAction(
   }
 }
 
-function resolveOscTarget(graphic: GraphicInstanceConfig):
+function resolveOscTarget(input: GraphicsAdapterActionInput):
   | { success: true; host: string; port: number }
   | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
-  const target = graphic.control.oscTarget
+  const target = input.oscSettings?.target ?? input.graphic.control.oscTarget
   if (!target) {
     return {
       success: false,
@@ -230,9 +253,9 @@ function resolveOscTarget(graphic: GraphicInstanceConfig):
         {
           severity: 'error',
           code: 'missing-osc-target',
-          message: `Missing OSC target for graphic "${graphic.id}"`,
+          message: `Missing OSC target for graphic "${input.graphic.id}"`,
           details: {
-            graphicId: graphic.id,
+            graphicId: input.graphic.id,
           },
         },
       ],
@@ -241,8 +264,8 @@ function resolveOscTarget(graphic: GraphicInstanceConfig):
 
   try {
     const host = target.host.trim()
-    validateOscHost(host, `graphic.control.oscTarget.host (${graphic.id})`)
-    validateOscPort(target.port, `graphic.control.oscTarget.port (${graphic.id})`)
+    validateOscHost(host, `osc target host (${input.graphic.id})`)
+    validateOscPort(target.port, `osc target port (${input.graphic.id})`)
 
     return {
       success: true,
@@ -256,9 +279,9 @@ function resolveOscTarget(graphic: GraphicInstanceConfig):
         {
           severity: 'error',
           code: 'missing-osc-target',
-          message: error instanceof Error ? error.message : `Missing OSC target for graphic "${graphic.id}"`,
+          message: error instanceof Error ? error.message : `Missing OSC target for graphic "${input.graphic.id}"`,
           details: {
-            graphicId: graphic.id,
+            graphicId: input.graphic.id,
           },
         },
       ],
@@ -273,4 +296,74 @@ function resolveDatasourceTargetPath(graphic: GraphicInstanceConfig): string {
   }
 
   return `datasources/${graphic.dataFileName}`
+}
+
+function resolveCommand(
+  input: GraphicsAdapterActionInput,
+  actionType: ActionType,
+  graphicOutput: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'>,
+):
+  | { success: true; command: { address: string; args: OscArgConfig[] } }
+  | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
+  if (input.oscSettings) {
+    const commandConfig = actionType === 'playGraphic'
+      ? input.oscSettings.commands.play
+      : actionType === 'stopGraphic'
+        ? input.oscSettings.commands.stop
+        : input.oscSettings.commands.resume
+
+    const resolvedArgs = commandConfig.args.map((arg) => {
+      if (arg.type === 's' && arg.value === '{{templateName}}') {
+        return {
+          ...arg,
+          value: input.graphic.control.templateName ?? '',
+        }
+      }
+
+      return arg
+    })
+
+    if (
+      resolvedArgs.some((arg) =>
+        arg.type === 's' &&
+        arg.value === '' &&
+        commandConfig.args.some((sourceArg) => sourceArg.type === 's' && sourceArg.value === '{{templateName}}'))
+    ) {
+      return {
+        success: false,
+        diagnostics: [
+          {
+            severity: 'error',
+            code: 'missing-template-name',
+            message: `Missing LiveBoard template name for graphic "${input.graphic.id}"`,
+            details: {
+              actionType,
+              graphicId: input.graphic.id,
+            },
+          },
+        ],
+      }
+    }
+
+    return {
+      success: true,
+      command: {
+        address: commandConfig.address,
+        args: resolvedArgs,
+      },
+    }
+  }
+
+  const command = graphicOutput.buildCommand({
+    actionType,
+    graphic: input.graphic,
+  })
+
+  return {
+    success: true,
+    command: {
+      address: command.address,
+      args: command.args as OscArgConfig[],
+    },
+  }
 }

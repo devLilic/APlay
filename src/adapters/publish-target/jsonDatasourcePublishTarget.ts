@@ -228,8 +228,13 @@ function normalizeTextValue(value: string | undefined): string | undefined {
 }
 
 function isValidTargetFile(targetFile: string): boolean {
-  return (
-    targetFile.trim().length > 0 &&
-    !/[<>:"|?*]/.test(targetFile)
-  )
+  const normalizedTargetFile = targetFile.trim()
+
+  if (normalizedTargetFile.length === 0) {
+    return false
+  }
+
+  const withoutWindowsDrivePrefix = normalizedTargetFile.replace(/^[a-zA-Z]:[\\/]/, '')
+
+  return !/[<>:"|?*]/.test(withoutWindowsDrivePrefix)
 }

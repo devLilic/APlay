@@ -42,6 +42,8 @@ export interface PreviewTemplateLayoutElement {
     minScaleX?: number
     whiteSpace?: 'nowrap'
     textAlign?: PreviewTextAlign
+    paddingLeft?: number
+    paddingRight?: number
   }
 }
 
@@ -121,7 +123,10 @@ export function calculateTextElementStyle(
   const allCaps = input.text?.allCaps ?? false
   const content = allCaps ? input.content.toUpperCase() : input.content
   const scaleX = calculateScaleToFit({
-    availableWidth: input.boxWidth,
+    availableWidth: Math.max(
+      input.boxWidth - (input.text?.paddingLeft ?? 0) - (input.text?.paddingRight ?? 0),
+      0,
+    ),
     textWidth: measurement.measuredTextWidth,
     fitInBox: input.text?.fitInBox,
     minScaleX: input.text?.minScaleX,
@@ -217,6 +222,8 @@ function calculatePreviewElementLayout(
         minScaleX: behavior?.minScaleX,
         whiteSpace: textStyle.style.whiteSpace,
         textAlign: behavior?.textAlign ?? 'left',
+        paddingLeft: (behavior?.paddingLeft ?? 0) * scale.scaleX,
+        paddingRight: (behavior?.paddingRight ?? 0) * scale.scaleX,
       },
     }
   }

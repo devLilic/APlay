@@ -1,5 +1,5 @@
-import { graphicInstanceConfigSchema } from '@/settings/schemas/appConfigSchemas'
-import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
+import { graphicInstanceConfigSchema } from '../schemas/appConfigSchemas'
+import type { GraphicInstanceConfig } from '../models/appConfig'
 
 export const graphicConfigExportVersion = 1 as const
 export const graphicConfigExportType = 'graphic-config' as const

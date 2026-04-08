@@ -97,6 +97,22 @@ export function resolveOscCommandArgs(command: string | OscCommandConfig): OscAr
   return typeof command === 'string' ? [] : command.args
 }
 
+export function resolveOptionalOscCommandAddress(command: string | OscCommandConfig | undefined): string {
+  if (!command) {
+    return ''
+  }
+
+  return resolveOscCommandAddress(command)
+}
+
+export function resolveOptionalOscCommandArgs(command: string | OscCommandConfig | undefined): OscArgConfig[] {
+  if (!command) {
+    return []
+  }
+
+  return resolveOscCommandArgs(command)
+}
+
 export function validateOscAddress(address: string, context = 'oscCommandConfig.address'): void {
   if (!address.startsWith('/') || address.length < 2) {
     throw new SchemaValidationError(`${context} must start with "/"`)

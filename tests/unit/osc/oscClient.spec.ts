@@ -42,6 +42,9 @@ vi.mock('osc', () => {
   }
 
   return {
+    default: {
+      UDPPort: MockUdpPort,
+    },
     UDPPort: MockUdpPort,
   }
 })

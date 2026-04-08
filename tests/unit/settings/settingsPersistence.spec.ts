@@ -7,6 +7,26 @@ import {
 
 const baseSettings = {
   selectedProfileId: 'news-am',
+  osc: {
+    target: {
+      host: '127.0.0.1',
+      port: 9000,
+    },
+    commands: {
+      play: {
+        address: '/graphics/play',
+        args: [{ type: 's', value: '{{templateName}}' }],
+      },
+      stop: {
+        address: '/graphics/stop',
+        args: [{ type: 's', value: '{{templateName}}' }],
+      },
+      resume: {
+        address: '/graphics/resume',
+        args: [{ type: 's', value: '{{templateName}}' }],
+      },
+    },
+  },
   referenceImages: [
     {
       id: 'ref-title',
@@ -106,26 +126,7 @@ const baseSettings = {
       entityType: 'title',
       dataFileName: 'title-main.json',
       control: {
-        oscTarget: {
-          host: '127.0.0.1',
-          port: 9000,
-        },
-        play: {
-          address: '/graphics/title/play',
-          args: [
-            { type: 's', value: 'TitleTemplate' },
-            { type: 'i', value: 1 },
-            { type: 'f', value: 0.5 },
-          ],
-        },
-        stop: {
-          address: '/graphics/title/stop',
-          args: [],
-        },
-        resume: {
-          address: '/graphics/title/resume',
-          args: [{ type: 's', value: 'resume' }],
-        },
+        templateName: 'TitleTemplate',
       },
       preview: {
         id: 'title-preview',
@@ -276,28 +277,27 @@ describe('settings storage load/save', () => {
 
     repository.save(baseSettings)
 
-    expect(repository.load().graphics.find((graphic) => graphic.id === 'title-main')?.control).toEqual({
-      oscTarget: {
+    expect(repository.load().osc).toEqual({
+      target: {
         host: '127.0.0.1',
         port: 9000,
       },
-      play: {
-        address: '/graphics/title/play',
-        args: [
-          { type: 's', value: 'TitleTemplate' },
-          { type: 'i', value: 1 },
-          { type: 'f', value: 0.5 },
-        ],
-      },
-      stop: {
-        address: '/graphics/title/stop',
-        args: [],
-      },
-      resume: {
-        address: '/graphics/title/resume',
-        args: [{ type: 's', value: 'resume' }],
+      commands: {
+        play: {
+          address: '/graphics/play',
+          args: [{ type: 's', value: '{{templateName}}' }],
+        },
+        stop: {
+          address: '/graphics/stop',
+          args: [{ type: 's', value: '{{templateName}}' }],
+        },
+        resume: {
+          address: '/graphics/resume',
+          args: [{ type: 's', value: '{{templateName}}' }],
+        },
       },
     })
+    expect(repository.load().graphics.find((graphic) => graphic.id === 'title-main')?.control.templateName).toBe('TitleTemplate')
   })
 })
 

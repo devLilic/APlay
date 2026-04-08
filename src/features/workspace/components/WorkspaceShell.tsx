@@ -126,7 +126,12 @@ export function WorkspaceShell() {
   }
 
   const handleAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    setFeedback(await runWorkspaceGraphicAction(actionType, selectedEntity, workspaceData.graphicsByEntityType))
+    setFeedback(await runWorkspaceGraphicAction(
+      actionType,
+      selectedEntity,
+      workspaceData.graphicsByEntityType,
+      loadState.snapshot.settings.osc,
+    ))
   }
 
   const handleCollectionColumnDrop = (column: CollectionColumnIndex) => {
@@ -287,7 +292,12 @@ export function WorkspaceShell() {
     graphic: GraphicInstanceConfig,
     actionType: (typeof actionTypes)[keyof typeof actionTypes],
   ) => {
-    const result = await runWorkspaceGraphicDebugAction(actionType, graphic, previewContent)
+    const result = await runWorkspaceGraphicDebugAction(
+      actionType,
+      graphic,
+      loadState.snapshot.settings.osc,
+      previewContent,
+    )
 
     setSettingsFeedback({
       kind: result.kind,

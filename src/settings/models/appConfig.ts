@@ -18,6 +18,8 @@ export interface TextBehaviorConfig {
   fontSize?: number
   fontFamily?: string
   textAlign?: PreviewTextAlign
+  paddingLeft?: number
+  paddingRight?: number
 }
 
 export interface ReferenceImageAsset {
@@ -54,11 +56,23 @@ export interface OscCommandConfig {
   args: OscArgConfig[]
 }
 
+export interface OscCommandSetConfig {
+  play: OscCommandConfig
+  stop: OscCommandConfig
+  resume: OscCommandConfig
+}
+
+export interface OscSettingsConfig {
+  target: OscTargetConfig
+  commands: OscCommandSetConfig
+}
+
 export interface GraphicControlConfig {
+  templateName?: string
   oscTarget?: OscTargetConfig
-  play: string | OscCommandConfig
-  stop: string | OscCommandConfig
-  resume: string | OscCommandConfig
+  play?: string | OscCommandConfig
+  stop?: string | OscCommandConfig
+  resume?: string | OscCommandConfig
 }
 
 export interface ActionButtonConfig {
@@ -194,6 +208,7 @@ export interface ShowProfileConfig {
 
 export interface AppSettings {
   selectedProfileId: string
+  osc?: OscSettingsConfig
   referenceImages: ReferenceImageAsset[]
   sourceSchemas: CsvSourceSchemaConfig[]
   profiles: ShowProfileConfig[]

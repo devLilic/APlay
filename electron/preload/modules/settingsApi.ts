@@ -2,15 +2,18 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppLanguage } from '../../../config/types'
 import {
   ipcInvokeChannels,
+  type DatasourceFileWriteResponse,
   type GraphicConfigExportResponse,
+  type OscSendResponse,
   type ProfileConfigExportResponse,
+  type DatasourceJsonPickerResponse,
   type ReferenceImageDataResponse,
   type ReferenceImagePickerResponse,
   type SettingsGetResponse,
   type SourceFileReadResponse,
   type SourceCsvPickerResponse,
 } from '../../../src/shared/ipc/contracts'
-import type { AppSettings, GraphicInstanceConfig } from '../../../src/settings/models/appConfig'
+import type { AppSettings, GraphicInstanceConfig, OscArgConfig } from '../../../src/settings/models/appConfig'
 import type { UpdatePreferences, UiPreferences } from '../../../src/shared/settings/types'
 import { invoke } from './shared'
 
@@ -48,6 +51,10 @@ export function registerSettingsApi() {
       const response = await invoke(ipcInvokeChannels.settingsPickSourceCsvFile)
       return extractCsvFilePath(response)
     },
+    async pickDatasourceJsonFile(): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsPickDatasourceJsonFile)
+      return extractDatasourceJsonFilePath(response)
+    },
     async readReferenceImage(filePath: string): Promise<string | null> {
       const response = await invoke(ipcInvokeChannels.settingsReadReferenceImage, { filePath })
       return extractDataUrl(response)
@@ -55,6 +62,13 @@ export function registerSettingsApi() {
     readSourceFileSync(filePath: string): string | null {
       const response = ipcRenderer.sendSync(ipcInvokeChannels.settingsReadSourceFile, { filePath }) as SourceFileReadResponse
       return response.content
+    },
+    writeDatasourceFileSync(filePath: string, content: string): void {
+      const response = ipcRenderer.sendSync(
+        ipcInvokeChannels.settingsWriteDatasourceFile,
+        { filePath, content },
+      ) as DatasourceFileWriteResponse
+      extractDatasourceWriteResult(response)
     },
     async exportGraphicConfig(graphicConfig: GraphicInstanceConfig, suggestedFileName?: string): Promise<string | null> {
       const response = await invoke(ipcInvokeChannels.settingsExportGraphicConfig, {
@@ -70,6 +84,15 @@ export function registerSettingsApi() {
         suggestedFileName,
       })
       return extractProfileConfigExportPath(response)
+    },
+    async sendOscMessage(host: string, port: number, address: string, args: OscArgConfig[]): Promise<void> {
+      const response = await invoke(ipcInvokeChannels.settingsSendOscMessage, {
+        host,
+        port,
+        address,
+        args,
+      })
+      extractOscSendResult(response)
     },
   })
 }
@@ -90,10 +113,26 @@ function extractCsvFilePath(payload: SourceCsvPickerResponse): string | null {
   return payload.filePath
 }
 
+function extractDatasourceJsonFilePath(payload: DatasourceJsonPickerResponse): string | null {
+  return payload.filePath
+}
+
 function extractGraphicConfigExportPath(payload: GraphicConfigExportResponse): string | null {
   return payload.filePath
 }
 
 function extractProfileConfigExportPath(payload: ProfileConfigExportResponse): string | null {
   return payload.filePath
+}
+
+function extractOscSendResult(payload: OscSendResponse): void {
+  if (!payload.ok) {
+    throw new Error('OSC send failed')
+  }
+}
+
+function extractDatasourceWriteResult(payload: DatasourceFileWriteResponse): void {
+  if (!payload.ok) {
+    throw new Error(payload.error ?? 'Datasource write failed')
+  }
 }

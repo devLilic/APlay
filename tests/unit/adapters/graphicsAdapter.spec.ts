@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
+import type { GraphicInstanceConfig, OscSettingsConfig } from '@/settings/models/appConfig'
 import { createGraphicsAdapter } from '@/adapters/graphics/graphicsAdapter'
 
 const graphicConfig: GraphicInstanceConfig = {
@@ -7,25 +7,18 @@ const graphicConfig: GraphicInstanceConfig = {
   entityType: 'title',
   dataFileName: 'title-main.json',
   control: {
-    oscTarget: {
-      host: '127.0.0.1',
-      port: 9000,
-    },
+    templateName: 'TemplateName',
     play: {
-      address: '/lb/title/play',
-      args: [
-        { type: 's', value: 'TemplateName' },
-        { type: 'i', value: 1 },
-        { type: 'f', value: 0.5 },
-      ],
+      address: '',
+      args: [],
     },
     stop: {
-      address: '/lb/title/stop',
+      address: '',
       args: [],
     },
     resume: {
-      address: '/lb/title/resume',
-      args: [{ type: 's', value: 'resume' }],
+      address: '',
+      args: [],
     },
   },
   bindings: [{ sourceField: 'text', targetField: 'text', required: true }],
@@ -47,6 +40,31 @@ const graphicConfig: GraphicInstanceConfig = {
     { actionType: 'stopGraphic', label: 'Stop' },
     { actionType: 'resumeGraphic', label: 'Resume' },
   ],
+}
+
+const oscSettings: OscSettingsConfig = {
+  target: {
+    host: '127.0.0.1',
+    port: 9000,
+  },
+  commands: {
+    play: {
+      address: '/lb/play',
+      args: [
+        { type: 's', value: '{{templateName}}' },
+        { type: 'i', value: 1 },
+        { type: 'f', value: 0.5 },
+      ],
+    },
+    stop: {
+      address: '/lb/stop',
+      args: [{ type: 's', value: '{{templateName}}' }],
+    },
+    resume: {
+      address: '/lb/resume',
+      args: [{ type: 's', value: '{{templateName}}' }],
+    },
+  },
 }
 
 describe('GraphicsAdapter', () => {
@@ -72,6 +90,7 @@ describe('GraphicsAdapter', () => {
       entity: { text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
+      oscSettings,
     })
 
     expect(calls).toEqual(['write', 'osc'])
@@ -82,7 +101,7 @@ describe('GraphicsAdapter', () => {
       command: {
         host: '127.0.0.1',
         port: 9000,
-        address: '/lb/title/play',
+        address: '/lb/play',
         args: [
           { type: 's', value: 'TemplateName' },
           { type: 'i', value: 1 },
@@ -110,6 +129,7 @@ describe('GraphicsAdapter', () => {
       entity: { text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
+      oscSettings,
     })
 
     expect(result.success).toBe(false)
@@ -138,11 +158,12 @@ describe('GraphicsAdapter', () => {
       entity: { text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
+      oscSettings,
     })
 
     expect(result.success).toBe(true)
     expect(write).not.toHaveBeenCalled()
-    expect(send).toHaveBeenCalledWith('/lb/title/stop', [])
+    expect(send).toHaveBeenCalledWith('/lb/stop', [{ type: 's', value: 'TemplateName' }])
   })
 
   it('sends resume with the configured address and typed args', async () => {
@@ -163,10 +184,11 @@ describe('GraphicsAdapter', () => {
       entity: { text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
+      oscSettings,
     })
 
     expect(result.success).toBe(true)
-    expect(send).toHaveBeenCalledWith('/lb/title/resume', [{ type: 's', value: 'resume' }])
+    expect(send).toHaveBeenCalledWith('/lb/resume', [{ type: 's', value: 'TemplateName' }])
   })
 
   it('handles missing play command safely', async () => {
@@ -188,20 +210,18 @@ describe('GraphicsAdapter', () => {
         ...graphicConfig,
         control: {
           ...graphicConfig.control,
-          play: {
-            address: '',
-            args: [],
-          },
+          templateName: undefined,
         },
       },
       bindings: graphicConfig.bindings,
+      oscSettings,
     })
 
     expect(result).toMatchObject({
       success: false,
       diagnostics: [
         {
-          code: 'missing-osc-address',
+          code: 'missing-template-name',
         },
       ],
     })
@@ -224,33 +244,35 @@ describe('GraphicsAdapter', () => {
     const stopResult = await adapter.stop({
       entityType: 'title',
       entity: { text: 'Morning Briefing' },
-      graphic: {
-        ...graphicConfig,
-        control: {
-          ...graphicConfig.control,
+      graphic: graphicConfig,
+      bindings: graphicConfig.bindings,
+      oscSettings: {
+        ...oscSettings,
+        commands: {
+          ...oscSettings.commands,
           stop: {
             address: '',
             args: [],
           },
         },
       },
-      bindings: graphicConfig.bindings,
     })
 
     const resumeResult = await adapter.resume({
       entityType: 'title',
       entity: { text: 'Morning Briefing' },
-      graphic: {
-        ...graphicConfig,
-        control: {
-          ...graphicConfig.control,
+      graphic: graphicConfig,
+      bindings: graphicConfig.bindings,
+      oscSettings: {
+        ...oscSettings,
+        commands: {
+          ...oscSettings.commands,
           resume: {
             address: '',
             args: [],
           },
         },
       },
-      bindings: graphicConfig.bindings,
     })
 
     expect(stopResult.diagnostics[0]?.code).toBe('missing-osc-address')
@@ -272,14 +294,9 @@ describe('GraphicsAdapter', () => {
     const result = await adapter.stop({
       entityType: 'title',
       entity: { text: 'Morning Briefing' },
-      graphic: {
-        ...graphicConfig,
-        control: {
-          ...graphicConfig.control,
-          oscTarget: undefined,
-        },
-      },
+      graphic: graphicConfig,
       bindings: graphicConfig.bindings,
+      oscSettings: undefined,
     })
 
     expect(result.diagnostics[0]?.code).toBe('missing-osc-target')
@@ -308,6 +325,7 @@ describe('GraphicsAdapter', () => {
       entity: { text: 'Morning Briefing' },
       graphic: graphicConfig,
       bindings: graphicConfig.bindings,
+      oscSettings,
     })
 
     expect(calls).toEqual(['write', 'osc'])

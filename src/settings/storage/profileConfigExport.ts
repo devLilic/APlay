@@ -4,14 +4,14 @@ import type {
   GraphicInstanceConfig,
   ReferenceImageAsset,
   ShowProfileConfig,
-} from '@/settings/models/appConfig'
+} from '../models/appConfig'
 import {
   appSettingsSchema,
   csvSourceSchemaConfigSchema,
   graphicInstanceConfigSchema,
   referenceImageAssetSchema,
   showProfileConfigSchema,
-} from '@/settings/schemas/appConfigSchemas'
+} from '../schemas/appConfigSchemas'
 
 export const profileConfigExportVersion = 1 as const
 export const profileConfigExportType = 'profile-config' as const

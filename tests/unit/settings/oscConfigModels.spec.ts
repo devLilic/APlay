@@ -15,6 +15,30 @@ import {
 
 const baseSettingsWithOsc = {
   selectedProfileId: 'news-am',
+  osc: {
+    target: {
+      host: '127.0.0.1',
+      port: 53000,
+    },
+    commands: {
+      play: {
+        address: '/liveboard/play',
+        args: [
+          { type: 's', value: '{{templateName}}' },
+          { type: 'i', value: 1 },
+          { type: 'f', value: 0.5 },
+        ],
+      },
+      stop: {
+        address: '/liveboard/stop',
+        args: [],
+      },
+      resume: {
+        address: '/liveboard/resume',
+        args: [],
+      },
+    },
+  },
   referenceImages: [],
   sourceSchemas: [],
   profiles: [
@@ -30,26 +54,7 @@ const baseSettingsWithOsc = {
       entityType: 'title',
       dataFileName: 'title-main.json',
       control: {
-        oscTarget: {
-          host: '127.0.0.1',
-          port: 53000,
-        },
-        play: {
-          address: '/liveboard/title/play',
-          args: [
-            { type: 's', value: 'TemplateName' },
-            { type: 'i', value: 1 },
-            { type: 'f', value: 0.5 },
-          ],
-        },
-        stop: {
-          address: '/liveboard/title/stop',
-          args: [],
-        },
-        resume: {
-          address: '/liveboard/title/resume',
-          args: [],
-        },
+        templateName: 'TemplateName',
       },
       preview: {
         id: 'title-preview',
@@ -126,65 +131,50 @@ describe('OSC configuration models', () => {
     ).toThrow('value')
   })
 
-  it('graphic config can define play command', () => {
-    const parsed = graphicInstanceConfigSchema.parse(baseSettingsWithOsc.graphics[0])
+  it('app settings can define play command globally', () => {
+    const parsed = appSettingsSchema.parse(baseSettingsWithOsc)
 
     expect(parsed).toMatchObject({
-      control: {
-        play: {
-          address: '/liveboard/title/play',
-          args: [
-            { type: 's', value: 'TemplateName' },
-            { type: 'i', value: 1 },
-            { type: 'f', value: 0.5 },
-          ],
-        },
-      },
-    })
-  })
-
-  it('graphic config can define stop command', () => {
-    const parsed = graphicInstanceConfigSchema.parse(baseSettingsWithOsc.graphics[0])
-
-    expect(parsed).toMatchObject({
-      control: {
-        stop: {
-          address: '/liveboard/title/stop',
-          args: [],
-        },
-      },
-    })
-  })
-
-  it('graphic config can define resume command', () => {
-    const parsed = graphicInstanceConfigSchema.parse(baseSettingsWithOsc.graphics[0])
-
-    expect(parsed).toMatchObject({
-      control: {
-        resume: {
-          address: '/liveboard/title/resume',
-          args: [],
-        },
-      },
-    })
-  })
-
-  it('missing command config is handled safely', () => {
-    expect(() =>
-      graphicInstanceConfigSchema.parse({
-        ...baseSettingsWithOsc.graphics[0],
-        control: {
-          oscTarget: {
-            host: '127.0.0.1',
-            port: 53000,
-          },
+      osc: {
+        commands: {
           play: {
-            address: '/liveboard/title/play',
-            args: [],
+            address: '/liveboard/play',
+            args: [
+              { type: 's', value: '{{templateName}}' },
+              { type: 'i', value: 1 },
+              { type: 'f', value: 0.5 },
+            ],
           },
-          stop: {
-            address: '/liveboard/title/stop',
-            args: [],
+        },
+      },
+    })
+  })
+
+  it('graphic config can define only the LiveBoard template argument value', () => {
+    const parsed = graphicInstanceConfigSchema.parse(baseSettingsWithOsc.graphics[0])
+
+    expect(parsed).toMatchObject({
+      control: {
+        templateName: 'TemplateName',
+      },
+    })
+  })
+
+  it('missing global command config is handled safely', () => {
+    expect(() =>
+      appSettingsSchema.parse({
+        ...baseSettingsWithOsc,
+        osc: {
+          ...baseSettingsWithOsc.osc,
+          commands: {
+            play: {
+              address: '/liveboard/play',
+              args: [],
+            },
+            stop: {
+              address: '/liveboard/stop',
+              args: [],
+            },
           },
         },
       }),

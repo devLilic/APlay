@@ -25,4 +25,10 @@ declare module 'osc' {
     on(eventName: string, listener: (...args: unknown[]) => void): this
     off(eventName: string, listener: (...args: unknown[]) => void): this
   }
+
+  const osc: {
+    UDPPort: typeof UDPPort
+  }
+
+  export default osc
 }

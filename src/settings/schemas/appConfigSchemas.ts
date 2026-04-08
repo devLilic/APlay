@@ -10,6 +10,8 @@ import type {
   GraphicFieldBinding,
   GraphicControlConfig,
   GraphicInstanceConfig,
+  OscCommandSetConfig,
+  OscSettingsConfig,
   OscCommandConfig,
   OscTargetConfig,
   PreviewBackgroundConfig,
@@ -106,23 +108,51 @@ export const previewBackgroundConfigSchema = createSchema<PreviewBackgroundConfi
 
 export const graphicControlConfigSchema = createSchema<GraphicControlConfig>((input) => {
   const value = assertRecord(input, 'graphicControlConfig')
-  if (value.play === undefined) {
-    throw new SchemaValidationError('graphicControlConfig.play is required')
-  }
-  if (value.stop === undefined) {
-    throw new SchemaValidationError('graphicControlConfig.stop is required')
-  }
-  if (value.resume === undefined) {
-    throw new SchemaValidationError('graphicControlConfig.resume is required')
-  }
 
   return {
+    ...(parseOptionalString(value, 'templateName', 'graphicControlConfig')
+      ? { templateName: parseOptionalString(value, 'templateName', 'graphicControlConfig') }
+      : {}),
     ...(value.oscTarget !== undefined
       ? { oscTarget: oscTargetConfigSchema.parse(value.oscTarget) as OscTargetConfig }
       : {}),
-    play: parseGraphicOscCommandConfig(value.play, 'play') as string | OscCommandConfig,
-    stop: parseGraphicOscCommandConfig(value.stop, 'stop') as string | OscCommandConfig,
-    resume: parseGraphicOscCommandConfig(value.resume, 'resume') as string | OscCommandConfig,
+    ...(value.play !== undefined
+      ? { play: parseGraphicOscCommandConfig(value.play, 'play') as string | OscCommandConfig }
+      : {}),
+    ...(value.stop !== undefined
+      ? { stop: parseGraphicOscCommandConfig(value.stop, 'stop') as string | OscCommandConfig }
+      : {}),
+    ...(value.resume !== undefined
+      ? { resume: parseGraphicOscCommandConfig(value.resume, 'resume') as string | OscCommandConfig }
+      : {}),
+  }
+})
+
+export const oscCommandSetConfigSchema = createSchema<OscCommandSetConfig>((input) => {
+  const value = assertRecord(input, 'oscSettings.commands')
+  if (value.play === undefined) {
+    throw new SchemaValidationError('oscSettings.commands.play is required')
+  }
+  if (value.stop === undefined) {
+    throw new SchemaValidationError('oscSettings.commands.stop is required')
+  }
+  if (value.resume === undefined) {
+    throw new SchemaValidationError('oscSettings.commands.resume is required')
+  }
+
+  return {
+    play: oscCommandConfigSchema.parse(value.play),
+    stop: oscCommandConfigSchema.parse(value.stop),
+    resume: oscCommandConfigSchema.parse(value.resume),
+  }
+})
+
+export const oscSettingsConfigSchema = createSchema<OscSettingsConfig>((input) => {
+  const value = assertRecord(input, 'oscSettings')
+
+  return {
+    target: oscTargetConfigSchema.parse(value.target),
+    commands: oscCommandSetConfigSchema.parse(value.commands),
   }
 })
 
@@ -175,6 +205,12 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
             'textAlign',
           ),
         }
+        : {}),
+      ...(behaviorSettings.paddingLeft !== undefined
+        ? { paddingLeft: parseRequiredNumber(behaviorSettings, 'paddingLeft', 'previewElementDefinition.behavior') }
+        : {}),
+      ...(behaviorSettings.paddingRight !== undefined
+        ? { paddingRight: parseRequiredNumber(behaviorSettings, 'paddingRight', 'previewElementDefinition.behavior') }
         : {}),
     }
     : undefined
@@ -252,6 +288,12 @@ export const previewElementDefinitionSchema = createSchema<PreviewElementDefinit
                 'textAlign',
               ),
             }
+            : {}),
+          ...(legacyTextSettings.paddingLeft !== undefined
+            ? { paddingLeft: parseRequiredNumber(legacyTextSettings, 'paddingLeft', 'previewElementDefinition.text') }
+            : {}),
+          ...(legacyTextSettings.paddingRight !== undefined
+            ? { paddingRight: parseRequiredNumber(legacyTextSettings, 'paddingRight', 'previewElementDefinition.text') }
             : {}),
         },
       }
@@ -476,6 +518,9 @@ export const appSettingsSchema = createSchema<AppSettings>((input) => {
 
   return {
     selectedProfileId,
+    ...(value.osc !== undefined
+      ? { osc: oscSettingsConfigSchema.parse(value.osc) }
+      : {}),
     referenceImages,
     sourceSchemas,
     profiles,

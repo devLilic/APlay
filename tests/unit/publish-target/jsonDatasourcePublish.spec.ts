@@ -160,6 +160,24 @@ describe('JSON datasource publishing', () => {
     expect(target.read('graphics/title-main.json')).toBe('{\n  "headline": "Main Title"\n}')
   })
 
+  it('accepts an absolute Windows datasource path', () => {
+    const adapter = createJsonDatasourcePublishTargetAdapter()
+    const target = createInMemoryTargetFileWriter()
+
+    const result = adapter.publishEntity(
+      {
+        entityType: 'title',
+        entity: titleEntity,
+        targetFile: 'C:\\Projects\\data\\title.json',
+        bindings: [{ sourceField: 'text', targetField: 'headline' }],
+      },
+      target,
+    )
+
+    expect(result.success).toBe(true)
+    expect(target.read('C:\\Projects\\data\\title.json')).toBe('{\n  "headline": "Main Title"\n}')
+  })
+
   it('overwrites an existing datasource file safely', () => {
     const adapter = createJsonDatasourcePublishTargetAdapter()
     const target = createInMemoryTargetFileWriter({
