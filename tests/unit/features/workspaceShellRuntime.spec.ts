@@ -479,7 +479,7 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     expect(sendOscMessage).toHaveBeenCalledTimes(3)
   })
 
-  it('dynamic items write datasource before sending OSC for each selected item', async () => {
+  it('dynamic items write all datasources before grouped play sends OSC', async () => {
     const calls: string[] = []
     vi.stubGlobal('window', {
       settingsApi: {
@@ -505,8 +505,8 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
 
     expect(calls).toEqual([
       'write:datasources/pa_title_waiting.json',
-      'osc:/global/play:[{"type":"s","value":"PA_TITLE_WAITING"}]',
       'write:datasources/window-box.json',
+      'osc:/global/play:[{"type":"s","value":"PA_TITLE_WAITING"}]',
       'osc:/global/play:[{"type":"s","value":"WINDOW_BOX"}]',
     ])
   })
@@ -631,7 +631,7 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     )
   })
 
-  it('datasource write failure for one selected item is handled safely according to grouped error policy', async () => {
+  it('datasource write failure for one selected item stops grouped play before any OSC phase starts', async () => {
     const writeDatasourceFileSync = vi.fn((targetFile: string) => {
       if (targetFile === 'datasources/window-box.json') {
         throw new Error('disk full')
@@ -656,7 +656,7 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     )
 
     expect(result.kind).toBe('error')
-    expect(sendOscMessage).toHaveBeenCalledTimes(1)
+    expect(sendOscMessage).not.toHaveBeenCalled()
     expect(result.details.some((detail) => detail.includes('[PA title waiting] Datasource updated: datasources/pa_title_waiting.json'))).toBe(true)
     expect(result.details.some((detail) => detail.includes('[Window Box] Unable to write datasource file "datasources/window-box.json"'))).toBe(true)
   })
@@ -771,5 +771,300 @@ describe('workspace shell runtime grouped multi-selection actions', () => {
     expect(result.details.some((detail) => detail.includes('Missing OSC target for graphic "pa_title_waiting"'))).toBe(true)
     expect(sendOscMessage).not.toHaveBeenCalled()
     expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+  })
+})
+
+describe('workspace shell runtime grouped play two-phase ordering', () => {
+  it('grouped Play executes in two distinct phases: write all datasources, then send all OSC play commands', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          calls.push(`write:${targetFile}`)
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, address: string, args: Array<{ value: string }>) => {
+          calls.push(`osc:${address}:${args[0]?.value ?? ''}`)
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(calls).toEqual([
+      'write:datasources/pa_title_waiting.json',
+      'write:datasources/window-box.json',
+      'osc:/global/play:PA_TITLE_WAITING',
+      'osc:/global/play:WINDOW_BOX',
+      'osc:/global/play:LOGO_MAIN',
+    ])
+  })
+
+  it('does not send any OSC play command before all datasource writes complete', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          calls.push(`write:${targetFile}`)
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, _address: string, args: Array<{ value: string }>) => {
+          calls.push(`osc:${args[0]?.value ?? ''}`)
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+      },
+      oscSettings,
+    )
+
+    const firstOscIndex = calls.findIndex((entry) => entry.startsWith('osc:'))
+    const lastWriteIndex = calls.reduce((lastIndex, entry, index) => (
+      entry.startsWith('write:') ? index : lastIndex
+    ), -1)
+
+    expect(firstOscIndex).toBeGreaterThan(lastWriteIndex)
+  })
+
+  it('static items are skipped in datasource phase and still included in OSC play phase', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          calls.push(`write:${targetFile}`)
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, address: string, args: Array<{ value: string }>) => {
+          calls.push(`osc:${address}:${args[0]?.value ?? ''}`)
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedLogoItem, selectedTitleItem],
+      {
+        'logo-main': staticLogoGraphic,
+        pa_title_waiting: titleWaitingGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(calls).toEqual([
+      'write:datasources/pa_title_waiting.json',
+      'osc:/global/play:LOGO_MAIN',
+      'osc:/global/play:PA_TITLE_WAITING',
+    ])
+  })
+
+  it('if one datasource write fails, grouped Play follows the chosen error policy safely', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          calls.push(`write:${targetFile}`)
+          if (targetFile === 'datasources/window-box.json') {
+            throw new Error('disk full')
+          }
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, address: string, args: Array<{ value: string }>) => {
+          calls.push(`osc:${address}:${args[0]?.value ?? ''}`)
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('error')
+    expect(calls).toEqual([
+      'write:datasources/pa_title_waiting.json',
+      'write:datasources/window-box.json',
+    ])
+  })
+
+  it('execution order is deterministic inside the datasource phase and inside the OSC phase', async () => {
+    const datasourceWrites: string[] = []
+    const oscSends: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          datasourceWrites.push(targetFile)
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, _address: string, args: Array<{ value: string }>) => {
+          oscSends.push(args[0]?.value ?? '')
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(datasourceWrites).toEqual([
+      'datasources/pa_title_waiting.json',
+      'datasources/window-box.json',
+    ])
+    expect(oscSends).toEqual([
+      'PA_TITLE_WAITING',
+      'WINDOW_BOX',
+      'LOGO_MAIN',
+    ])
+  })
+
+  it('grouped Stop sends stop commands without a datasource write phase', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'stopGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+    expect(sendOscMessage).toHaveBeenCalledTimes(3)
+  })
+
+  it('grouped Resume sends resume commands without a datasource write phase', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'resumeGraphic',
+      [selectedTitleItem, selectedLocationItem, selectedLogoItem],
+      {
+        pa_title_waiting: titleWaitingGraphic,
+        'window-box': windowBoxGraphic,
+        'logo-main': staticLogoGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+    expect(sendOscMessage).toHaveBeenCalledTimes(3)
+  })
+
+  it('empty multi-selection does nothing safely for grouped Play two-phase flow', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn()
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const result = await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [],
+      {},
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('error')
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+    expect(sendOscMessage).not.toHaveBeenCalled()
+  })
+
+  it('zIndex affects preview only and does not change grouped datasource publish or OSC send order', async () => {
+    const datasourceWrites: string[] = []
+    const oscSends: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn((targetFile: string) => {
+          datasourceWrites.push(targetFile)
+        }),
+        sendOscMessage: vi.fn(async (_host: string, _port: number, _address: string, args: Array<{ value: string }>) => {
+          oscSends.push(args[0]?.value ?? '')
+          return ['opened', 'ready', 'sent']
+        }),
+      },
+    })
+
+    await runWorkspaceMultiGraphicAction(
+      'playGraphic',
+      [
+        {
+          ...selectedLocationItem,
+          entity: {
+            ...selectedLocationItem.entity,
+            zIndex: '100',
+          },
+        },
+        {
+          ...selectedTitleItem,
+          entity: {
+            ...selectedTitleItem.entity,
+            zIndex: '1',
+          },
+        },
+      ],
+      {
+        'window-box': windowBoxGraphic,
+        pa_title_waiting: titleWaitingGraphic,
+      },
+      oscSettings,
+    )
+
+    expect(datasourceWrites).toEqual([
+      'datasources/window-box.json',
+      'datasources/pa_title_waiting.json',
+    ])
+    expect(oscSends).toEqual([
+      'WINDOW_BOX',
+      'PA_TITLE_WAITING',
+    ])
   })
 })

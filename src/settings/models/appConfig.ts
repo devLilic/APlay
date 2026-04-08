@@ -123,6 +123,7 @@ export interface PreviewTemplateDefinition {
 export interface GraphicInstanceConfig {
   id: string
   name: string
+  zIndex?: number
   entityType: SupportedEntityType
   kind?: GraphicConfigKind
   dataFileName: string

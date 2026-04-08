@@ -135,6 +135,7 @@ export function WorkspaceShell() {
 
     return [{
       graphicConfigId: item.graphicConfigId,
+      zIndex: graphic.zIndex,
       template: graphic.preview,
       content: createEntityPreviewContent(item),
     }]

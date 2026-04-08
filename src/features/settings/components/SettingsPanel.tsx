@@ -2749,6 +2749,17 @@ function GraphicBindingSection({
   const displayNameError = trimmedDisplayName.length === 0
     ? 'Display Name is required.'
     : null
+  const [zIndexDraft, setZIndexDraft] = useState(graphic.zIndex === undefined ? '' : String(graphic.zIndex))
+
+  useEffect(() => {
+    setZIndexDraft(graphic.zIndex === undefined ? '' : String(graphic.zIndex))
+  }, [graphic.id, graphic.zIndex])
+
+  const trimmedZIndexDraft = zIndexDraft.trim()
+  const parsedZIndex = trimmedZIndexDraft.length === 0 ? 0 : Number(trimmedZIndexDraft)
+  const zIndexError = trimmedZIndexDraft.length > 0 && !Number.isFinite(parsedZIndex)
+    ? 'zIndex must be a valid number.'
+    : null
 
   return (
     <FormSection title='Graphic configuration' description='Configure runtime behavior for the selected graphic config. Static graphics use image assets; dynamic graphics use datasource mappings.'>
@@ -2820,6 +2831,47 @@ function GraphicBindingSection({
             placeholder='LOWER_THIRD_01'
             className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
           />
+        </label>
+        <label className='space-y-2 md:col-span-2'>
+          <div className='flex flex-wrap items-center justify-between gap-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview z-index</span>
+            <span className='rounded-full border border-border bg-surface px-3 py-1 text-[11px] font-medium text-muted'>
+              Resolved layer in APlay preview: {zIndexError ? 'invalid' : parsedZIndex}
+            </span>
+          </div>
+          <input
+            type='number'
+            inputMode='numeric'
+            step='1'
+            value={zIndexDraft}
+            onChange={(event) => {
+              const nextDraft = event.target.value
+              const trimmedNextDraft = nextDraft.trim()
+
+              setZIndexDraft(nextDraft)
+
+              if (trimmedNextDraft.length === 0) {
+                updateGraphic((current) => ({ ...current, zIndex: undefined }))
+                return
+              }
+
+              const nextValue = Number(trimmedNextDraft)
+              if (!Number.isFinite(nextValue)) {
+                return
+              }
+
+              updateGraphic((current) => ({ ...current, zIndex: nextValue }))
+            }}
+            placeholder='0'
+            className={`w-full rounded-xl bg-white px-3 py-2 text-sm text-ink ${
+              zIndexError
+                ? 'border border-rose-300 focus:border-rose-400'
+                : 'border border-border'
+            }`}
+          />
+          <p className={`text-xs ${zIndexError ? 'text-rose-600' : 'text-muted'}`}>
+            {zIndexError ?? 'Controls preview stacking only inside APlay. Leave empty to use the safe default layer 0.'}
+          </p>
         </label>
       </div>
 

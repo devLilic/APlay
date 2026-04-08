@@ -8,6 +8,10 @@ import {
   calculateTextElementStyle,
 } from '@/features/preview/state/previewTemplateEngine'
 
+type CompositePreviewTestInput = Parameters<typeof calculateCompositePreviewLayout>[0][number] & {
+  zIndex?: number
+}
+
 const previewTemplate: PreviewTemplateDefinition = {
   id: 'title-preview',
   designWidth: 1920,
@@ -1162,12 +1166,12 @@ describe('composite preview rendering from multi-selection', () => {
     )
 
     expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
-      'title-main',
       'location-main',
+      'title-main',
     ])
     expect(layout.items.flatMap((item) => item.elements.map((element) => element.content))).toEqual([
-      'Main title',
       'Chisinau',
+      'Main title',
     ])
   })
 
@@ -1189,10 +1193,10 @@ describe('composite preview rendering from multi-selection', () => {
     )
 
     expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
-      'title-main',
       'logo-main',
+      'title-main',
     ])
-    expect(layout.items[1]?.elements[0]).toMatchObject({
+    expect(layout.items[0]?.elements[0]).toMatchObject({
       kind: 'image',
       content: 'C:\\APlay\\assets\\branding\\logo.png',
     })
@@ -1215,8 +1219,8 @@ describe('composite preview rendering from multi-selection', () => {
       { width: 960, height: 540 },
     )
 
-    expect(layout.items[0]?.templateId).toBe('composite-title-preview')
-    expect(layout.items[1]?.templateId).toBe('composite-location-preview')
+    expect(layout.items[0]?.templateId).toBe('composite-location-preview')
+    expect(layout.items[1]?.templateId).toBe('composite-title-preview')
   })
 
   it('preserves per-item positioning and layout inside the composite preview', () => {
@@ -1238,15 +1242,15 @@ describe('composite preview rendering from multi-selection', () => {
 
     expect(layout.items[0]?.elements[0]?.style).toMatchObject({
       left: 60,
-      top: 90,
-      width: 420,
-      height: 70,
-    })
-    expect(layout.items[1]?.elements[0]?.style).toMatchObject({
-      left: 60,
       top: 170,
       width: 420,
       height: 60,
+    })
+    expect(layout.items[1]?.elements[0]?.style).toMatchObject({
+      left: 60,
+      top: 90,
+      width: 420,
+      height: 70,
     })
   })
 
@@ -1273,9 +1277,9 @@ describe('composite preview rendering from multi-selection', () => {
     )
 
     expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
-      'title-main',
       'location-main',
       'logo-main',
+      'title-main',
     ])
   })
 
@@ -1329,7 +1333,170 @@ describe('composite preview rendering from multi-selection', () => {
       { width: 960, height: 540 },
     )
 
-    expect(singleLayout.elements).toEqual(compositeLayout.items[0]?.elements)
+    expect(singleLayout.elements).toEqual(
+      compositeLayout.items.find((item) => item.graphicConfigId === 'title-main')?.elements,
+    )
     expect(compositeLayout.items).toHaveLength(2)
+  })
+
+  it('supports zIndex on graphic-config composite preview items', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+          zIndex: 2,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items[0]?.graphicConfigId).toBe('title-main')
+  })
+
+  it('sorts selected composite preview items by zIndex instead of selection order', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'foreground-logo',
+          template: compositeLogoTemplate,
+          content: { staticAsset: 'C:\\APlay\\assets\\branding\\logo.png' },
+          zIndex: 5,
+        } as CompositePreviewTestInput,
+        {
+          graphicConfigId: 'background-title',
+          template: compositeTitleTemplate,
+          content: { text: 'Background title' },
+          zIndex: 1,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
+      'background-title',
+      'foreground-logo',
+    ])
+  })
+
+  it('renders lower zIndex items below higher zIndex items', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'foreground-logo',
+          template: compositeLogoTemplate,
+          content: { staticAsset: 'C:\\APlay\\assets\\branding\\logo.png' },
+          zIndex: 9,
+        } as CompositePreviewTestInput,
+        {
+          graphicConfigId: 'background-location',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+          zIndex: 2,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.overlayElements.map((element) => element.id)).toEqual([
+      'background-location:location-text',
+      'foreground-logo:logo-image',
+    ])
+  })
+
+  it('uses a deterministic fallback order when zIndex values are equal', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'z-equal-b',
+          template: compositeLocationTemplate,
+          content: { value: 'Second' },
+          zIndex: 3,
+        } as CompositePreviewTestInput,
+        {
+          graphicConfigId: 'z-equal-a',
+          template: compositeTitleTemplate,
+          content: { text: 'First' },
+          zIndex: 3,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
+      'z-equal-a',
+      'z-equal-b',
+    ])
+  })
+
+  it('updates composite preview order when zIndex changes', () => {
+    const lowerFirst = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+          zIndex: 1,
+        } as CompositePreviewTestInput,
+        {
+          graphicConfigId: 'logo-main',
+          template: compositeLogoTemplate,
+          content: { staticAsset: 'C:\\APlay\\assets\\branding\\logo.png' },
+          zIndex: 5,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+    const higherFirst = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+          zIndex: 8,
+        } as CompositePreviewTestInput,
+        {
+          graphicConfigId: 'logo-main',
+          template: compositeLogoTemplate,
+          content: { staticAsset: 'C:\\APlay\\assets\\branding\\logo.png' },
+          zIndex: 2,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(lowerFirst.items.map((item) => item.graphicConfigId)).toEqual([
+      'title-main',
+      'logo-main',
+    ])
+    expect(higherFirst.items.map((item) => item.graphicConfigId)).toEqual([
+      'logo-main',
+      'title-main',
+    ])
+  })
+
+  it('uses a safe default order when zIndex is missing', () => {
+    const layout = calculateCompositePreviewLayout(
+      [
+        {
+          graphicConfigId: 'title-main',
+          template: compositeTitleTemplate,
+          content: { text: 'Main title' },
+        },
+        {
+          graphicConfigId: 'location-main',
+          template: compositeLocationTemplate,
+          content: { value: 'Chisinau' },
+          zIndex: 2,
+        } as CompositePreviewTestInput,
+      ],
+      { width: 960, height: 540 },
+    )
+
+    expect(layout.items.map((item) => item.graphicConfigId)).toEqual([
+      'title-main',
+      'location-main',
+    ])
   })
 })

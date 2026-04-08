@@ -457,6 +457,9 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
   return {
     id: parseRequiredString(value, 'id', 'graphicInstanceConfig'),
     name,
+    ...(value.zIndex !== undefined
+      ? { zIndex: parseRequiredNumber(value, 'zIndex', 'graphicInstanceConfig') }
+      : {}),
     entityType,
     ...(kind ? { kind } : {}),
     dataFileName: parseRequiredString(value, 'dataFileName', 'graphicInstanceConfig'),

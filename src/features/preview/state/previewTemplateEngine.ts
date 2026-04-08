@@ -62,6 +62,7 @@ export interface PreviewTemplateLayout {
 
 export interface CompositePreviewItemInput {
   graphicConfigId: string
+  zIndex?: number
   template: PreviewTemplateDefinition
   content: Record<string, string | undefined>
 }
@@ -69,6 +70,7 @@ export interface CompositePreviewItemInput {
 export interface CompositePreviewItemLayout {
   graphicConfigId: string
   templateId: string
+  zIndex: number
   elements: PreviewTemplateLayoutElement[]
 }
 
@@ -147,12 +149,19 @@ export function calculateCompositePreviewLayout(
       return [{
         graphicConfigId: item.graphicConfigId,
         templateId: item.template.id,
-        elements: layout.elements,
+        zIndex: resolveCompositeItemZIndex(item.zIndex),
+        elements: layout.elements.map((element) => ({
+          ...element,
+          style: {
+            ...element.style,
+            zIndex: element.style.zIndex + resolveCompositeItemZIndex(item.zIndex),
+          },
+        })),
       }]
     } catch {
       return []
     }
-  })
+  }).sort(compareCompositePreviewItems)
 
   return {
     items: validItems,
@@ -163,6 +172,21 @@ export function calculateCompositePreviewLayout(
       }))
     ),
   }
+}
+
+function resolveCompositeItemZIndex(zIndex: number | undefined): number {
+  return typeof zIndex === 'number' && Number.isFinite(zIndex) ? zIndex : 0
+}
+
+function compareCompositePreviewItems(
+  left: CompositePreviewItemLayout,
+  right: CompositePreviewItemLayout,
+): number {
+  if (left.zIndex !== right.zIndex) {
+    return left.zIndex - right.zIndex
+  }
+
+  return left.graphicConfigId.localeCompare(right.graphicConfigId)
 }
 
 export function calculateTextElementStyle(

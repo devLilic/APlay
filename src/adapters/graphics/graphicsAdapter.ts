@@ -34,7 +34,7 @@ export interface GraphicsAdapterResolvedCommand {
   args: OscArgConfig[]
 }
 
-type GraphicsAdapterResolvedCommandSource = 'local override' | 'global' | 'fallback'
+export type GraphicsAdapterResolvedCommandSource = 'local override' | 'global' | 'fallback'
 
 export interface GraphicsAdapterExecutionResult {
   success: boolean
@@ -57,6 +57,24 @@ export interface GraphicsAdapter {
   play: (input: GraphicsAdapterActionInput) => Promise<GraphicsAdapterExecutionResult>
   stop: (input: GraphicsAdapterActionInput) => Promise<GraphicsAdapterExecutionResult>
   resume: (input: GraphicsAdapterActionInput) => Promise<GraphicsAdapterExecutionResult>
+}
+
+export interface ResolvedGraphicsActionCommandResult {
+  success: true
+  command: { address: string; args: OscArgConfig[] }
+  source: GraphicsAdapterResolvedCommandSource
+}
+
+export interface ResolvedGraphicsActionTargetResult {
+  success: true
+  host: string
+  port: number
+}
+
+export interface PublishedGraphicsDatasourceResult {
+  success: boolean
+  targetFile: string
+  diagnostics: GraphicsAdapterDiagnostic[]
 }
 
 export interface GraphicsAdapterDependencies {
@@ -92,7 +110,7 @@ async function runGraphicsAction(
   publishTarget: JsonDatasourcePublishTargetAdapter,
   graphicOutput: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'>,
 ): Promise<GraphicsAdapterExecutionResult> {
-  const target = resolveOscTarget(input)
+  const target = resolveGraphicsActionOscTarget(input)
   if (!target.success) {
     return {
       success: false,
@@ -101,56 +119,23 @@ async function runGraphicsAction(
     }
   }
 
-  const bindings = input.bindings ?? input.graphic.bindings ?? []
-  const targetFile = resolveDatasourceTargetPath(input.graphic)
+  const targetFile = resolveGraphicsDatasourceTargetPath(input.graphic)
   const requiresDatasource = actionType === 'playGraphic' && !isStaticGraphic(input.graphic)
 
   if (requiresDatasource) {
-    if (bindings.length === 0) {
-      return {
-        success: false,
-        actionType,
-        targetFile,
-        diagnostics: [
-          {
-            severity: 'error',
-            code: 'missing-bindings',
-            message: `No datasource bindings are configured for graphic "${input.graphic.id}".`,
-            details: {
-              actionType,
-              graphicId: input.graphic.id,
-            },
-          },
-        ],
-      }
-    }
-
-    const publishResult = publishTarget.publishEntity(
-      {
-        entityType: input.entityType,
-        entity: input.entity,
-        targetFile,
-        bindings,
-      },
-      dependencies.fileWriter,
-    )
+    const publishResult = publishGraphicsDatasource(input, dependencies.fileWriter, publishTarget)
 
     if (!publishResult.success) {
       return {
         success: false,
         actionType,
-        targetFile,
-        diagnostics: publishResult.diagnostics.map((diagnostic) => ({
-          severity: 'error',
-          code: 'publish-failed',
-          message: diagnostic.message,
-          details: diagnostic.details,
-        })),
+        targetFile: publishResult.targetFile,
+        diagnostics: publishResult.diagnostics,
       }
     }
   }
 
-  const builtCommand = resolveCommand(input, actionType, graphicOutput)
+  const builtCommand = resolveGraphicsActionCommand(input, actionType, graphicOutput)
   if (!builtCommand.success) {
     return {
       success: false,
@@ -247,8 +232,8 @@ async function runGraphicsAction(
   }
 }
 
-function resolveOscTarget(input: GraphicsAdapterActionInput):
-  | { success: true; host: string; port: number }
+export function resolveGraphicsActionOscTarget(input: GraphicsAdapterActionInput):
+  | ResolvedGraphicsActionTargetResult
   | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
   const target = input.oscSettings?.target ?? input.graphic.control.oscTarget
   if (!target) {
@@ -294,7 +279,7 @@ function resolveOscTarget(input: GraphicsAdapterActionInput):
   }
 }
 
-function resolveDatasourceTargetPath(graphic: GraphicInstanceConfig): string {
+export function resolveGraphicsDatasourceTargetPath(graphic: GraphicInstanceConfig): string {
   const configuredPath = graphic.datasourcePath?.trim()
   if (configuredPath) {
     return configuredPath
@@ -303,12 +288,12 @@ function resolveDatasourceTargetPath(graphic: GraphicInstanceConfig): string {
   return `datasources/${graphic.dataFileName}`
 }
 
-function resolveCommand(
+export function resolveGraphicsActionCommand(
   input: GraphicsAdapterActionInput,
   actionType: ActionType,
-  graphicOutput: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'>,
+  graphicOutput: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'> = createOscGraphicOutputAdapter(),
 ):
-  | { success: true; command: { address: string; args: OscArgConfig[] }; source: GraphicsAdapterResolvedCommandSource }
+  | ResolvedGraphicsActionCommandResult
   | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
   const localCommand = resolveGraphicCommandOverride(input.graphic, actionType)
   if (localCommand) {
@@ -358,8 +343,56 @@ function resolveCommand(
   }
 }
 
-function isStaticGraphic(graphic: GraphicInstanceConfig): boolean {
+export function isStaticGraphic(graphic: GraphicInstanceConfig): boolean {
   return graphic.kind === 'static' || graphic.entityType === 'staticImage'
+}
+
+export function publishGraphicsDatasource(
+  input: GraphicsAdapterActionInput,
+  fileWriter: PublishTargetFileWriter,
+  publishTarget: JsonDatasourcePublishTargetAdapter = createJsonDatasourcePublishTargetAdapter(),
+): PublishedGraphicsDatasourceResult {
+  const bindings = input.bindings ?? input.graphic.bindings ?? []
+  const targetFile = resolveGraphicsDatasourceTargetPath(input.graphic)
+
+  if (bindings.length === 0) {
+    return {
+      success: false,
+      targetFile,
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'missing-bindings',
+          message: `No datasource bindings are configured for graphic "${input.graphic.id}".`,
+          details: {
+            actionType: 'playGraphic',
+            graphicId: input.graphic.id,
+          },
+        },
+      ],
+    }
+  }
+
+  const publishResult = publishTarget.publishEntity(
+    {
+      entityType: input.entityType,
+      entity: input.entity,
+      targetFile,
+      bindings,
+    },
+    fileWriter,
+  )
+
+  return {
+    success: publishResult.success,
+    targetFile,
+    diagnostics: publishResult.diagnostics.map((diagnostic) => ({
+      severity: 'error',
+      code: 'publish-failed',
+      message: diagnostic.message,
+      details: diagnostic.details,
+    })),
+  }
 }
 
 function resolveGraphicCommandOverride(
