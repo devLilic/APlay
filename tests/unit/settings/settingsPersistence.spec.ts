@@ -59,9 +59,6 @@ const baseSettings = {
             title: 'Titlu',
           },
         },
-        supertitle: {
-          enabled: false,
-        },
         person: {
           enabled: true,
           fields: {
@@ -73,24 +70,6 @@ const baseSettings = {
           enabled: true,
           fields: {
             value: 'Locatie',
-          },
-        },
-        breakingNews: {
-          enabled: true,
-          fields: {
-            value: 'Ultima Ora',
-          },
-        },
-        waitingTitle: {
-          enabled: true,
-          fields: {
-            value: 'Titlu Asteptare',
-          },
-        },
-        waitingLocation: {
-          enabled: true,
-          fields: {
-            value: 'Locatie Asteptare',
           },
         },
         phone: {
@@ -117,12 +96,13 @@ const baseSettings = {
         type: 'csv',
         schemaId: 'csv-news-default',
       },
-      graphicConfigIds: ['breaking-main'],
+      graphicConfigIds: ['phone-main'],
     },
   ],
   graphics: [
     {
       id: 'title-main',
+      name: 'Main title',
       entityType: 'title',
       dataFileName: 'title-main.json',
       control: {
@@ -153,6 +133,7 @@ const baseSettings = {
     },
     {
       id: 'person-lower-third',
+      name: 'Person lower third',
       entityType: 'person',
       dataFileName: 'person-lower-third.json',
       control: {
@@ -186,23 +167,24 @@ const baseSettings = {
       actions: [{ actionType: 'playGraphic', label: 'Play' }],
     },
     {
-      id: 'breaking-main',
-      entityType: 'breakingNews',
-      dataFileName: 'breaking-main.json',
+      id: 'phone-main',
+      name: 'Phone strap',
+      entityType: 'phone',
+      dataFileName: 'phone-main.json',
       control: {
-        play: '/graphics/breaking/play',
-        stop: '/graphics/breaking/stop',
-        resume: '/graphics/breaking/resume',
+        play: '/graphics/phone/play',
+        stop: '/graphics/phone/stop',
+        resume: '/graphics/phone/resume',
       },
       preview: {
-        id: 'breaking-preview',
+        id: 'phone-preview',
         designWidth: 1920,
         designHeight: 1080,
         elements: [
           {
-            id: 'breaking-line',
+            id: 'phone-line',
             kind: 'text',
-            sourceField: 'value',
+            sourceField: 'number',
             box: {
               x: 100,
               y: 900,
@@ -271,6 +253,26 @@ describe('settings storage load/save', () => {
       })
   })
 
+  it('persists a trimmed graphic config display name instead of falling back to id', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save({
+      ...baseSettings,
+      graphics: baseSettings.graphics.map((graphic) =>
+        graphic.id === 'title-main'
+          ? { ...graphic, name: '  Main title for UI  ' }
+          : graphic),
+    })
+
+    const reloadedGraphic = repository.load().graphics.find((graphic) => graphic.id === 'title-main')
+
+    const reloadedGraphicRecord = reloadedGraphic as Record<string, unknown> | undefined
+
+    expect(reloadedGraphicRecord?.name).toBe('Main title for UI')
+    expect(reloadedGraphicRecord?.name).not.toBe(reloadedGraphic?.id)
+  })
+
   it('persists and reloads structured OSC target and command args', () => {
     const storage = createInMemorySettingsStorage()
     const repository = createSettingsRepository(storage)
@@ -314,7 +316,7 @@ describe('show profile definition and lookup', () => {
         type: 'csv',
         schemaId: 'csv-news-default',
       },
-      graphicConfigIds: ['breaking-main'],
+      graphicConfigIds: ['phone-main'],
     })
   })
 })
@@ -414,5 +416,60 @@ describe('config validation failures', () => {
     )
 
     expect(() => repository.load()).toThrow('selectedProfileId')
+  })
+
+  it('migrates persisted settings that still contain removed graphic entity types', () => {
+    const repository = createSettingsRepository(
+      createInMemorySettingsStorage(JSON.stringify({
+        ...baseSettings,
+        selectedProfileId: 'news-pm',
+        profiles: [
+          ...baseSettings.profiles,
+          {
+            id: 'legacy',
+            label: 'Legacy',
+            graphicConfigIds: ['legacy-breaking'],
+          },
+        ],
+        graphics: [
+          ...baseSettings.graphics,
+          {
+            id: 'legacy-breaking',
+            entityType: 'breakingNews',
+            dataFileName: 'legacy-breaking.json',
+            control: {
+              play: '/graphics/breaking/play',
+              stop: '/graphics/breaking/stop',
+              resume: '/graphics/breaking/resume',
+            },
+            preview: {
+              id: 'legacy-breaking-preview',
+              designWidth: 1920,
+              designHeight: 1080,
+              elements: [
+                {
+                  id: 'legacy-breaking-line',
+                  kind: 'text',
+                  sourceField: 'value',
+                  box: {
+                    x: 0,
+                    y: 0,
+                    width: 100,
+                    height: 40,
+                  },
+                },
+              ],
+            },
+            actions: [{ actionType: 'playGraphic', label: 'Play' }],
+          },
+        ],
+      })),
+    )
+
+    const loaded = repository.load()
+
+    expect(loaded.graphics.map((graphic) => graphic.id)).not.toContain('legacy-breaking')
+    expect(loaded.profiles.find((profile) => profile.id === 'legacy')?.graphicConfigIds).toEqual([])
+    expect(loaded.selectedProfileId).toBe('news-pm')
   })
 })

@@ -122,6 +122,7 @@ export interface PreviewTemplateDefinition {
 // and external trigger commands.
 export interface GraphicInstanceConfig {
   id: string
+  name: string
   entityType: SupportedEntityType
   kind?: GraphicConfigKind
   dataFileName: string
@@ -144,13 +145,6 @@ export interface CsvEntityTitleMappingConfig {
   fields?: {
     number: string
     title: string
-  }
-}
-
-export interface CsvEntitySupertitleMappingConfig {
-  enabled: boolean
-  fields?: {
-    text: string
   }
 }
 
@@ -179,12 +173,8 @@ export interface CsvEntityPhoneMappingConfig {
 
 export interface CsvEntityMappingConfig {
   title: CsvEntityTitleMappingConfig
-  supertitle: CsvEntitySupertitleMappingConfig
   person: CsvEntityPersonMappingConfig
   location: CsvEntityValueMappingConfig
-  breakingNews: CsvEntityValueMappingConfig
-  waitingTitle: CsvEntityValueMappingConfig
-  waitingLocation: CsvEntityValueMappingConfig
   phone: CsvEntityPhoneMappingConfig
 }
 

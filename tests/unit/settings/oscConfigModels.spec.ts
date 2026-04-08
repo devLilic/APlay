@@ -51,6 +51,7 @@ const baseSettingsWithOsc = {
   graphics: [
     {
       id: 'title-main',
+      name: 'Title main',
       entityType: 'title',
       dataFileName: 'title-main.json',
       control: {

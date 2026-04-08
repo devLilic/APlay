@@ -56,9 +56,6 @@ const sourceSchema: CsvSourceSchemaConfig = {
         title: 'Titlu',
       },
     },
-    supertitle: {
-      enabled: false,
-    },
     person: {
       enabled: true,
       fields: {
@@ -69,15 +66,6 @@ const sourceSchema: CsvSourceSchemaConfig = {
     location: {
       enabled: false,
     },
-    breakingNews: {
-      enabled: false,
-    },
-    waitingTitle: {
-      enabled: false,
-    },
-    waitingLocation: {
-      enabled: false,
-    },
     phone: {
       enabled: false,
     },
@@ -86,6 +74,7 @@ const sourceSchema: CsvSourceSchemaConfig = {
 
 const titleGraphic: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   datasourcePath: 'datasources/title-main.json',
@@ -125,6 +114,7 @@ const titleGraphic: GraphicInstanceConfig = {
 
 const personGraphic: GraphicInstanceConfig = {
   id: 'person-main',
+  name: 'Person main',
   entityType: 'person',
   dataFileName: 'person-main.json',
   datasourcePath: 'datasources/person-main.json',

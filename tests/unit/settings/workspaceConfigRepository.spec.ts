@@ -13,6 +13,7 @@ import {
 
 const dynamicGraphicConfig: GraphicInstanceConfig = {
   id: 'dynamic-title',
+  name: 'Dynamic title',
   entityType: 'title',
   dataFileName: 'dynamic-title.json',
   datasourcePath: 'datasources/dynamic-title.json',
@@ -68,8 +69,14 @@ const dynamicGraphicConfig: GraphicInstanceConfig = {
 
 const staticGraphicConfig: GraphicInstanceConfig = {
   id: 'static-bug',
-  entityType: 'breakingNews',
+  name: 'Static bug',
+  entityType: 'staticImage',
+  kind: 'static',
   dataFileName: 'static-bug.json',
+  staticAsset: {
+    assetPath: 'C:\\APlay\\assets\\bugs\\news.png',
+    assetType: 'image',
+  },
   control: {
     play: '/graphics/bug/play',
     stop: '/graphics/bug/stop',
@@ -320,7 +327,7 @@ describe('workspaceConfigRepository', () => {
       exportType: graphicConfigExportType,
       payload: {
         id: 'static-bug',
-        entityType: 'breakingNews',
+        entityType: 'staticImage',
         dataFileName: 'static-bug.json',
         control: {
           play: '/graphics/bug/play',
@@ -409,6 +416,7 @@ describe('workspaceConfigRepository', () => {
       repository.save(createGraphicExportSettings([
         {
           id: 'broken-graphic',
+          name: 'Broken graphic',
           entityType: 'title',
           dataFileName: 'broken-graphic.json',
           control: {

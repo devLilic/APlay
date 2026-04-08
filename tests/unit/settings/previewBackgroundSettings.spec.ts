@@ -13,6 +13,7 @@ import { createOscGraphicOutputAdapter } from '@/adapters/graphic-output/oscGrap
 
 const titleGraphic: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   datasourcePath: 'datasources/title-main.json',
@@ -277,7 +278,7 @@ describe('reference background images in settings', () => {
     const result = adapter.publishEntity(
       {
         entityType: 'title',
-        entity: { text: 'Main Title' },
+        entity: { id: 'title-1', text: 'Main Title' },
         targetFile: 'datasources/title-main.json',
         bindings: [{ sourceField: 'text', targetField: 'headline', required: true }],
       },

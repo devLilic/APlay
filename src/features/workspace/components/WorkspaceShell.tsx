@@ -411,8 +411,8 @@ export function WorkspaceShell() {
     setSettingsFeedback({
       kind: result.kind,
       message: result.kind === 'success'
-        ? `${graphic.id}: ${result.details.join(' | ')}`
-        : `${graphic.id}: ${result.details.join(' | ')}`,
+        ? `${graphic.name}: ${result.details.join(' | ')}`
+        : `${graphic.name}: ${result.details.join(' | ')}`,
     })
   }
 
@@ -572,7 +572,7 @@ export function WorkspaceShell() {
                       className='flex w-full items-center justify-between gap-3 text-left'
                     >
                       <div className='min-w-0'>
-                        <h3 className='text-sm font-semibold text-ink'>{group.graphic.id}</h3>
+                        <h3 className='text-sm font-semibold text-ink'>{group.graphic.name}</h3>
                         <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-muted'>
                           {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
                         </p>
@@ -626,7 +626,7 @@ export function WorkspaceShell() {
               <div className='rounded-3xl border border-border bg-slate-950 p-4 text-white'>
                 <div className='mb-3 flex items-center justify-between text-xs uppercase tracking-[0.22em] text-slate-400'>
                   <span>Preview16x9</span>
-                  <span>{selectedGraphic.id}</span>
+                  <span>{selectedGraphic.name}</span>
                 </div>
                 <PreviewCanvas
                   template={selectedGraphic.preview}
@@ -639,7 +639,7 @@ export function WorkspaceShell() {
                 <p className='text-xs font-semibold uppercase tracking-[0.22em] text-muted'>Selected content</p>
                 <p className='mt-2 text-sm font-semibold text-ink'>{formatEntityLabel(selectedEntity.entity)}</p>
                 <p className='mt-1 text-sm text-muted'>
-                  Block: {selectedEntity.blockName} | Graphic config: {selectedEntity.graphicConfigId}
+                  Block: {selectedEntity.blockName} | Graphic config: {selectedGraphic.name}
                 </p>
               </div>
 
@@ -681,10 +681,10 @@ function createGraphicImportFeedbackMessage(
     : result.status === 'replaced'
       ? 'replaced the existing local config'
       : result.status === 'duplicated'
-        ? `was duplicated as "${result.importedGraphic.id}"`
+        ? `was duplicated as "${result.importedGraphic.name}"`
         : 'matched an existing local config and was preserved'
 
-  return `Graphic config import completed. "${result.importedGraphic.id}" ${outcome}. Source file: ${filePath}.`
+  return `Graphic config import completed. "${result.importedGraphic.name}" ${outcome}. Source file: ${filePath}.`
 }
 
 function createProfileImportFeedbackMessage(

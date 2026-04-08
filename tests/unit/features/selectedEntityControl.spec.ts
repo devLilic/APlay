@@ -9,6 +9,7 @@ import {
 
 const titleGraphic: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   control: {
@@ -40,6 +41,7 @@ const titleGraphic: GraphicInstanceConfig = {
 const personGraphic: GraphicInstanceConfig = {
   ...titleGraphic,
   id: 'person-main',
+  name: 'Person main',
   entityType: 'person',
   dataFileName: 'person-main.json',
   control: {

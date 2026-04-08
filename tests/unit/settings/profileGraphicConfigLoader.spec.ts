@@ -27,7 +27,7 @@ const settings: AppSettings = {
         type: 'csv',
         filePath: 'C:\\APlay\\sources\\special.csv',
       },
-      graphicConfigIds: ['breaking-main', 'phone-main'],
+      graphicConfigIds: ['location-main', 'phone-main'],
     },
   ],
   graphics: [],
@@ -36,6 +36,7 @@ const settings: AppSettings = {
 const graphicFiles = {
   'title-main.json': JSON.stringify({
     id: 'title-main',
+    name: 'Title main',
     entityType: 'title',
     dataFileName: 'title-main.json',
     control: {
@@ -65,6 +66,7 @@ const graphicFiles = {
   }),
   'person-main.json': JSON.stringify({
     id: 'person-main',
+    name: 'Person main',
     entityType: 'person',
     dataFileName: 'person-main.json',
     control: {
@@ -95,22 +97,23 @@ const graphicFiles = {
       { actionType: 'stopGraphic', label: 'Stop' },
     ],
   }),
-  'breaking-main.json': JSON.stringify({
-    id: 'breaking-main',
-    entityType: 'breakingNews',
-    dataFileName: 'breaking-main.json',
+  'location-main.json': JSON.stringify({
+    id: 'location-main',
+    name: 'Location main',
+    entityType: 'location',
+    dataFileName: 'location-main.json',
     control: {
-      play: '/graphics/breaking/play',
-      stop: '/graphics/breaking/stop',
-      resume: '/graphics/breaking/resume',
+      play: '/graphics/location/play',
+      stop: '/graphics/location/stop',
+      resume: '/graphics/location/resume',
     },
     preview: {
-      id: 'breaking-preview',
+      id: 'location-preview',
       designWidth: 1920,
       designHeight: 1080,
       elements: [
         {
-          id: 'breaking-line',
+          id: 'location-line',
           kind: 'text',
           sourceField: 'value',
           box: {
@@ -126,6 +129,7 @@ const graphicFiles = {
   }),
   'phone-main.json': JSON.stringify({
     id: 'phone-main',
+    name: 'Phone main',
     entityType: 'phone',
     dataFileName: 'phone-main.json',
     control: {
@@ -222,7 +226,7 @@ describe('profile-based graphic config loading', () => {
 
     expect(result.graphics).toHaveLength(2)
     expect(result.graphics.map((graphic) => graphic.control.play)).toEqual([
-      '/graphics/breaking/play',
+      '/graphics/location/play',
       '/graphics/phone/play',
     ])
   })
@@ -263,7 +267,7 @@ describe('profile-based graphic config loading', () => {
       'person-main',
     ])
     expect(special.graphics.map((graphic) => graphic.id)).toEqual([
-      'breaking-main',
+      'location-main',
       'phone-main',
     ])
     expect(morning.profile.source?.filePath).toBe('C:\\APlay\\sources\\morning.csv')

@@ -13,6 +13,7 @@ import {
 
 const existingGraphic: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   datasourcePath: 'datasources/title-main.json',
@@ -46,6 +47,7 @@ const existingGraphic: GraphicInstanceConfig = {
 
 const importedDynamicGraphic: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title import',
   entityType: 'title',
   dataFileName: 'title-main.json',
   datasourcePath: 'datasources/title-main.json',
@@ -199,7 +201,7 @@ describe('graphicConfigImport', () => {
     expect(result.importedGraphic).toMatchObject({
       id: 'title-main-2',
       dataFileName: 'title-main-2.json',
-      datasourcePath: 'datasources\\title-main-2.json',
+      datasourcePath: 'datasources/title-main-2.json',
     })
   })
 

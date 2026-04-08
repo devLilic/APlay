@@ -1,4 +1,3 @@
-import path from 'node:path'
 import type { AppSettings, GraphicInstanceConfig } from '../models/appConfig'
 import {
   graphicConfigExportType,
@@ -147,11 +146,23 @@ function duplicateGraphicConfigWithNewId(
   return {
     ...graphic,
     id: nextId,
+    name: createDuplicatedGraphicConfigName(graphic.name),
     dataFileName: nextDataFileName,
     ...(graphic.datasourcePath
       ? { datasourcePath: replaceDatasourceFileName(graphic.datasourcePath, nextDataFileName) }
       : {}),
   }
+}
+
+function createDuplicatedGraphicConfigName(baseName: string): string {
+  const normalized = baseName.trim()
+  if (normalized.length === 0) {
+    return 'Graphic config copy'
+  }
+
+  return normalized.toLowerCase().endsWith(' copy')
+    ? normalized
+    : `${normalized} copy`
 }
 
 function createUniqueGraphicConfigId(baseId: string, existingIds: string[]): string {
@@ -176,10 +187,13 @@ function replaceDatasourceFileName(datasourcePath: string, nextDataFileName: str
     return nextDataFileName
   }
 
-  const directory = path.dirname(normalizedPath)
-  return directory === '.'
-    ? nextDataFileName
-    : path.join(directory, nextDataFileName)
+  const separators = ['\\', '/']
+  const lastSeparatorIndex = Math.max(...separators.map((separator) => normalizedPath.lastIndexOf(separator)))
+  if (lastSeparatorIndex === -1) {
+    return nextDataFileName
+  }
+
+  return `${normalizedPath.slice(0, lastSeparatorIndex + 1)}${nextDataFileName}`
 }
 
 function resolveGraphicConfigFileName(graphicId: string): string {

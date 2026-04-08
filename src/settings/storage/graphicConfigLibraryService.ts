@@ -273,6 +273,7 @@ function duplicateGraphicConfig(
   return {
     ...structuredClone(graphic),
     id: nextId,
+    name: createDuplicatedGraphicConfigName(graphic.name),
     dataFileName: nextDataFileName,
     preview: {
       ...graphic.preview,
@@ -282,6 +283,17 @@ function duplicateGraphicConfig(
       ? { datasourcePath: replaceTrailingFileName(graphic.datasourcePath, nextDataFileName) }
       : {}),
   }
+}
+
+function createDuplicatedGraphicConfigName(baseName: string): string {
+  const normalized = baseName.trim()
+  if (normalized.length === 0) {
+    return 'Graphic config copy'
+  }
+
+  return normalized.toLowerCase().endsWith(' copy')
+    ? normalized
+    : `${normalized} copy`
 }
 
 function createUniqueGraphicConfigId(baseId: string, existingIds: string[]): string {

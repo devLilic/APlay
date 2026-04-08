@@ -385,6 +385,7 @@ function duplicateGraphic(
   return {
     ...graphic,
     id: nextId,
+    name: createDuplicatedGraphicConfigName(graphic.name),
     dataFileName: nextDataFileName,
     ...(graphic.datasourcePath
       ? {
@@ -392,6 +393,17 @@ function duplicateGraphic(
       }
       : {}),
   }
+}
+
+function createDuplicatedGraphicConfigName(baseName: string): string {
+  const normalized = baseName.trim()
+  if (normalized.length === 0) {
+    return 'Graphic config copy'
+  }
+
+  return normalized.toLowerCase().endsWith(' copy')
+    ? normalized
+    : `${normalized} copy`
 }
 
 function applyReferenceImageIdRemap(

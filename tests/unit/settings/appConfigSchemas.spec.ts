@@ -13,67 +13,35 @@ import {
   showProfileConfigSchema,
 } from '@/settings/schemas/appConfigSchemas'
 
-const staticLogoGraphicConfig = {
-  id: 'channel-logo',
-  entityType: 'logo',
-  dataFileName: 'channel-logo.json',
+const staticImageGraphicConfig = {
+  id: 'channel-static-image',
+  name: 'Channel static image',
+  entityType: 'staticImage',
+  dataFileName: 'channel-static-image.json',
   staticAsset: {
-    assetPath: 'C:\\APlay\\assets\\branding\\channel-logo.png',
+    assetPath: 'C:\\APlay\\assets\\branding\\channel-static-image.png',
     assetType: 'image',
   },
   control: {
-    play: '/graphics/logo/play',
-    stop: '/graphics/logo/stop',
-    resume: '/graphics/logo/resume',
+    play: '/graphics/static-image/play',
+    stop: '/graphics/static-image/stop',
+    resume: '/graphics/static-image/resume',
   },
   preview: {
-    id: 'channel-logo-preview',
+    id: 'channel-static-image-preview',
     designWidth: 1920,
     designHeight: 1080,
     elements: [
       {
-        id: 'logo-image',
+        id: 'static-image',
         kind: 'image',
         sourceField: 'staticAsset',
-        previewText: 'C:\\APlay\\assets\\branding\\channel-logo.png',
+        previewText: 'C:\\APlay\\assets\\branding\\channel-static-image.png',
         box: {
           x: 40,
           y: 40,
           width: 200,
           height: 120,
-        },
-      },
-    ],
-  },
-  actions: [{ actionType: 'playGraphic', label: 'Play' }],
-} as const
-
-const staticImageGraphicConfig = {
-  id: 'sponsor-board',
-  entityType: 'staticImage',
-  dataFileName: 'sponsor-board.json',
-  staticAsset: {
-    assetPath: 'C:\\APlay\\assets\\sponsor\\board.png',
-    assetType: 'image',
-  },
-  control: {
-    templateName: 'SPONSOR_BOARD',
-  },
-  preview: {
-    id: 'sponsor-board-preview',
-    designWidth: 1920,
-    designHeight: 1080,
-    elements: [
-      {
-        id: 'board-image',
-        kind: 'image',
-        sourceField: 'staticAsset',
-        previewText: 'C:\\APlay\\assets\\sponsor\\board.png',
-        box: {
-          x: 0,
-          y: 0,
-          width: 1920,
-          height: 1080,
         },
       },
     ],
@@ -103,9 +71,6 @@ describe('CsvSourceSchemaConfig schema', () => {
               title: 'Titlu',
             },
           },
-          supertitle: {
-            enabled: false,
-          },
           person: {
             enabled: true,
             fields: {
@@ -117,24 +82,6 @@ describe('CsvSourceSchemaConfig schema', () => {
             enabled: true,
             fields: {
               value: 'Locatie',
-            },
-          },
-          breakingNews: {
-            enabled: true,
-            fields: {
-              value: 'Ultima Ora',
-            },
-          },
-          waitingTitle: {
-            enabled: true,
-            fields: {
-              value: 'Titlu Asteptare',
-            },
-          },
-          waitingLocation: {
-            enabled: true,
-            fields: {
-              value: 'Locatie Asteptare',
             },
           },
           phone: {
@@ -161,9 +108,6 @@ describe('CsvSourceSchemaConfig schema', () => {
             title: 'Titlu',
           },
         },
-        supertitle: {
-          enabled: false,
-        },
         person: {
           enabled: true,
           fields: {
@@ -175,24 +119,6 @@ describe('CsvSourceSchemaConfig schema', () => {
           enabled: true,
           fields: {
             value: 'Locatie',
-          },
-        },
-        breakingNews: {
-          enabled: true,
-          fields: {
-            value: 'Ultima Ora',
-          },
-        },
-        waitingTitle: {
-          enabled: true,
-          fields: {
-            value: 'Titlu Asteptare',
-          },
-        },
-        waitingLocation: {
-          enabled: true,
-          fields: {
-            value: 'Locatie Asteptare',
           },
         },
         phone: {
@@ -637,6 +563,7 @@ describe('GraphicInstanceConfig schema', () => {
     expect(
       graphicInstanceConfigSchema.parse({
         id: 'title-main',
+        name: 'Main title',
         entityType: 'title',
         dataFileName: 'title-main.json',
         control: {
@@ -680,6 +607,7 @@ describe('GraphicInstanceConfig schema', () => {
       }),
     ).toEqual({
       id: 'title-main',
+      name: 'Main title',
       entityType: 'title',
       dataFileName: 'title-main.json',
       control: {
@@ -728,6 +656,7 @@ describe('GraphicInstanceConfig schema', () => {
     expect(() =>
       graphicInstanceConfigSchema.parse({
         id: 'ticker',
+        name: 'Ticker',
         entityType: 'ticker',
         dataFileName: 'ticker.json',
         control: {
@@ -758,8 +687,177 @@ describe('GraphicInstanceConfig schema', () => {
     ).toThrow('entityType')
   })
 
+  it('requires both id and name for every graphic config', () => {
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        name: 'Main title',
+        entityType: 'title',
+        dataFileName: 'title-main.json',
+        control: {
+          play: '/graphics/title/play',
+          stop: '/graphics/title/stop',
+          resume: '/graphics/title/resume',
+        },
+        preview: {
+          id: 'title-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'headline',
+              kind: 'text',
+              sourceField: 'text',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      }),
+    ).toThrow('id')
+
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        id: 'title-main',
+        entityType: 'title',
+        dataFileName: 'title-main.json',
+        control: {
+          play: '/graphics/title/play',
+          stop: '/graphics/title/stop',
+          resume: '/graphics/title/resume',
+        },
+        preview: {
+          id: 'title-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'headline',
+              kind: 'text',
+              sourceField: 'text',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      }),
+    ).toThrow('name')
+  })
+
+  it('requires a non-empty trimmed human-readable name', () => {
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        id: 'title-main',
+        name: '',
+        entityType: 'title',
+        dataFileName: 'title-main.json',
+        control: {
+          play: '/graphics/title/play',
+          stop: '/graphics/title/stop',
+          resume: '/graphics/title/resume',
+        },
+        preview: {
+          id: 'title-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'headline',
+              kind: 'text',
+              sourceField: 'text',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      }),
+    ).toThrow('name')
+
+    expect(
+      (graphicInstanceConfigSchema.parse({
+        id: 'title-main',
+        name: '  Main title  ',
+        entityType: 'title',
+        dataFileName: 'title-main.json',
+        control: {
+          play: '/graphics/title/play',
+          stop: '/graphics/title/stop',
+          resume: '/graphics/title/resume',
+        },
+        preview: {
+          id: 'title-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'headline',
+              kind: 'text',
+              sourceField: 'text',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      }) as unknown as Record<string, unknown>).name,
+    ).toBe('Main title')
+  })
+
+  it('rejects invalid or missing names without silently falling back to id', () => {
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        id: 'title-main',
+        name: '   ',
+        entityType: 'title',
+        dataFileName: 'title-main.json',
+        control: {
+          play: '/graphics/title/play',
+          stop: '/graphics/title/stop',
+          resume: '/graphics/title/resume',
+        },
+        preview: {
+          id: 'title-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'headline',
+              kind: 'text',
+              sourceField: 'text',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      }),
+    ).toThrow('name')
+  })
+
   it('allows static entity types without sourceBinding config', () => {
-    const parsed = graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown)
+    const parsed = graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown)
 
     expect(parsed).not.toHaveProperty('bindings')
   })
@@ -771,28 +869,28 @@ describe('GraphicInstanceConfig schema', () => {
   })
 
   it('supports staticAsset config for static graphic entity types', () => {
-    const parsed = graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown) as unknown as Record<string, unknown>
+    const parsed = graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown) as unknown as Record<string, unknown>
 
     expect(parsed).toHaveProperty('staticAsset')
     expect(parsed.staticAsset).toEqual({
-      assetPath: 'C:\\APlay\\assets\\branding\\channel-logo.png',
+      assetPath: 'C:\\APlay\\assets\\branding\\channel-static-image.png',
       assetType: 'image',
     })
   })
 
   it('allows static graphic configs without datasource when staticAsset is present', () => {
     expect(
-      graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown),
+      graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown),
     ).toMatchObject({
-      id: 'channel-logo',
-      entityType: 'logo',
+      id: 'channel-static-image',
+      entityType: 'staticImage',
     })
   })
 
   it('rejects static graphic configs when staticAsset is missing', () => {
     expect(() =>
       graphicInstanceConfigSchema.parse({
-        ...staticLogoGraphicConfig,
+        ...staticImageGraphicConfig,
         staticAsset: undefined,
       } as unknown),
     ).toThrow('staticAsset')
@@ -812,12 +910,12 @@ describe('GraphicInstanceConfig schema', () => {
 
   it('keeps OSC config optional-but-valid for static graphic configs when present', () => {
     expect(
-      graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown),
+      graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown),
     ).toMatchObject({
       control: {
-        play: '/graphics/logo/play',
-        stop: '/graphics/logo/stop',
-        resume: '/graphics/logo/resume',
+        play: '/graphics/static-image/play',
+        stop: '/graphics/static-image/stop',
+        resume: '/graphics/static-image/resume',
       },
     })
   })
@@ -985,6 +1083,7 @@ describe('AppSettings/AppConfig schema', () => {
       graphics: [
         {
           id: 'title-main',
+          name: 'Main title',
           entityType: 'title',
           dataFileName: 'title.json',
           control: {
@@ -1017,6 +1116,7 @@ describe('AppSettings/AppConfig schema', () => {
         },
         {
           id: 'person-lower-third',
+          name: 'Person lower third',
           entityType: 'person',
           dataFileName: 'person.json',
           control: {
@@ -1067,6 +1167,8 @@ describe('AppSettings/AppConfig schema', () => {
     })
     expect(parsed.profiles[0]?.graphicConfigIds).toEqual(['title-main', 'person-lower-third'])
     expect(parsed.graphics.map((graphic) => graphic.id)).toEqual(['title-main', 'person-lower-third'])
+    expect((parsed.graphics as unknown as Array<Record<string, unknown>>).map((graphic) => graphic.name))
+      .toEqual(['Main title', 'Person lower third'])
     expect(parsed.graphics[0]?.preview.background).toEqual({
       referenceImageId: 'lb-title-reference',
       opacity: 1,
@@ -1092,11 +1194,12 @@ describe('AppSettings/AppConfig schema', () => {
           },
         ],
         graphics: [
-          {
-            id: 'title-main',
-            entityType: 'title',
-            dataFileName: 'title.json',
-            control: {
+        {
+          id: 'title-main',
+          name: 'Main title',
+          entityType: 'title',
+          dataFileName: 'title.json',
+          control: {
               play: '/graphics/title/play',
               stop: '/graphics/title/stop',
               resume: '/graphics/title/resume',
@@ -1191,6 +1294,7 @@ describe('AppSettings/AppConfig schema', () => {
       graphics: [
         {
           id: 'title-main',
+          name: 'Main title',
           entityType: 'title',
           dataFileName: 'title.json',
           datasourcePath: 'datasources/title.json',

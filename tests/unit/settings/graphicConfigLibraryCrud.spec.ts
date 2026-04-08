@@ -13,6 +13,7 @@ const graphicFilesStorageKey = 'aplay.graphic-config-files.v1'
 
 const titleGraphic: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   datasourcePath: 'datasources/title-main.json',
@@ -48,6 +49,7 @@ const titleGraphic: GraphicInstanceConfig = {
 
 const personGraphic: GraphicInstanceConfig = {
   id: 'person-main',
+  name: 'Person main',
   entityType: 'person',
   dataFileName: 'person-main.json',
   datasourcePath: 'datasources/person-main.json',

@@ -1,4 +1,5 @@
 import type { AppSettings, ShowProfileConfig } from '@/settings/models/appConfig'
+import { supportedEntityTypes } from '@/core/entities/entityTypes'
 import { appSettingsSchema } from '@/settings/schemas/appConfigSchemas'
 
 export interface SettingsStorage {
@@ -79,13 +80,117 @@ function normalizePersistedSettings(input: unknown): unknown {
     return input
   }
 
-  const value = input as Record<string, unknown>
-
-  return {
+  const normalizedValue: Record<string, unknown> = {
     referenceImages: [],
     sourceSchemas: [],
     profiles: [],
     graphics: [],
-    ...value,
+    ...(input as Record<string, unknown>),
   }
+  const graphics = Array.isArray(normalizedValue.graphics)
+    ? normalizedValue.graphics
+      .filter((graphic) =>
+        isSupportedGraphicEntityType(graphic),
+      )
+      .map((graphic) => normalizeGraphicConfigName(graphic))
+    : []
+  const availableGraphicIds = new Set(
+    graphics
+      .map((graphic) => (graphic && typeof graphic === 'object' ? (graphic as Record<string, unknown>).id : undefined))
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+  )
+  const profiles = Array.isArray(normalizedValue.profiles)
+    ? normalizedValue.profiles.map((profile) => normalizeProfileGraphicIds(profile, availableGraphicIds))
+    : []
+  const selectedProfileId = resolveSelectedProfileId(normalizedValue.selectedProfileId, profiles)
+
+  return {
+    ...normalizedValue,
+    selectedProfileId,
+    profiles,
+    graphics,
+  }
+}
+
+function normalizeGraphicConfigName(graphic: unknown): unknown {
+  if (!graphic || typeof graphic !== 'object' || Array.isArray(graphic)) {
+    return graphic
+  }
+
+  const value = graphic as Record<string, unknown>
+  const existingName = typeof value.name === 'string' ? value.name.trim() : ''
+  if (existingName.length > 0) {
+    return {
+      ...value,
+      name: existingName,
+    }
+  }
+
+  const id = typeof value.id === 'string' ? value.id.trim() : ''
+  return {
+    ...value,
+    name: humanizeGraphicConfigId(id),
+  }
+}
+
+function humanizeGraphicConfigId(graphicId: string): string {
+  const normalized = graphicId.trim()
+  if (normalized.length === 0) {
+    return 'Unnamed graphic config'
+  }
+
+  return normalized
+    .split(/[-_]+/g)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+function isSupportedGraphicEntityType(graphic: unknown): boolean {
+  return !!graphic &&
+    typeof graphic === 'object' &&
+    !Array.isArray(graphic) &&
+    typeof (graphic as Record<string, unknown>).entityType === 'string' &&
+    supportedEntityTypes.includes((graphic as Record<string, unknown>).entityType as typeof supportedEntityTypes[number])
+}
+
+function normalizeProfileGraphicIds(
+  profile: unknown,
+  availableGraphicIds: Set<string>,
+): unknown {
+  if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
+    return profile
+  }
+
+  const value = profile as Record<string, unknown>
+  const graphicConfigIds = Array.isArray(value.graphicConfigIds)
+    ? value.graphicConfigIds.filter(
+      (graphicId): graphicId is string => typeof graphicId === 'string' && availableGraphicIds.has(graphicId),
+    )
+    : []
+
+  return {
+    ...value,
+    graphicConfigIds,
+  }
+}
+
+function resolveSelectedProfileId(
+  selectedProfileId: unknown,
+  profiles: unknown[],
+): unknown {
+  if (
+    typeof selectedProfileId === 'string' &&
+    profiles.some(
+      (profile) => !!profile && typeof profile === 'object' && !Array.isArray(profile) && (profile as Record<string, unknown>).id === selectedProfileId,
+    )
+  ) {
+    return selectedProfileId
+  }
+
+  const fallbackProfile = profiles.find(
+    (profile) => !!profile && typeof profile === 'object' && !Array.isArray(profile) && typeof (profile as Record<string, unknown>).id === 'string',
+  ) as Record<string, unknown> | undefined
+
+  return fallbackProfile?.id ?? selectedProfileId
 }

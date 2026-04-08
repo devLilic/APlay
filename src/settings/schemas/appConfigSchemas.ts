@@ -61,7 +61,7 @@ const csvBlockDetectionModes = ['columnRegex'] as const
 const previewTextAlignValues = ['left', 'center'] as const
 const graphicConfigKinds = ['dynamic', 'static'] as const
 const staticGraphicAssetTypes = ['image'] as const
-const staticGraphicEntityTypes = ['logo', 'staticImage'] as const
+const staticGraphicEntityTypes = ['staticImage'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
   const value = assertRecord(input, 'referenceImageAsset')
@@ -366,12 +366,8 @@ export const csvEntityMappingConfigSchema = createSchema<CsvEntityMappingConfig>
 
   return {
     title: parseTitleMapping(assertRecord(value.title, 'csvEntityMappingConfig.title')),
-    supertitle: parseSupertitleMapping(assertRecord(value.supertitle, 'csvEntityMappingConfig.supertitle')),
     person: parsePersonMapping(assertRecord(value.person, 'csvEntityMappingConfig.person')),
     location: parseValueMapping(assertRecord(value.location, 'csvEntityMappingConfig.location'), 'location'),
-    breakingNews: parseValueMapping(assertRecord(value.breakingNews, 'csvEntityMappingConfig.breakingNews'), 'breakingNews'),
-    waitingTitle: parseValueMapping(assertRecord(value.waitingTitle, 'csvEntityMappingConfig.waitingTitle'), 'waitingTitle'),
-    waitingLocation: parseValueMapping(assertRecord(value.waitingLocation, 'csvEntityMappingConfig.waitingLocation'), 'waitingLocation'),
     phone: parsePhoneMapping(assertRecord(value.phone, 'csvEntityMappingConfig.phone')),
   }
 })
@@ -448,6 +444,11 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
   const staticAsset = value.staticAsset === undefined
     ? undefined
     : staticGraphicAssetConfigSchema.parse(value.staticAsset)
+  const name = parseRequiredString(value, 'name', 'graphicInstanceConfig').trim()
+
+  if (name.length === 0) {
+    throw new SchemaValidationError('graphicInstanceConfig.name must be a non-empty string')
+  }
 
   if (kind === 'static' && !staticAsset) {
     throw new SchemaValidationError('graphicInstanceConfig.staticAsset is required for static graphic configs')
@@ -455,6 +456,7 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
 
   return {
     id: parseRequiredString(value, 'id', 'graphicInstanceConfig'),
+    name,
     entityType,
     ...(kind ? { kind } : {}),
     dataFileName: parseRequiredString(value, 'dataFileName', 'graphicInstanceConfig'),
@@ -626,26 +628,6 @@ function parseTitleMapping(value: Record<string, unknown>) {
     fields: {
       number: parseRequiredString(fields, 'number', 'csvEntityMappingConfig.title.fields'),
       title: parseRequiredString(fields, 'title', 'csvEntityMappingConfig.title.fields'),
-    },
-  }
-}
-
-function parseSupertitleMapping(value: Record<string, unknown>) {
-  const enabled = parseOptionalBoolean(value, 'enabled', 'csvEntityMappingConfig.supertitle')
-  if (enabled === undefined) {
-    throw new SchemaValidationError('csvEntityMappingConfig.supertitle.enabled is required')
-  }
-
-  if (!enabled) {
-    return { enabled: false }
-  }
-
-  const fields = assertRecord(value.fields, 'csvEntityMappingConfig.supertitle.fields')
-
-  return {
-    enabled: true,
-    fields: {
-      text: parseRequiredString(fields, 'text', 'csvEntityMappingConfig.supertitle.fields'),
     },
   }
 }

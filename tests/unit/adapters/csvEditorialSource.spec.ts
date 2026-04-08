@@ -75,6 +75,7 @@ const sampleCsv = [
 const profileGraphics: GraphicInstanceConfig[] = [
   {
     id: 'title-main',
+    name: 'Title main',
     entityType: 'title',
     dataFileName: 'title-main.json',
     datasourcePath: 'datasources/title-main.json',
@@ -95,6 +96,7 @@ const profileGraphics: GraphicInstanceConfig[] = [
   },
   {
     id: 'location-main',
+    name: 'Location main',
     entityType: 'location',
     dataFileName: 'location-main.json',
     datasourcePath: 'datasources/location-main.json',
@@ -117,6 +119,7 @@ const profileGraphics: GraphicInstanceConfig[] = [
 const graphicConfigCollectionGraphics: GraphicInstanceConfig[] = [
   {
     id: 'pa_title_main',
+    name: 'PA title main',
     entityType: 'title',
     dataFileName: 'pa_title_main.json',
     datasourcePath: 'datasources/pa_title_main.json',
@@ -137,6 +140,7 @@ const graphicConfigCollectionGraphics: GraphicInstanceConfig[] = [
   },
   {
     id: 'pa_title_waiting',
+    name: 'PA title waiting',
     entityType: 'title',
     dataFileName: 'pa_title_waiting.json',
     datasourcePath: 'datasources/pa_title_waiting.json',
@@ -157,6 +161,7 @@ const graphicConfigCollectionGraphics: GraphicInstanceConfig[] = [
   },
   {
     id: 'static-bug',
+    name: 'Static bug',
     entityType: 'staticImage',
     kind: 'static',
     dataFileName: 'static-bug.json',

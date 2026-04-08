@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
   createGraphicConfigExportEnvelope,
   createGraphicConfigFileSaveService,
@@ -9,8 +8,9 @@ import {
   serializeGraphicConfigExport,
 } from '@/settings/storage/graphicConfigExport'
 
-const dynamicGraphicConfig: GraphicInstanceConfig = {
+const dynamicGraphicConfig = {
   id: 'dynamic-title',
+  name: 'Dynamic title',
   entityType: 'title',
   dataFileName: 'dynamic-title.json',
   datasourcePath: 'datasources/dynamic-title.json',
@@ -47,12 +47,18 @@ const dynamicGraphicConfig: GraphicInstanceConfig = {
     ],
   },
   actions: [{ actionType: 'playGraphic', label: 'Play' }],
-}
+} as const
 
-const staticGraphicConfig: GraphicInstanceConfig = {
+const staticGraphicConfig = {
   id: 'static-logo',
-  entityType: 'breakingNews',
+  name: 'Static logo',
+  entityType: 'staticImage',
+  kind: 'static',
   dataFileName: 'static-logo.json',
+  staticAsset: {
+    assetPath: 'C:\\APlay\\assets\\logo.png',
+    assetType: 'image',
+  },
   control: {
     play: '/graphics/logo/play',
     stop: '/graphics/logo/stop',
@@ -78,7 +84,7 @@ const staticGraphicConfig: GraphicInstanceConfig = {
     ],
   },
   actions: [{ actionType: 'playGraphic', label: 'Play' }],
-}
+} as const
 
 describe('graphicConfigExport', () => {
   it('serializes a dynamic graphic config into a versioned, typed export envelope', () => {
@@ -89,6 +95,7 @@ describe('graphicConfigExport', () => {
       exportType: graphicConfigExportType,
       payload: {
         id: 'dynamic-title',
+        name: 'Dynamic title',
         datasourcePath: 'datasources/dynamic-title.json',
         bindings: [{ sourceField: 'text', targetField: 'headline', required: true }],
       },
@@ -115,6 +122,13 @@ describe('graphicConfigExport', () => {
     const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
 
     expect(imported).toEqual(parseGraphicConfigImport(dynamicGraphicConfig))
+  })
+
+  it('includes the display name in saved graphic config serialization', () => {
+    const exported = createGraphicConfigExportEnvelope(dynamicGraphicConfig as never) as unknown as Record<string, unknown>
+    const payload = exported.payload as Record<string, unknown>
+
+    expect(payload.name).toBe('Dynamic title')
   })
 
   it('imports a valid static graphic config JSON', () => {
@@ -185,6 +199,7 @@ describe('graphicConfigExport', () => {
     expect(() =>
       serializeGraphicConfigExport({
         id: 'broken',
+        name: 'Broken graphic',
         entityType: 'title',
         control: {
           play: '/graphics/broken/play',
@@ -221,6 +236,7 @@ describe('graphicConfigExport', () => {
         exportType: graphicConfigExportType,
         payload: {
           id: 'broken',
+          name: 'Broken graphic',
           entityType: 'title',
           dataFileName: 'broken.json',
           control: {

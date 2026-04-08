@@ -138,6 +138,7 @@ export function SettingsPanel({
   onTestOscCommand,
 }: SettingsPanelProps) {
   const selectedProfile = settings.profiles.find((profile) => profile.id === settings.selectedProfileId)
+  const invalidGraphicNames = settings.graphics.filter((graphic) => graphic.name.trim().length === 0)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(selectedProfile?.graphicConfigIds[0] ?? null)
   const [draftGraphicEntityType, setDraftGraphicEntityType] = useState<GraphicInstanceConfig['entityType']>('title')
   const [draftGraphicId, setDraftGraphicId] = useState('')
@@ -307,7 +308,7 @@ export function SettingsPanel({
         result.settings,
         {
           kind: 'success',
-          message: `Graphic config "${result.graphic.id}" created in the library.`,
+          message: `Graphic config "${result.graphic.name}" created in the library.`,
         },
         result.graphic.id,
       )
@@ -330,7 +331,7 @@ export function SettingsPanel({
         result.settings,
         {
           kind: 'success',
-          message: `Graphic config "${graphicId}" duplicated as "${result.graphic.id}".`,
+          message: `Graphic config "${result.graphic.name}" duplicated successfully.`,
         },
         result.graphic.id,
       )
@@ -368,7 +369,7 @@ export function SettingsPanel({
         result.settings,
         {
           kind: 'success',
-          message: `Graphic config "${pendingGraphicDelete.graphicId}" deleted from the library.`,
+          message: `Graphic config deleted from the library.`,
         },
         nextSelectedId,
       )
@@ -613,7 +614,8 @@ export function SettingsPanel({
           <button
             type='button'
             onClick={onSave}
-            className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition hover:bg-accent/90'
+            disabled={invalidGraphicNames.length > 0}
+            className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
           >
             Save settings
           </button>
@@ -668,6 +670,12 @@ export function SettingsPanel({
         {libraryFeedback ? (
           <div className={`rounded-2xl border px-4 py-3 text-sm ${libraryFeedback.kind === 'success' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
             {libraryFeedback.message}
+          </div>
+        ) : null}
+
+        {invalidGraphicNames.length > 0 ? (
+          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
+            Display Name is required for every graphic config before settings can be saved.
           </div>
         ) : null}
 
@@ -1047,6 +1055,7 @@ function createDefaultGraphicConfig(
 
   return {
     id,
+    name: createGraphicConfigDisplayName(id),
     entityType,
     ...(isStaticGraphic ? { kind: 'static' as const } : {}),
     dataFileName,
@@ -1078,6 +1087,19 @@ function createDefaultGraphicConfig(
       { actionType: 'resumeGraphic', label: 'Resume' },
     ],
   }
+}
+
+function createGraphicConfigDisplayName(graphicId: string): string {
+  const normalized = graphicId.trim()
+  if (normalized.length === 0) {
+    return 'Unnamed graphic config'
+  }
+
+  return normalized
+    .split(/[-_]+/g)
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function createUniqueProfileId(settings: AppSettings): string {
@@ -1640,7 +1662,7 @@ function ProfileSection({
               return (
                 <div key={graphic.id} className='rounded-2xl border border-border bg-white px-4 py-3'>
                   <div className='min-w-0'>
-                    <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                    <p className='truncate text-sm font-semibold text-ink'>{graphic.name}</p>
                     <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                   </div>
                   <div className='mt-3'>
@@ -1673,7 +1695,7 @@ function ProfileSection({
               {availableGraphics.length === 0 ? <option value=''>No unassigned configs available</option> : null}
               {availableGraphics.map((graphic) => (
                 <option key={graphic.id} value={graphic.id}>
-                  {graphic.id} | {graphic.entityType}
+                  {graphic.name} | {graphic.entityType}
                 </option>
               ))}
             </select>
@@ -2033,7 +2055,7 @@ function CsvSchemaSection({
                     <div key={graphic.id} className='rounded-2xl border border-border bg-white px-4 py-3'>
                       <div className='flex flex-wrap items-start justify-between gap-3'>
                         <div className='min-w-0'>
-                          <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                          <p className='truncate text-sm font-semibold text-ink'>{graphic.name}</p>
                           <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                         </div>
                         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
@@ -2369,7 +2391,7 @@ function GraphicSelectionSection({
 
             return (
               <option key={graphic.id} value={graphic.id}>
-                {graphic.id} | {graphic.entityType} | {isAssigned ? 'Assigned to active profile' : 'Library only'}
+                  {graphic.name} | {graphic.entityType} | {isAssigned ? 'Assigned to active profile' : 'Library only'}
               </option>
             )
           })}
@@ -2417,7 +2439,7 @@ function GraphicSelectionSection({
                       onClick={() => onSelectedGraphicIdChange(graphic.id)}
                       className='w-full text-left'
                     >
-                      <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                      <p className='truncate text-sm font-semibold text-ink'>{graphic.name}</p>
                       <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                     </button>
                   </div>
@@ -2452,7 +2474,7 @@ function GraphicSelectionSection({
                 </div>
                 {deleteIsPending ? (
                   <div className='basis-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700'>
-                    <p className='font-semibold'>Delete "{graphic.id}" from the library?</p>
+                    <p className='font-semibold'>Delete "{graphic.name}" from the library?</p>
                     {pendingGraphicDelete.references.length > 0 ? (
                       <div className='mt-2 space-y-2'>
                         <p>
@@ -2540,7 +2562,7 @@ function ImportSummaryCard({
 
       {summary.kind === 'graphic' ? (
         <div className='mt-4 grid gap-3 md:grid-cols-3'>
-          <SummaryItem label='Name' value={summary.preview.importedGraphic.id} />
+          <SummaryItem label='Name' value={summary.preview.importedGraphic.name} />
           <SummaryItem label='Kind' value={summary.preview.importedGraphic.entityType} />
           <SummaryItem
             label='Category'
@@ -2726,6 +2748,10 @@ function GraphicBindingSection({
   const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'staticImage'
   const sourceOptions = getGraphicBindingSourceOptions(graphic.entityType)
   const targetOptions = getGraphicBindingTargetOptions(graphic)
+  const trimmedDisplayName = graphic.name.trim()
+  const displayNameError = trimmedDisplayName.length === 0
+    ? 'Display Name is required.'
+    : null
 
   return (
     <FormSection title='Graphic configuration' description='Configure runtime behavior for the selected graphic config. Static graphics use image assets; dynamic graphics use datasource mappings.'>
@@ -2733,6 +2759,23 @@ function GraphicBindingSection({
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic id</span>
           <input value={graphic.id} readOnly className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm text-muted' />
+        </label>
+        <label className='space-y-2'>
+          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Display name</span>
+          <input
+            value={graphic.name}
+            onChange={(event) => updateGraphic((current) => ({ ...current, name: event.target.value }))}
+            required
+            placeholder='Example: Main title'
+            className={`w-full rounded-xl bg-white px-3 py-2 text-sm text-ink ${
+              displayNameError
+                ? 'border border-rose-300 focus:border-rose-400'
+                : 'border border-border'
+            }`}
+          />
+          <p className={`text-xs ${displayNameError ? 'text-rose-600' : 'text-muted'}`}>
+            {displayNameError ?? 'Human-readable label used everywhere in the UI.'}
+          </p>
         </label>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
@@ -3777,7 +3820,7 @@ function PreviewTemplateSection({
               <h4 className='mt-1 text-lg font-semibold'>Preview16x9</h4>
             </div>
             <span className='rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300'>
-              {activeGraphic?.id ?? graphic.id}
+              {activeGraphic?.name ?? graphic.name}
             </span>
           </div>
           <div className='rounded-3xl border border-white/10 bg-white/5 p-4'>

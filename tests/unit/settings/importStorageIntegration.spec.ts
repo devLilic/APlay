@@ -15,6 +15,7 @@ import {
 
 const baseGraphic: GraphicInstanceConfig = {
   id: 'existing-title',
+  name: 'Existing title',
   entityType: 'title',
   dataFileName: 'existing-title.json',
   datasourcePath: 'datasources/existing-title.json',
@@ -48,6 +49,7 @@ const baseGraphic: GraphicInstanceConfig = {
 
 const importedGraphic: GraphicInstanceConfig = {
   id: 'imported-title',
+  name: 'Imported title',
   entityType: 'title',
   dataFileName: 'imported-title.json',
   datasourcePath: 'datasources/imported-title.json',
@@ -105,22 +107,10 @@ const importedSchema: CsvSourceSchemaConfig = {
         title: 'Titlu',
       },
     },
-    supertitle: {
-      enabled: false,
-    },
     person: {
       enabled: false,
     },
     location: {
-      enabled: false,
-    },
-    breakingNews: {
-      enabled: false,
-    },
-    waitingTitle: {
-      enabled: false,
-    },
-    waitingLocation: {
       enabled: false,
     },
     phone: {

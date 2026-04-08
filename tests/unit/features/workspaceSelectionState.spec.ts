@@ -38,6 +38,7 @@ const documentFixture: EditorialDocument = {
 const graphicsFixture: GraphicInstanceConfig[] = [
   {
     id: 'pa_title_main',
+    name: 'PA title main',
     entityType: 'title',
     dataFileName: 'pa_title_main.json',
     datasourcePath: 'datasources/pa_title_main.json',
@@ -53,6 +54,7 @@ const graphicsFixture: GraphicInstanceConfig[] = [
   },
   {
     id: 'pa_title_waiting',
+    name: 'PA title waiting',
     entityType: 'title',
     dataFileName: 'pa_title_waiting.json',
     datasourcePath: 'datasources/pa_title_waiting.json',

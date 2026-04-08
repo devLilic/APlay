@@ -9,6 +9,7 @@ import { createOscGraphicOutputAdapter } from '@/adapters/graphic-output/oscGrap
 
 const graphicConfig: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   control: {
@@ -45,6 +46,7 @@ const graphicConfig: GraphicInstanceConfig = {
 const structuredGraphicConfig: GraphicInstanceConfig = {
   ...graphicConfig,
   id: 'title-structured',
+  name: 'Structured title',
   control: {
     oscTarget: {
       host: '127.0.0.1',
@@ -173,6 +175,7 @@ describe('OSC graphic output', () => {
     const otherGraphic: GraphicInstanceConfig = {
       ...graphicConfig,
       id: 'phone-main',
+      name: 'Phone main',
       entityType: 'phone',
       dataFileName: 'phone-main.json',
       control: {
@@ -277,6 +280,7 @@ describe('OSC graphic output', () => {
     const adapter = createOscGraphicOutputAdapter()
     const graphicWithBackground: GraphicInstanceConfig = {
       ...graphicConfig,
+      name: 'Title main',
       preview: {
         ...graphicConfig.preview,
         background: {

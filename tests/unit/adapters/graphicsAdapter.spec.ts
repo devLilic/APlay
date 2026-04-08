@@ -4,6 +4,7 @@ import { createGraphicsAdapter } from '@/adapters/graphics/graphicsAdapter'
 
 const graphicConfig: GraphicInstanceConfig = {
   id: 'title-main',
+  name: 'Title main',
   entityType: 'title',
   dataFileName: 'title-main.json',
   control: {

@@ -5,13 +5,10 @@ import { serializeGraphicConfigExport } from '@/settings/storage/graphicConfigEx
 
 const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
   title: [{ sourceField: 'text', targetField: 'text', required: true }],
-  supertitle: [{ sourceField: 'text', targetField: 'text', required: true }],
   person: [{ sourceField: 'name', targetField: 'name', required: true }, { sourceField: 'role', targetField: 'role' }],
   location: [{ sourceField: 'value', targetField: 'value', required: true }],
-  breakingNews: [{ sourceField: 'value', targetField: 'value', required: true }],
-  waitingTitle: [{ sourceField: 'value', targetField: 'value', required: true }],
-  waitingLocation: [{ sourceField: 'value', targetField: 'value', required: true }],
   phone: [{ sourceField: 'label', targetField: 'label', required: true }, { sourceField: 'number', targetField: 'number', required: true }],
+  staticImage: [],
 }
 
 export const sampleSettings: AppSettings = {
@@ -57,9 +54,6 @@ export const sampleSettings: AppSettings = {
             title: 'Titlu',
           },
         },
-        supertitle: {
-          enabled: false,
-        },
         person: {
           enabled: true,
           fields: {
@@ -71,24 +65,6 @@ export const sampleSettings: AppSettings = {
           enabled: true,
           fields: {
             value: 'Locatie',
-          },
-        },
-        breakingNews: {
-          enabled: true,
-          fields: {
-            value: 'Ultima Ora',
-          },
-        },
-        waitingTitle: {
-          enabled: true,
-          fields: {
-            value: 'Titlu Asteptare',
-          },
-        },
-        waitingLocation: {
-          enabled: true,
-          fields: {
-            value: 'Locatie Asteptare',
           },
         },
         phone: {
@@ -108,19 +84,17 @@ export const sampleSettings: AppSettings = {
       },
       graphicConfigIds: [
         'title-main',
-        'supertitle-main',
         'person-main',
         'location-main',
-        'breaking-main',
-        'waiting-title-main',
-        'waiting-location-main',
         'phone-main',
+        'static-image-main',
       ],
     },
   ],
   graphics: [
     {
       id: 'title-main',
+      name: 'Main title',
       entityType: 'title',
       dataFileName: 'title-main.json',
       datasourcePath: 'datasources/title-main.json',
@@ -138,25 +112,8 @@ export const sampleSettings: AppSettings = {
       actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
     },
     {
-      id: 'supertitle-main',
-      entityType: 'supertitle',
-      dataFileName: 'supertitle-main.json',
-      datasourcePath: 'datasources/supertitle-main.json',
-      control: { templateName: 'SUPERTITLE_MAIN', play: '/aplay/supertitle/play', stop: '/aplay/supertitle/stop', resume: '/aplay/supertitle/resume' },
-      bindings: defaultGraphicBindingsByEntityType.supertitle,
-      preview: {
-        id: 'supertitle-preview',
-        designWidth: 1920,
-        designHeight: 1080,
-        elements: [
-          { id: 'supertitle-box', kind: 'box', sourceField: 'text', box: { x: 86, y: 620, width: 420, height: 74 } },
-          { id: 'supertitle-text', kind: 'text', sourceField: 'text', box: { x: 118, y: 634, width: 360, height: 44 }, text: { allCaps: true, fitInBox: true, minScaleX: 0.75 } },
-        ],
-      },
-      actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
-    },
-    {
       id: 'person-main',
+      name: 'Person main',
       entityType: 'person',
       dataFileName: 'person-main.json',
       datasourcePath: 'datasources/person-main.json',
@@ -176,6 +133,7 @@ export const sampleSettings: AppSettings = {
     },
     {
       id: 'location-main',
+      name: 'Location main',
       entityType: 'location',
       dataFileName: 'location-main.json',
       datasourcePath: 'datasources/location-main.json',
@@ -193,61 +151,8 @@ export const sampleSettings: AppSettings = {
       actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
     },
     {
-      id: 'breaking-main',
-      entityType: 'breakingNews',
-      dataFileName: 'breaking-main.json',
-      datasourcePath: 'datasources/breaking-main.json',
-      control: { templateName: 'BREAKING_MAIN', play: '/aplay/breaking/play', stop: '/aplay/breaking/stop', resume: '/aplay/breaking/resume' },
-      bindings: defaultGraphicBindingsByEntityType.breakingNews,
-      preview: {
-        id: 'breaking-preview',
-        designWidth: 1920,
-        designHeight: 1080,
-        elements: [
-          { id: 'breaking-band', kind: 'box', sourceField: 'value', box: { x: 0, y: 936, width: 1920, height: 144 } },
-          { id: 'breaking-line', kind: 'text', sourceField: 'value', box: { x: 128, y: 980, width: 1480, height: 54 }, text: { allCaps: true, fitInBox: true, minScaleX: 0.65 } },
-        ],
-      },
-      actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
-    },
-    {
-      id: 'waiting-title-main',
-      entityType: 'waitingTitle',
-      dataFileName: 'waiting-title-main.json',
-      datasourcePath: 'datasources/waiting-title-main.json',
-      control: { templateName: 'WAITING_TITLE_MAIN', play: '/aplay/waiting-title/play', stop: '/aplay/waiting-title/stop', resume: '/aplay/waiting-title/resume' },
-      bindings: defaultGraphicBindingsByEntityType.waitingTitle,
-      preview: {
-        id: 'waiting-title-preview',
-        designWidth: 1920,
-        designHeight: 1080,
-        elements: [
-          { id: 'waiting-title-box', kind: 'box', sourceField: 'value', box: { x: 86, y: 740, width: 980, height: 180 } },
-          { id: 'waiting-title-text', kind: 'text', sourceField: 'value', box: { x: 126, y: 788, width: 900, height: 72 }, text: { fitInBox: true, minScaleX: 0.68 } },
-        ],
-      },
-      actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
-    },
-    {
-      id: 'waiting-location-main',
-      entityType: 'waitingLocation',
-      dataFileName: 'waiting-location-main.json',
-      datasourcePath: 'datasources/waiting-location-main.json',
-      control: { templateName: 'WAITING_LOCATION_MAIN', play: '/aplay/waiting-location/play', stop: '/aplay/waiting-location/stop', resume: '/aplay/waiting-location/resume' },
-      bindings: defaultGraphicBindingsByEntityType.waitingLocation,
-      preview: {
-        id: 'waiting-location-preview',
-        designWidth: 1920,
-        designHeight: 1080,
-        elements: [
-          { id: 'waiting-location-box', kind: 'box', sourceField: 'value', box: { x: 86, y: 812, width: 460, height: 88 } },
-          { id: 'waiting-location-text', kind: 'text', sourceField: 'value', box: { x: 126, y: 836, width: 380, height: 36 }, text: { allCaps: true, fitInBox: true, minScaleX: 0.7 } },
-        ],
-      },
-      actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
-    },
-    {
       id: 'phone-main',
+      name: 'Phone main',
       entityType: 'phone',
       dataFileName: 'phone-main.json',
       datasourcePath: 'datasources/phone-main.json',
@@ -261,6 +166,27 @@ export const sampleSettings: AppSettings = {
           { id: 'phone-box', kind: 'box', sourceField: 'number', box: { x: 1280, y: 760, width: 540, height: 144 } },
           { id: 'phone-label', kind: 'text', sourceField: 'label', box: { x: 1320, y: 784, width: 460, height: 34 }, text: { allCaps: true, fitInBox: true, minScaleX: 0.72 } },
           { id: 'phone-number', kind: 'text', sourceField: 'number', box: { x: 1320, y: 824, width: 460, height: 46 }, text: { fitInBox: true, minScaleX: 0.72 } },
+        ],
+      },
+      actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
+    },
+    {
+      id: 'static-image-main',
+      name: 'Static image main',
+      entityType: 'staticImage',
+      kind: 'static',
+      dataFileName: 'static-image-main.json',
+      staticAsset: {
+        assetPath: 'assets/static-image-main.png',
+        assetType: 'image',
+      },
+      control: { templateName: 'STATIC_IMAGE_MAIN', play: '/aplay/static-image/play', stop: '/aplay/static-image/stop', resume: '/aplay/static-image/resume' },
+      preview: {
+        id: 'static-image-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          { id: 'static-image', kind: 'image', sourceField: 'staticAsset', previewText: 'assets/static-image-main.png', box: { x: 1360, y: 72, width: 420, height: 236 } },
         ],
       },
       actions: [{ actionType: 'playGraphic', label: 'Play' }, { actionType: 'stopGraphic', label: 'Stop' }, { actionType: 'resumeGraphic', label: 'Resume' }],
