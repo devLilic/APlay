@@ -66,7 +66,10 @@ declare global {
       pickReferenceImage: () => Promise<string | null>
       pickSourceCsvFile: () => Promise<string | null>
       pickDatasourceJsonFile: () => Promise<string | null>
+      pickGraphicConfigImportFile: () => Promise<string | null>
+      pickProfileConfigImportFile: () => Promise<string | null>
       readReferenceImage: (filePath: string) => Promise<string | null>
+      readTextFile: (filePath: string) => Promise<string | null>
       readSourceFileSync: (filePath: string) => string | null
       writeDatasourceFileSync: (filePath: string, content: string) => void
       exportGraphicConfig: (graphicConfig: GraphicInstanceConfig, suggestedFileName?: string) => Promise<string | null>

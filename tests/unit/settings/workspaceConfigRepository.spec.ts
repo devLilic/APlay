@@ -216,6 +216,78 @@ describe('workspaceConfigRepository', () => {
       .toBe('datasources/title-main.json')
   })
 
+  it('applies the current safe id-conflict policy by replacing an existing library item only after the imported file validates', () => {
+    const importedVariant = {
+      ...sampleSettings.graphics.find((graphic) => graphic.id === 'title-main')!,
+      datasourcePath: 'datasources/title-main-imported.json',
+      preview: {
+        ...sampleSettings.graphics.find((graphic) => graphic.id === 'title-main')!.preview,
+        elements: [
+          {
+            ...sampleSettings.graphics.find((graphic) => graphic.id === 'title-main')!.preview.elements[0]!,
+            previewText: 'Imported title variant',
+          },
+        ],
+      },
+    }
+    const storage = createMemoryKeyValueStorage({
+      'aplay.graphic-config-files.v1': JSON.stringify({
+        'title-main.json': JSON.stringify({
+          version: graphicConfigExportVersion,
+          exportType: graphicConfigExportType,
+          payload: importedVariant,
+        }),
+      }),
+    })
+    const repository = createWorkspaceConfigRepository(storage, {
+      settings: sampleSettings,
+      graphicFiles: sampleGraphicFiles,
+    })
+
+    const snapshot = repository.load()
+    const resolvedGraphic = snapshot.settings.graphics.find((graphic) => graphic.id === 'title-main')
+
+    expect(resolvedGraphic).toMatchObject({
+      id: 'title-main',
+      datasourcePath: 'datasources/title-main-imported.json',
+    })
+    expect(resolvedGraphic?.preview.elements[0]).toMatchObject({
+      previewText: 'Imported title variant',
+    })
+  })
+
+  it('preserves the existing library item when a same-id imported file is invalid', () => {
+    const existingGraphic = sampleSettings.graphics.find((graphic) => graphic.id === 'title-main')!
+    const canonicalExistingGraphic = parseGraphicConfigImport(existingGraphic)
+    const storage = createMemoryKeyValueStorage({
+      'aplay.graphic-config-files.v1': JSON.stringify({
+        'title-main.json': JSON.stringify({
+          version: graphicConfigExportVersion,
+          exportType: graphicConfigExportType,
+          payload: {
+            ...existingGraphic,
+            preview: {
+              id: 'broken-preview',
+              designWidth: 1920,
+              designHeight: 1080,
+              elements: [],
+            },
+          },
+        }),
+      }),
+    })
+    const repository = createWorkspaceConfigRepository(storage, {
+      settings: sampleSettings,
+      graphicFiles: sampleGraphicFiles,
+    })
+
+    const snapshot = repository.load()
+    const resolvedGraphic = snapshot.settings.graphics.find((graphic) => graphic.id === 'title-main')
+
+    expect(resolvedGraphic).toEqual(canonicalExistingGraphic)
+    expect(resolvedGraphic?.preview.elements).toEqual(canonicalExistingGraphic.preview.elements)
+  })
+
   it('exports a dynamic graphic config to JSON with the fields required to recreate it', () => {
     const exported = exportGraphicConfig(dynamicGraphicConfig)
 

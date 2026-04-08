@@ -43,7 +43,7 @@ export function createGraphicConfigExportEnvelope(graphicConfig: unknown): Graph
 export function parseGraphicConfigImport(input: unknown): GraphicInstanceConfig {
   // Support the new wrapped export format while keeping legacy raw config files importable.
   if (isGraphicConfigExportEnvelope(input)) {
-    return graphicInstanceConfigSchema.parse(input.payload)
+    return parseGraphicConfigImportEnvelope(input)
   }
 
   return graphicInstanceConfigSchema.parse(input)
@@ -102,6 +102,15 @@ function isGraphicConfigExportEnvelope(input: unknown): input is GraphicConfigEx
   }
 
   return true
+}
+
+function parseGraphicConfigImportEnvelope(input: GraphicConfigExportEnvelope): GraphicInstanceConfig {
+  switch (input.version) {
+    case graphicConfigExportVersion:
+      return graphicInstanceConfigSchema.parse(input.payload)
+    default:
+      throw new Error(`Unsupported graphic config export version: ${String(input.version)}`)
+  }
 }
 
 function normalizeSuggestedFileName(fileName: string): string {

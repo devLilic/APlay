@@ -4,6 +4,16 @@ import {
   parseGraphicConfigImport,
   serializeGraphicConfigExport,
 } from '@/settings/storage/graphicConfigExport'
+import {
+  importGraphicConfigToLibrary,
+  type GraphicConfigLibraryImportResult,
+  type GraphicConfigIdConflictPolicy,
+} from '@/settings/storage/graphicConfigImport'
+import {
+  importProfileConfigToLibrary,
+  type ProfileLibraryImportResult,
+  type ProfileImportConflictPolicy,
+} from '@/settings/storage/profileConfigImport'
 
 export interface GraphicConfigFileMap {
   [fileName: string]: string
@@ -22,6 +32,19 @@ export interface KeyValueStorage {
 export interface WorkspaceConfigRepository {
   load: () => WorkspaceConfigSnapshot
   save: (settings: unknown) => WorkspaceConfigSnapshot
+  importGraphicConfig: (
+    content: string | unknown,
+    options?: { conflictPolicy?: GraphicConfigIdConflictPolicy },
+  ) => GraphicConfigLibraryImportResult
+  importProfileConfig: (
+    content: string | unknown,
+    options?: {
+      profileConflictPolicy?: ProfileImportConflictPolicy
+      graphicConflictPolicy?: ProfileImportConflictPolicy
+      schemaConflictPolicy?: ProfileImportConflictPolicy
+      referenceImageConflictPolicy?: ProfileImportConflictPolicy
+    },
+  ) => ProfileLibraryImportResult
 }
 
 const settingsStorageKey = 'aplay.settings.v1'
@@ -59,6 +82,38 @@ export function createWorkspaceConfigRepository(
         settings: persistedSettings,
         graphicFiles,
       }
+    },
+    importGraphicConfig(content, options): GraphicConfigLibraryImportResult {
+      const currentSnapshot = this.load()
+      const imported = importGraphicConfigToLibrary(
+        {
+          content,
+          settings: currentSnapshot.settings,
+          graphicFiles: currentSnapshot.graphicFiles,
+        },
+        options,
+      )
+
+      settingsRepository.save(imported.settings)
+      storage.setItem(graphicFilesStorageKey, JSON.stringify(imported.graphicFiles, null, 2))
+
+      return imported
+    },
+    importProfileConfig(content, options): ProfileLibraryImportResult {
+      const currentSnapshot = this.load()
+      const imported = importProfileConfigToLibrary(
+        {
+          content,
+          settings: currentSnapshot.settings,
+          graphicFiles: currentSnapshot.graphicFiles,
+        },
+        options,
+      )
+
+      settingsRepository.save(imported.settings)
+      storage.setItem(graphicFilesStorageKey, JSON.stringify(imported.graphicFiles, null, 2))
+
+      return imported
     },
   }
 }

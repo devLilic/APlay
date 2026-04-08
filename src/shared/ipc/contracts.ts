@@ -32,8 +32,11 @@ export const ipcInvokeChannels = {
   settingsPickReferenceImage: 'settings:pick-reference-image',
   settingsPickSourceCsvFile: 'settings:pick-source-csv-file',
   settingsPickDatasourceJsonFile: 'settings:pick-datasource-json-file',
+  settingsPickGraphicConfigImportFile: 'settings:pick-graphic-config-import-file',
+  settingsPickProfileConfigImportFile: 'settings:pick-profile-config-import-file',
   settingsReadReferenceImage: 'settings:read-reference-image',
   settingsReadSourceFile: 'settings:read-source-file',
+  settingsReadTextFile: 'settings:read-text-file',
   settingsWriteDatasourceFile: 'settings:write-datasource-file',
   settingsExportGraphicConfig: 'settings:export-graphic-config',
   settingsExportProfileConfig: 'settings:export-profile-config',
@@ -120,10 +123,19 @@ export interface SourceCsvPickerResponse {
 export interface DatasourceJsonPickerResponse {
   filePath: string | null
 }
+export interface GraphicConfigImportPickerResponse {
+  filePath: string | null
+}
+export interface ProfileConfigImportPickerResponse {
+  filePath: string | null
+}
 export interface ReferenceImageDataResponse {
   dataUrl: string | null
 }
 export interface SourceFileReadResponse {
+  content: string | null
+}
+export interface TextFileReadResponse {
   content: string | null
 }
 export interface DatasourceFileWriteRequest {
@@ -240,6 +252,14 @@ export interface IpcInvokeContract {
     request: void
     response: DatasourceJsonPickerResponse
   }
+  [ipcInvokeChannels.settingsPickGraphicConfigImportFile]: {
+    request: void
+    response: GraphicConfigImportPickerResponse
+  }
+  [ipcInvokeChannels.settingsPickProfileConfigImportFile]: {
+    request: void
+    response: ProfileConfigImportPickerResponse
+  }
   [ipcInvokeChannels.settingsReadReferenceImage]: {
     request: { filePath: string }
     response: ReferenceImageDataResponse
@@ -247,6 +267,10 @@ export interface IpcInvokeContract {
   [ipcInvokeChannels.settingsReadSourceFile]: {
     request: { filePath: string }
     response: SourceFileReadResponse
+  }
+  [ipcInvokeChannels.settingsReadTextFile]: {
+    request: { filePath: string }
+    response: TextFileReadResponse
   }
   [ipcInvokeChannels.settingsWriteDatasourceFile]: {
     request: DatasourceFileWriteRequest

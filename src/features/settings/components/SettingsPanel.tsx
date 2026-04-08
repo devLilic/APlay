@@ -23,6 +23,8 @@ import {
   validateOscPort,
 } from '@/settings/schemas/oscConfigSchemas'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
+import type { GraphicConfigLibraryImportResult } from '@/settings/storage/graphicConfigImport'
+import type { ProfileLibraryImportResult } from '@/settings/storage/profileConfigImport'
 import { Panel } from '@/shared/ui/panel'
 
 export interface SettingsFeedback {
@@ -36,9 +38,27 @@ interface SettingsPanelProps {
   feedback: SettingsFeedback | null
   selectedGraphic?: GraphicInstanceConfig
   previewContent: Record<string, string | undefined>
+  isImportingGraphicConfig: boolean
+  isImportingProfile: boolean
+  pendingImportSummary:
+    | {
+      kind: 'graphic'
+      filePath: string
+      preview: GraphicConfigLibraryImportResult
+    }
+    | {
+      kind: 'profile'
+      filePath: string
+      preview: ProfileLibraryImportResult
+    }
+    | null
   onSettingsChange: (settings: AppSettings) => void
   onSave: () => void
   onReload: () => void
+  onImportGraphicConfig: () => Promise<void>
+  onImportProfile: () => Promise<void>
+  onConfirmImport: () => void
+  onCancelImport: () => void
   onExportGraphicConfig: (graphic: GraphicInstanceConfig) => Promise<void>
   onExportProfile: (profileId: string) => Promise<void>
   onTestOscCommand: (
@@ -90,9 +110,16 @@ export function SettingsPanel({
   feedback,
   selectedGraphic: activeGraphic,
   previewContent,
+  isImportingGraphicConfig,
+  isImportingProfile,
+  pendingImportSummary,
   onSettingsChange,
   onSave,
   onReload,
+  onImportGraphicConfig,
+  onImportProfile,
+  onConfirmImport,
+  onCancelImport,
   onExportGraphicConfig,
   onExportProfile,
   onTestOscCommand,
@@ -319,6 +346,22 @@ export function SettingsPanel({
         <div className='flex flex-wrap gap-2'>
           <button
             type='button'
+            onClick={() => void onImportProfile()}
+            disabled={isImportingProfile}
+            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isImportingProfile ? 'Importing profile...' : 'Import profile'}
+          </button>
+          <button
+            type='button'
+            onClick={() => void onImportGraphicConfig()}
+            disabled={isImportingGraphicConfig}
+            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+          >
+            {isImportingGraphicConfig ? 'Importing graphic...' : 'Import graphic'}
+          </button>
+          <button
+            type='button'
             onClick={handleProfileExport}
             disabled={!selectedProfile || isExportingProfile}
             className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
@@ -356,6 +399,9 @@ export function SettingsPanel({
           <p className='mt-1 text-sm text-muted'>
             These forms edit the application preview approximation and output bindings. LiveBoard styling is not edited here.
           </p>
+          <p className='mt-2 text-sm text-muted'>
+            Import actions use the local storage services and validation pipeline. They do not trigger playback, OSC, or datasource publishing.
+          </p>
         </div>
 
         <div className='rounded-3xl border border-border bg-panel p-3 shadow-panel'>
@@ -390,6 +436,14 @@ export function SettingsPanel({
           <div className={`rounded-2xl border px-4 py-3 text-sm ${feedback.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
             {feedback.message}
           </div>
+        ) : null}
+
+        {pendingImportSummary ? (
+          <ImportSummaryCard
+            summary={pendingImportSummary}
+            onConfirm={onConfirmImport}
+            onCancel={onCancelImport}
+          />
         ) : null}
 
         {diagnostics.length > 0 ? (
@@ -1930,8 +1984,158 @@ function GraphicSelectionSection({
           This profile does not currently load any graphic config.
         </div>
       ) : null}
+
+      <div className='space-y-3'>
+        <div>
+          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config library</p>
+          <p className='mt-1 text-sm text-muted'>
+            Imported configs are added to the local library first. Enable them on a profile from the Show tab when needed.
+          </p>
+        </div>
+
+        <div className='space-y-2'>
+          {settings.graphics.map((graphic) => {
+            const isLoadedByProfile = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
+            const isSelected = selectedGraphicId === graphic.id
+
+            return (
+              <button
+                key={graphic.id}
+                type='button'
+                onClick={() => onSelectedGraphicIdChange(isLoadedByProfile ? graphic.id : selectedGraphicId)}
+                className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                  isSelected
+                    ? 'border-accent bg-accent/5'
+                    : 'border-border bg-white hover:border-accent/40'
+                }`}
+              >
+                <div className='min-w-0'>
+                  <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                  <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  isLoadedByProfile
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {isLoadedByProfile ? 'Loaded by profile' : 'Library only'}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </FormSection>
   )
+}
+
+function ImportSummaryCard({
+  summary,
+  onConfirm,
+  onCancel,
+}: {
+  summary:
+    | {
+      kind: 'graphic'
+      filePath: string
+      preview: GraphicConfigLibraryImportResult
+    }
+    | {
+      kind: 'profile'
+      filePath: string
+      preview: ProfileLibraryImportResult
+    }
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <section className='rounded-3xl border border-sky-200 bg-sky-50/80 p-5 shadow-panel'>
+      <div className='flex flex-wrap items-start justify-between gap-4'>
+        <div>
+          <p className='text-xs font-semibold uppercase tracking-[0.2em] text-sky-700'>Import summary</p>
+          <h3 className='mt-1 text-lg font-semibold text-slate-900'>Review before importing</h3>
+          <p className='mt-1 text-sm text-slate-600'>{summary.filePath}</p>
+        </div>
+        <div className='flex flex-wrap gap-2'>
+          <button
+            type='button'
+            onClick={onCancel}
+            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+          >
+            Cancel
+          </button>
+          <button
+            type='button'
+            onClick={onConfirm}
+            className='rounded-xl border border-sky-600 bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700'
+          >
+            Confirm import
+          </button>
+        </div>
+      </div>
+
+      {summary.kind === 'graphic' ? (
+        <div className='mt-4 grid gap-3 md:grid-cols-3'>
+          <SummaryItem label='Name' value={summary.preview.importedGraphic.id} />
+          <SummaryItem label='Kind' value={summary.preview.importedGraphic.entityType} />
+          <SummaryItem
+            label='Category'
+            value={summary.preview.importedGraphic.datasourcePath ? 'Dynamic' : 'Static'}
+          />
+          <SummaryItem
+            label='Conflict outcome'
+            value={summary.preview.conflict
+              ? `${summary.preview.conflict.policy} -> ${summary.preview.conflict.resolvedGraphicId}`
+              : 'New item'}
+          />
+        </div>
+      ) : (
+        <div className='mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-5'>
+          <SummaryItem label='Profile name' value={summary.preview.importedProfile.label} />
+          <SummaryItem label='Embedded graphics' value={String(summary.preview.importedProfile.graphicConfigIds.length)} />
+          <SummaryItem label='Source schema' value={summary.preview.settings.sourceSchemas.some((schema) => schema.id === summary.preview.importedProfile.source?.schemaId) ? 'Included' : 'None'} />
+          <SummaryItem
+            label='Reference images'
+            value={summary.preview.importedProfile.graphicConfigIds.some((graphicId) =>
+              summary.preview.settings.graphics.find((graphic) => graphic.id === graphicId)?.preview.background?.referenceImageId)
+              ? 'Included'
+              : 'None'}
+          />
+          <SummaryItem
+            label='Conflict outcome'
+            value={createProfileConflictSummary(summary.preview)}
+          />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='rounded-2xl border border-white/70 bg-white px-4 py-3'>
+      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</p>
+      <p className='mt-1 text-sm font-semibold text-ink'>{value}</p>
+    </div>
+  )
+}
+
+function createProfileConflictSummary(result: ProfileLibraryImportResult): string {
+  const parts: string[] = []
+  if (result.conflicts.profile) {
+    parts.push(`profile ${result.conflicts.profile}`)
+  }
+  if (result.conflicts.graphics.length > 0) {
+    parts.push(`${result.conflicts.graphics.length} graphic`)
+  }
+  if (result.conflicts.schemas.length > 0) {
+    parts.push(`${result.conflicts.schemas.length} schema`)
+  }
+  if (result.conflicts.referenceImages.length > 0) {
+    parts.push(`${result.conflicts.referenceImages.length} image`)
+  }
+
+  return parts.length > 0 ? parts.join(' | ') : 'No conflicts detected'
 }
 
 function ReferenceImagesSection({

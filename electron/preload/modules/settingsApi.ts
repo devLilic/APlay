@@ -7,11 +7,14 @@ import {
   type OscSendResponse,
   type ProfileConfigExportResponse,
   type DatasourceJsonPickerResponse,
+  type GraphicConfigImportPickerResponse,
   type ReferenceImageDataResponse,
   type ReferenceImagePickerResponse,
+  type ProfileConfigImportPickerResponse,
   type SettingsGetResponse,
   type SourceFileReadResponse,
   type SourceCsvPickerResponse,
+  type TextFileReadResponse,
 } from '../../../src/shared/ipc/contracts'
 import type { AppSettings, GraphicInstanceConfig, OscArgConfig } from '../../../src/settings/models/appConfig'
 import type { UpdatePreferences, UiPreferences } from '../../../src/shared/settings/types'
@@ -55,9 +58,21 @@ export function registerSettingsApi() {
       const response = await invoke(ipcInvokeChannels.settingsPickDatasourceJsonFile)
       return extractDatasourceJsonFilePath(response)
     },
+    async pickGraphicConfigImportFile(): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsPickGraphicConfigImportFile)
+      return extractGraphicConfigImportFilePath(response)
+    },
+    async pickProfileConfigImportFile(): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsPickProfileConfigImportFile)
+      return extractProfileConfigImportFilePath(response)
+    },
     async readReferenceImage(filePath: string): Promise<string | null> {
       const response = await invoke(ipcInvokeChannels.settingsReadReferenceImage, { filePath })
       return extractDataUrl(response)
+    },
+    async readTextFile(filePath: string): Promise<string | null> {
+      const response = await invoke(ipcInvokeChannels.settingsReadTextFile, { filePath })
+      return extractTextFileContent(response)
     },
     readSourceFileSync(filePath: string): string | null {
       const response = ipcRenderer.sendSync(ipcInvokeChannels.settingsReadSourceFile, { filePath }) as SourceFileReadResponse
@@ -117,12 +132,24 @@ function extractDatasourceJsonFilePath(payload: DatasourceJsonPickerResponse): s
   return payload.filePath
 }
 
+function extractGraphicConfigImportFilePath(payload: GraphicConfigImportPickerResponse): string | null {
+  return payload.filePath
+}
+
+function extractProfileConfigImportFilePath(payload: ProfileConfigImportPickerResponse): string | null {
+  return payload.filePath
+}
+
 function extractGraphicConfigExportPath(payload: GraphicConfigExportResponse): string | null {
   return payload.filePath
 }
 
 function extractProfileConfigExportPath(payload: ProfileConfigExportResponse): string | null {
   return payload.filePath
+}
+
+function extractTextFileContent(payload: TextFileReadResponse): string | null {
+  return payload.content
 }
 
 function extractOscSendResult(payload: OscSendResponse): void {

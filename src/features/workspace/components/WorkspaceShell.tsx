@@ -23,6 +23,14 @@ import {
 } from '@/features/workspace/state/workspaceShellRuntime'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
 import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
+import {
+  importGraphicConfigToLibrary,
+  type GraphicConfigLibraryImportResult,
+} from '@/settings/storage/graphicConfigImport'
+import {
+  importProfileConfigToLibrary,
+  type ProfileLibraryImportResult,
+} from '@/settings/storage/profileConfigImport'
 import { createWorkspaceConfigRepository, type WorkspaceConfigRepository, type WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 
@@ -32,6 +40,19 @@ type ShellLoadState =
   | { status: 'ready'; snapshot: WorkspaceConfigSnapshot; data: WorkspaceShellData }
 
 type CollectionColumnIndex = 0 | 1
+type PendingImportSummary =
+  | {
+    kind: 'graphic'
+    filePath: string
+    content: string
+    preview: GraphicConfigLibraryImportResult
+  }
+  | {
+    kind: 'profile'
+    filePath: string
+    content: string
+    preview: ProfileLibraryImportResult
+  }
 
 interface EntityCollectionLayout {
   order: EntityGroupKey[]
@@ -55,6 +76,9 @@ export function WorkspaceShell() {
   const [feedback, setFeedback] = useState<WorkspaceActionFeedback | null>(null)
   const [settingsFeedback, setSettingsFeedback] = useState<SettingsFeedback | null>(null)
   const [sourceRefreshFeedback, setSourceRefreshFeedback] = useState<SettingsFeedback | null>(null)
+  const [isImportingGraphicConfig, setIsImportingGraphicConfig] = useState(false)
+  const [isImportingProfile, setIsImportingProfile] = useState(false)
+  const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
   const [collectionLayout, setCollectionLayout] = useState<EntityCollectionLayout>(() => createInitialCollectionLayout())
   const [draggedGroup, setDraggedGroup] = useState<EntityGroupKey | null>(null)
   const [showSettings, setShowSettings] = useState(false)
@@ -108,6 +132,16 @@ export function WorkspaceShell() {
   const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsByEntityType, selectedEntity)
   const previewContent = createEntityPreviewContent(selectedEntity)
   const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, selectedGraphic)
+  const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
+    const nextData = loadWorkspaceShellData(snapshot)
+    setLoadState({
+      status: 'ready',
+      snapshot,
+      data: nextData,
+    })
+    setSelection((currentSelection) =>
+      createWorkspaceSelectionState(nextData.document, currentSelection).selection)
+  }
 
   const handleBlockSelect = (blockIndex: number) => {
     setSelection(workspace.selectBlock(blockIndex).selection)
@@ -158,16 +192,11 @@ export function WorkspaceShell() {
 
   const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
     const nextSnapshot = createWorkspaceSnapshotFromSettings(settings)
-    const nextData = loadWorkspaceShellData(nextSnapshot)
-    setLoadState({
-      status: 'ready',
-      snapshot: nextSnapshot,
-      data: nextData,
-    })
-    setSelection(createWorkspaceSelectionState(nextData.document, selection).selection)
+    applyWorkspaceSnapshot(nextSnapshot)
     setSettingsFeedback(null)
     setSourceRefreshFeedback(null)
     setFeedback(null)
+    setPendingImportSummary(null)
   }
 
   const handleSettingsSave = () => {
@@ -178,19 +207,13 @@ export function WorkspaceShell() {
       }
 
       const savedSnapshot = repository.save(loadState.snapshot.settings)
-      const nextData = loadWorkspaceShellData(savedSnapshot)
-      setLoadState({
-        status: 'ready',
-        snapshot: savedSnapshot,
-        data: nextData,
-      })
-      setSelection((currentSelection) =>
-        createWorkspaceSelectionState(nextData.document, currentSelection).selection)
+      applyWorkspaceSnapshot(savedSnapshot)
       setSettingsFeedback({
         kind: 'success',
         message: 'Settings saved. Updated profile and graphic config files were persisted for the current workstation.',
       })
       setSourceRefreshFeedback(null)
+      setPendingImportSummary(null)
     } catch (error) {
       setSettingsFeedback({
         kind: 'error',
@@ -207,20 +230,14 @@ export function WorkspaceShell() {
       }
 
       const snapshot = repository.load()
-      const nextData = loadWorkspaceShellData(snapshot)
-      setLoadState({
-        status: 'ready',
-        snapshot,
-        data: nextData,
-      })
-      setSelection((currentSelection) =>
-        createWorkspaceSelectionState(nextData.document, currentSelection).selection)
+      applyWorkspaceSnapshot(snapshot)
       setSettingsFeedback({
         kind: 'success',
         message: 'Persisted settings reloaded.',
       })
       setSourceRefreshFeedback(null)
       setFeedback(null)
+      setPendingImportSummary(null)
     } catch (error) {
       setSettingsFeedback({
         kind: 'error',
@@ -284,6 +301,142 @@ export function WorkspaceShell() {
       setSettingsFeedback({
         kind: 'error',
         message: error instanceof Error ? error.message : 'Profile export failed.',
+      })
+    }
+  }
+
+  const handleImportGraphicConfig = async () => {
+    const repository = repositoryRef.current
+    if (!repository) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: 'Settings repository is unavailable.',
+      })
+      return
+    }
+
+    try {
+      if (!window.settingsApi?.pickGraphicConfigImportFile || !window.settingsApi?.readTextFile) {
+        throw new Error('Graphic config import is unavailable in this environment.')
+      }
+
+      setIsImportingGraphicConfig(true)
+      const filePath = await window.settingsApi.pickGraphicConfigImportFile()
+      if (!filePath) {
+        return
+      }
+
+      const fileContent = await window.settingsApi.readTextFile(filePath)
+      if (!fileContent) {
+        throw new Error(`Unable to read graphic config import file: ${filePath}`)
+      }
+
+      const preview = importGraphicConfigToLibrary({
+        content: fileContent,
+        settings: loadState.snapshot.settings,
+        graphicFiles: loadState.snapshot.graphicFiles,
+      })
+      setPendingImportSummary({
+        kind: 'graphic',
+        filePath,
+        content: fileContent,
+        preview,
+      })
+      setSettingsFeedback(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config import failed.',
+      })
+    } finally {
+      setIsImportingGraphicConfig(false)
+    }
+  }
+
+  const handleImportProfile = async () => {
+    const repository = repositoryRef.current
+    if (!repository) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: 'Settings repository is unavailable.',
+      })
+      return
+    }
+
+    try {
+      if (!window.settingsApi?.pickProfileConfigImportFile || !window.settingsApi?.readTextFile) {
+        throw new Error('Profile import is unavailable in this environment.')
+      }
+
+      setIsImportingProfile(true)
+      const filePath = await window.settingsApi.pickProfileConfigImportFile()
+      if (!filePath) {
+        return
+      }
+
+      const fileContent = await window.settingsApi.readTextFile(filePath)
+      if (!fileContent) {
+        throw new Error(`Unable to read profile import file: ${filePath}`)
+      }
+
+      const preview = importProfileConfigToLibrary({
+        content: fileContent,
+        settings: loadState.snapshot.settings,
+        graphicFiles: loadState.snapshot.graphicFiles,
+      })
+      setPendingImportSummary({
+        kind: 'profile',
+        filePath,
+        content: fileContent,
+        preview,
+      })
+      setSettingsFeedback(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Profile import failed.',
+      })
+    } finally {
+      setIsImportingProfile(false)
+    }
+  }
+
+  const handleConfirmImport = () => {
+    const repository = repositoryRef.current
+    if (!repository || !pendingImportSummary) {
+      return
+    }
+
+    try {
+      if (pendingImportSummary.kind === 'graphic') {
+        const result = repository.importGraphicConfig(pendingImportSummary.content)
+        applyWorkspaceSnapshot({
+          settings: result.settings,
+          graphicFiles: result.graphicFiles,
+        })
+        setSettingsFeedback({
+          kind: 'success',
+          message: createGraphicImportFeedbackMessage(result, pendingImportSummary.filePath),
+        })
+      } else {
+        const result = repository.importProfileConfig(pendingImportSummary.content)
+        applyWorkspaceSnapshot({
+          settings: result.settings,
+          graphicFiles: result.graphicFiles,
+        })
+        setSettingsFeedback({
+          kind: 'success',
+          message: createProfileImportFeedbackMessage(result, pendingImportSummary.filePath),
+        })
+      }
+
+      setSourceRefreshFeedback(null)
+      setFeedback(null)
+      setPendingImportSummary(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Import failed.',
       })
     }
   }
@@ -381,9 +534,16 @@ export function WorkspaceShell() {
           feedback={settingsFeedback}
           selectedGraphic={selectedGraphic}
           previewContent={previewContent}
+          isImportingGraphicConfig={isImportingGraphicConfig}
+          isImportingProfile={isImportingProfile}
+          pendingImportSummary={pendingImportSummary}
           onSettingsChange={handleSettingsChange}
           onSave={handleSettingsSave}
           onReload={handleSettingsReload}
+          onImportGraphicConfig={handleImportGraphicConfig}
+          onImportProfile={handleImportProfile}
+          onConfirmImport={handleConfirmImport}
+          onCancelImport={() => setPendingImportSummary(null)}
           onExportGraphicConfig={handleExportGraphicConfig}
           onExportProfile={handleExportProfile}
           onTestOscCommand={handleTestOscCommand}
@@ -577,6 +737,43 @@ export function WorkspaceShell() {
       </section>
     </>
   )
+}
+
+function createGraphicImportFeedbackMessage(
+  result: ReturnType<WorkspaceConfigRepository['importGraphicConfig']>,
+  filePath: string,
+): string {
+  const outcome = result.status === 'added'
+    ? 'added to the local library'
+    : result.status === 'replaced'
+      ? 'replaced the existing local config'
+      : result.status === 'duplicated'
+        ? `was duplicated as "${result.importedGraphic.id}"`
+        : 'matched an existing local config and was preserved'
+
+  return `Graphic config import completed. "${result.importedGraphic.id}" ${outcome}. Source file: ${filePath}.`
+}
+
+function createProfileImportFeedbackMessage(
+  result: ReturnType<WorkspaceConfigRepository['importProfileConfig']>,
+  filePath: string,
+): string {
+  const details: string[] = [`Profile "${result.importedProfile.label}" imported from ${filePath}.`]
+
+  if (result.conflicts.profile) {
+    details.push(`Profile conflict policy: ${result.conflicts.profile}.`)
+  }
+  if (result.conflicts.graphics.length > 0) {
+    details.push(`Graphic conflicts handled: ${result.conflicts.graphics.length}.`)
+  }
+  if (result.conflicts.schemas.length > 0) {
+    details.push(`Schema conflicts handled: ${result.conflicts.schemas.length}.`)
+  }
+  if (result.conflicts.referenceImages.length > 0) {
+    details.push(`Reference image conflicts handled: ${result.conflicts.referenceImages.length}.`)
+  }
+
+  return details.join(' ')
 }
 
 function StatCard({ label, value }: { label: string; value: string }) {

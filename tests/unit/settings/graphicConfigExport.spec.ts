@@ -111,16 +111,70 @@ describe('graphicConfigExport', () => {
     expect(parseGraphicConfigImport(wrapped)).toEqual(wrapped.payload)
   })
 
+  it('imports a valid dynamic graphic config JSON', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
+
+    expect(imported).toEqual(parseGraphicConfigImport(dynamicGraphicConfig))
+  })
+
+  it('imports a valid static graphic config JSON', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(staticGraphicConfig)))
+
+    expect(imported).toEqual(parseGraphicConfigImport(staticGraphicConfig))
+  })
+
   it('keeps legacy raw graphic config JSON importable for backward compatibility', () => {
     expect(parseGraphicConfigImport(dynamicGraphicConfig)).toEqual(
       createGraphicConfigExportEnvelope(dynamicGraphicConfig).payload,
     )
   })
 
+  it('requires version, export type metadata, and payload when the wrapped import format is used', () => {
+    expect(() =>
+      parseGraphicConfigImport({
+        exportType: graphicConfigExportType,
+        payload: dynamicGraphicConfig,
+      }),
+    ).toThrow('version')
+
+    expect(() =>
+      parseGraphicConfigImport({
+        version: graphicConfigExportVersion,
+        payload: dynamicGraphicConfig,
+      }),
+    ).toThrow('type')
+
+    expect(() =>
+      parseGraphicConfigImport({
+        version: graphicConfigExportVersion,
+        exportType: graphicConfigExportType,
+      }),
+    ).toThrow('payload')
+  })
+
+  it('rejects invalid export types', () => {
+    expect(() =>
+      parseGraphicConfigImport({
+        version: graphicConfigExportVersion,
+        exportType: 'profile-config',
+        payload: dynamicGraphicConfig,
+      }),
+    ).toThrow('type')
+  })
+
   it('rejects unsupported export versions safely', () => {
     expect(() =>
       parseGraphicConfigImport({
         version: 99,
+        exportType: graphicConfigExportType,
+        payload: dynamicGraphicConfig,
+      }),
+    ).toThrow('version')
+  })
+
+  it('rejects missing versions safely when the import looks like a wrapped export', () => {
+    expect(() =>
+      parseGraphicConfigImport({
         exportType: graphicConfigExportType,
         payload: dynamicGraphicConfig,
       }),
@@ -158,6 +212,73 @@ describe('graphicConfigExport', () => {
         actions: [{ actionType: 'playGraphic', label: 'Play' }],
       }),
     ).toThrow('dataFileName')
+  })
+
+  it('rejects wrapped imports when required config fields are missing', () => {
+    expect(() =>
+      parseGraphicConfigImport({
+        version: graphicConfigExportVersion,
+        exportType: graphicConfigExportType,
+        payload: {
+          id: 'broken',
+          entityType: 'title',
+          dataFileName: 'broken.json',
+          control: {
+            play: '/graphics/broken/play',
+            stop: '/graphics/broken/stop',
+            resume: '/graphics/broken/resume',
+          },
+          actions: [{ actionType: 'playGraphic', label: 'Play' }],
+        },
+      }),
+    ).toThrow('preview')
+  })
+
+  it('restores preview config from import', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
+
+    expect(imported.preview).toEqual(parseGraphicConfigImport(dynamicGraphicConfig).preview)
+  })
+
+  it('restores OSC config from import', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
+
+    expect(imported.control).toEqual(dynamicGraphicConfig.control)
+  })
+
+  it('restores datasource config from import when applicable', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
+
+    expect(imported.datasourcePath).toBe(dynamicGraphicConfig.datasourcePath)
+  })
+
+  it('restores source binding config from import when applicable', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
+
+    expect(imported.bindings).toEqual(dynamicGraphicConfig.bindings)
+  })
+
+  it('restores static asset config from import when applicable', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(staticGraphicConfig)))
+
+    expect(imported.preview.elements).toEqual(parseGraphicConfigImport(staticGraphicConfig).preview.elements)
+  })
+
+  it('restores reference background config from import when applicable', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig)))
+
+    expect(imported.preview.background).toEqual(dynamicGraphicConfig.preview.background)
+  })
+
+  it('does not execute OSC or publish datasource files during import parsing', () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const rawImport = JSON.parse(serializeGraphicConfigExport(dynamicGraphicConfig))
+
+    const imported = parseGraphicConfigImport(rawImport)
+
+    expect(imported).toEqual(parseGraphicConfigImport(dynamicGraphicConfig))
+    expect(consoleSpy).not.toHaveBeenCalled()
+    consoleSpy.mockRestore()
   })
 })
 

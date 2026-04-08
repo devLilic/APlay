@@ -95,6 +95,40 @@ export function registerSettingsModule() {
     }
   })
 
+  ipcMain.handle(ipcInvokeChannels.settingsPickGraphicConfigImportFile, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import graphic config JSON',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'JSON Files',
+          extensions: ['json'],
+        },
+      ],
+    })
+
+    return {
+      filePath: result.canceled ? null : (result.filePaths[0] ?? null),
+    }
+  })
+
+  ipcMain.handle(ipcInvokeChannels.settingsPickProfileConfigImportFile, async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Import profile config JSON',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'JSON Files',
+          extensions: ['json'],
+        },
+      ],
+    })
+
+    return {
+      filePath: result.canceled ? null : (result.filePaths[0] ?? null),
+    }
+  })
+
   ipcMain.handle(
     ipcInvokeChannels.settingsReadReferenceImage,
     async (_event, payload: { filePath: string }): Promise<ReferenceImageDataResponse> => {
@@ -129,6 +163,24 @@ export function registerSettingsModule() {
         }
       } catch {
         event.returnValue = { content: null }
+      }
+    },
+  )
+
+  ipcMain.handle(
+    ipcInvokeChannels.settingsReadTextFile,
+    async (_event, payload: { filePath: string }) => {
+      try {
+        const filePath = payload.filePath.trim()
+        if (filePath.length === 0) {
+          return { content: null }
+        }
+
+        return {
+          content: await readFile(filePath, 'utf8'),
+        }
+      } catch {
+        return { content: null }
       }
     },
   )
