@@ -1,6 +1,6 @@
 import type { ActionType } from '@/core/actions/actionTypes'
 import type { SupportedEntityType } from '@/core/entities/entityTypes'
-import type { GraphicInstanceConfig, OscArgConfig, OscSettingsConfig } from '@/settings/models/appConfig'
+import type { GraphicInstanceConfig, OscArgConfig, OscCommandConfig, OscSettingsConfig } from '@/settings/models/appConfig'
 import type {
   EntityPublishInput,
   FieldBinding,
@@ -33,6 +33,8 @@ export interface GraphicsAdapterResolvedCommand {
   address: string
   args: OscArgConfig[]
 }
+
+type GraphicsAdapterResolvedCommandSource = 'local override' | 'global' | 'fallback'
 
 export interface GraphicsAdapterExecutionResult {
   success: boolean
@@ -184,16 +186,13 @@ async function runGraphicsAction(
     const command = builtCommand.command
 
     if (actionType === 'playGraphic') {
-      console.log('OSC PLAY STRUCTURE', {
-        actionType,
+      console.log('OSC PLAY RESOLUTION', {
         graphicId: input.graphic.id,
+        resolvedTemplateName: input.graphic.control.templateName ?? '',
+        commandSource: builtCommand.source,
+        address: command.address,
+        args: command.args as OscArgConfig[],
         targetFile,
-        osc: {
-          host: target.host,
-          port: target.port,
-          address: command.address,
-          args: command.args as OscArgConfig[],
-        },
       })
     }
 
@@ -303,20 +302,19 @@ function resolveCommand(
   actionType: ActionType,
   graphicOutput: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'>,
 ):
-  | { success: true; command: { address: string; args: OscArgConfig[] } }
+  | { success: true; command: { address: string; args: OscArgConfig[] }; source: GraphicsAdapterResolvedCommandSource }
   | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
-  const graphicCommand = graphicOutput.buildCommand({
-    actionType,
-    graphic: input.graphic,
-  })
+  const localCommand = resolveGraphicCommandOverride(input.graphic, actionType)
+  if (localCommand) {
+    const resolvedLocalCommand = resolveCommandPlaceholders(localCommand, input, actionType)
+    if (!resolvedLocalCommand.success) {
+      return resolvedLocalCommand
+    }
 
-  if (graphicCommand.address) {
     return {
       success: true,
-      command: {
-        address: graphicCommand.address,
-        args: graphicCommand.args as OscArgConfig[],
-      },
+      command: resolvedLocalCommand.command,
+      source: 'local override',
     }
   }
 
@@ -327,47 +325,22 @@ function resolveCommand(
         ? input.oscSettings.commands.stop
         : input.oscSettings.commands.resume
 
-    const resolvedArgs = commandConfig.args.map((arg) => {
-      if (arg.type === 's' && arg.value === '{{templateName}}') {
-        return {
-          ...arg,
-          value: input.graphic.control.templateName ?? '',
-        }
-      }
-
-      return arg
-    })
-
-    if (
-      resolvedArgs.some((arg) =>
-        arg.type === 's' &&
-        arg.value === '' &&
-        commandConfig.args.some((sourceArg) => sourceArg.type === 's' && sourceArg.value === '{{templateName}}'))
-    ) {
-      return {
-        success: false,
-        diagnostics: [
-          {
-            severity: 'error',
-            code: 'missing-template-name',
-            message: `Missing LiveBoard template name for graphic "${input.graphic.id}"`,
-            details: {
-              actionType,
-              graphicId: input.graphic.id,
-            },
-          },
-        ],
-      }
+    const resolvedGlobalCommand = resolveCommandPlaceholders(commandConfig, input, actionType)
+    if (!resolvedGlobalCommand.success) {
+      return resolvedGlobalCommand
     }
 
     return {
       success: true,
-      command: {
-        address: commandConfig.address,
-        args: resolvedArgs,
-      },
+      command: resolvedGlobalCommand.command,
+      source: 'global',
     }
   }
+
+  const graphicCommand = graphicOutput.buildCommand({
+    actionType,
+    graphic: input.graphic,
+  })
 
   return {
     success: true,
@@ -375,5 +348,76 @@ function resolveCommand(
       address: graphicCommand.address,
       args: graphicCommand.args as OscArgConfig[],
     },
+    source: 'fallback',
+  }
+}
+
+function resolveGraphicCommandOverride(
+  graphic: GraphicInstanceConfig,
+  actionType: ActionType,
+): OscCommandConfig | undefined {
+  const command = actionType === 'playGraphic'
+    ? graphic.control.play
+    : actionType === 'stopGraphic'
+      ? graphic.control.stop
+      : graphic.control.resume
+
+  if (command && typeof command === 'object' && !Array.isArray(command) && command.address.trim().length > 0) {
+    return command
+  }
+
+  return undefined
+}
+
+function resolveCommandPlaceholders(
+  command: string | OscCommandConfig,
+  input: GraphicsAdapterActionInput,
+  actionType: ActionType,
+):
+  | { success: true; command: { address: string; args: OscArgConfig[] } }
+  | { success: false; diagnostics: GraphicsAdapterDiagnostic[] } {
+  const resolvedCommand = typeof command === 'string'
+    ? {
+      address: command,
+      args: [] as OscArgConfig[],
+    }
+    : {
+      address: command.address,
+      args: command.args.map((arg) => {
+        if (arg.type === 's' && arg.value === '{{templateName}}') {
+          return {
+            ...arg,
+            value: input.graphic.control.templateName ?? '',
+          }
+        }
+
+        return arg
+      }),
+    }
+
+  if (
+    resolvedCommand.args.some((arg) => arg.type === 's' && arg.value === '') &&
+    typeof command !== 'string' &&
+    command.args.some((arg) => arg.type === 's' && arg.value === '{{templateName}}')
+  ) {
+    return {
+      success: false,
+      diagnostics: [
+        {
+          severity: 'error',
+          code: 'missing-template-name',
+          message: `Missing LiveBoard template name for graphic "${input.graphic.id}"`,
+          details: {
+            actionType,
+            graphicId: input.graphic.id,
+          },
+        },
+      ],
+    }
+  }
+
+  return {
+    success: true,
+    command: resolvedCommand,
   }
 }

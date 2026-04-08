@@ -71,6 +71,7 @@ const oscSettings: OscSettingsConfig = {
 describe('GraphicsAdapter', () => {
   it('writes datasource first, then sends OSC play', async () => {
     const calls: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const adapter = createGraphicsAdapter({
       createOscClient() {
         return {
@@ -109,6 +110,18 @@ describe('GraphicsAdapter', () => {
           { type: 'f', value: 0.5 },
         ],
       },
+    })
+    expect(log).toHaveBeenCalledWith('OSC PLAY RESOLUTION', {
+      graphicId: 'title-main',
+      resolvedTemplateName: 'TemplateName',
+      commandSource: 'global',
+      address: '/lb/play',
+      args: [
+        { type: 's', value: 'TemplateName' },
+        { type: 'i', value: 1 },
+        { type: 'f', value: 0.5 },
+      ],
+      targetFile: 'datasources/title-main.json',
     })
   })
 
@@ -359,7 +372,10 @@ describe('GraphicsAdapter', () => {
         ...graphicConfig,
         control: {
           ...graphicConfig.control,
-          stop: '/graphics/title-main/stop',
+          stop: {
+            address: '/graphics/title-main/stop',
+            args: [],
+          },
         },
       },
       bindings: graphicConfig.bindings,
@@ -368,5 +384,180 @@ describe('GraphicsAdapter', () => {
 
     expect(result.success).toBe(true)
     expect(send).toHaveBeenCalledWith('/graphics/title-main/stop', [])
+  })
+
+  it('uses a local play command override before the global play command', async () => {
+    const send = vi.fn(async () => undefined)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const adapter = createGraphicsAdapter({
+      createOscClient() {
+        return { send }
+      },
+      fileWriter: {
+        write() {},
+      },
+    })
+
+    const result = await adapter.play({
+      entityType: 'title',
+      entity: { id: 'title-1', text: 'Morning Briefing' },
+      graphic: {
+        ...graphicConfig,
+        control: {
+          ...graphicConfig.control,
+          play: {
+            address: '/graphics/title-main/play',
+            args: [{ type: 's', value: '{{templateName}}' }],
+          },
+        },
+      },
+      bindings: graphicConfig.bindings,
+      oscSettings,
+    })
+
+    expect(result.success).toBe(true)
+    expect(send).toHaveBeenCalledWith('/graphics/title-main/play', [
+      { type: 's', value: 'TemplateName' },
+    ])
+    expect(log).toHaveBeenCalledWith('OSC PLAY RESOLUTION', expect.objectContaining({
+      graphicId: 'title-main',
+      resolvedTemplateName: 'TemplateName',
+      commandSource: 'local override',
+      address: '/graphics/title-main/play',
+      args: [{ type: 's', value: 'TemplateName' }],
+    }))
+  })
+
+  it('uses the global play command when no explicit local override exists', async () => {
+    const send = vi.fn(async () => undefined)
+    const adapter = createGraphicsAdapter({
+      createOscClient() {
+        return { send }
+      },
+      graphicOutput: {
+        buildCommand() {
+          return {
+            actionType: 'playGraphic',
+            address: '/fallback/play',
+            args: [{ type: 's', value: 'fallback' }],
+          }
+        },
+      },
+      fileWriter: {
+        write() {},
+      },
+    })
+
+    const result = await adapter.play({
+      entityType: 'title',
+      entity: { id: 'title-1', text: 'Morning Briefing' },
+      graphic: {
+        ...graphicConfig,
+        control: {
+          ...graphicConfig.control,
+          play: '/legacy/title/play',
+        },
+      },
+      bindings: graphicConfig.bindings,
+      oscSettings,
+    })
+
+    expect(result.success).toBe(true)
+    expect(send).toHaveBeenCalledWith('/lb/play', [
+      { type: 's', value: 'TemplateName' },
+      { type: 'i', value: 1 },
+      { type: 'f', value: 0.5 },
+    ])
+  })
+
+  it('falls back to the global play command when the local override is empty or invalid', async () => {
+    const send = vi.fn(async () => undefined)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    const adapter = createGraphicsAdapter({
+      createOscClient() {
+        return { send }
+      },
+      fileWriter: {
+        write() {},
+      },
+    })
+
+    const result = await adapter.play({
+      entityType: 'title',
+      entity: { id: 'title-1', text: 'Morning Briefing' },
+      graphic: {
+        ...graphicConfig,
+        control: {
+          ...graphicConfig.control,
+          play: {
+            address: '',
+            args: [],
+          },
+        },
+      },
+      bindings: graphicConfig.bindings,
+      oscSettings,
+    })
+
+    expect(result.success).toBe(true)
+    expect(send).toHaveBeenCalledWith('/lb/play', [
+      { type: 's', value: 'TemplateName' },
+      { type: 'i', value: 1 },
+      { type: 'f', value: 0.5 },
+    ])
+    expect(log).toHaveBeenCalledWith('OSC PLAY RESOLUTION', expect.objectContaining({
+      graphicId: 'title-main',
+      resolvedTemplateName: 'TemplateName',
+      commandSource: 'global',
+      address: '/lb/play',
+      args: [
+        { type: 's', value: 'TemplateName' },
+        { type: 'i', value: 1 },
+        { type: 'f', value: 0.5 },
+      ],
+    }))
+  })
+
+  it('uses the global stop and resume commands when no explicit local override exists', async () => {
+    const send = vi.fn(async () => undefined)
+    const adapter = createGraphicsAdapter({
+      createOscClient() {
+        return { send }
+      },
+      fileWriter: {
+        write() {
+          throw new Error('stop/resume should not write datasource')
+        },
+      },
+    })
+
+    const graphicWithoutLocalOverrides = {
+      ...graphicConfig,
+      control: {
+        ...graphicConfig.control,
+        stop: '/legacy/title/stop',
+        resume: '/legacy/title/resume',
+      },
+    }
+
+    const stopResult = await adapter.stop({
+      entityType: 'title',
+      entity: { id: 'title-1', text: 'Morning Briefing' },
+      graphic: graphicWithoutLocalOverrides,
+      bindings: graphicConfig.bindings,
+      oscSettings,
+    })
+    const resumeResult = await adapter.resume({
+      entityType: 'title',
+      entity: { id: 'title-1', text: 'Morning Briefing' },
+      graphic: graphicWithoutLocalOverrides,
+      bindings: graphicConfig.bindings,
+      oscSettings,
+    })
+
+    expect(stopResult.success).toBe(true)
+    expect(resumeResult.success).toBe(true)
+    expect(send).toHaveBeenNthCalledWith(1, '/lb/stop', [{ type: 's', value: 'TemplateName' }])
+    expect(send).toHaveBeenNthCalledWith(2, '/lb/resume', [{ type: 's', value: 'TemplateName' }])
   })
 })

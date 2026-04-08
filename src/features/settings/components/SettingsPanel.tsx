@@ -1059,13 +1059,10 @@ function createDefaultGraphicConfig(
     entityType,
     ...(isStaticGraphic ? { kind: 'static' as const } : {}),
     dataFileName,
-    ...(!isStaticGraphic ? { datasourcePath: `datasources/${dataFileName}` } : {}),
-    control: {
-      play: `/graphics/${entityType}/play`,
-      stop: `/graphics/${entityType}/stop`,
-      resume: `/graphics/${entityType}/resume`,
-      templateName: id.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
-    },
+      ...(!isStaticGraphic ? { datasourcePath: `datasources/${dataFileName}` } : {}),
+      control: {
+        templateName: id.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
+      },
     ...(!isStaticGraphic ? { bindings: [createDefaultBinding(entityType)] } : {}),
     ...(isStaticGraphic
       ? {
@@ -3208,7 +3205,7 @@ function OscCommandEditor({
         <input
           value={normalizedCommand.address}
           onChange={(event) => updateCommand(updateGraphicControlAddress(command, event.target.value))}
-          placeholder='/aplay/graphic/play'
+          placeholder='/custom/play'
           className={getOscInputClass(commandHasAddressError)}
         />
       </label>

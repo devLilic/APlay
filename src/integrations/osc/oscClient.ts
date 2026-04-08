@@ -48,7 +48,12 @@ export function createOscClient(
       const normalizedAddress = validateOscAddress(address)
       const normalizedArgs = validateOscArgs(args)
 
-      dependencies.log('OSC SEND', normalizedAddress, normalizedArgs)
+      dependencies.log('OSC SEND', {
+        address: normalizedAddress,
+        args: normalizedArgs,
+        host: normalizedConfig.host,
+        port: normalizedConfig.port,
+      })
 
       const port = dependencies.createPort({
         localAddress: '0.0.0.0',
@@ -103,6 +108,13 @@ export function createOscClient(
         }
 
         const handleError = (error: unknown) => {
+          dependencies.log('OSC ERROR', {
+            address: normalizedAddress,
+            args: normalizedArgs,
+            host: normalizedConfig.host,
+            port: normalizedConfig.port,
+            error: error instanceof Error ? error.message : 'OSC port error',
+          })
           finalizeReject(error instanceof Error ? error : new Error('OSC port error'))
         }
 

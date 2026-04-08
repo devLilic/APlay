@@ -4,6 +4,7 @@ import { createCsvEditorialSourceAdapter } from '@/adapters/content-source/csvEd
 import { createJsonEditorialSourceAdapter } from '@/adapters/content-source/jsonEditorialSource'
 import { createProfileContentSourceLoader } from '@/adapters/content-source/profileContentSourceLoader'
 import { createGraphicsAdapter } from '@/adapters/graphics/graphicsAdapter'
+import { createElectronOscClient } from '@/integrations/osc/electronOscClient'
 import { createInMemoryGraphicConfigStorage, createProfileGraphicConfigLoader } from '@/settings/storage/profileGraphicConfigLoader'
 import type { AppSettings, GraphicInstanceConfig, OscSettingsConfig } from '@/settings/models/appConfig'
 import type { WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
@@ -218,13 +219,12 @@ async function runGraphicsAdapterFeedback(
 function createWorkspaceGraphicsAdapter() {
   return createGraphicsAdapter({
     createOscClient(config) {
+      const oscClient = createElectronOscClient(config)
+
       return {
         async send(address, args) {
           sentOscAddresses.push(`${config.host}:${config.port}${address}`)
-          if (!window.settingsApi?.sendOscMessage) {
-            throw new Error('OSC send is unavailable in this environment.')
-          }
-          await window.settingsApi.sendOscMessage(config.host, config.port, address, args)
+          await oscClient.send(address, args)
         },
       }
     },

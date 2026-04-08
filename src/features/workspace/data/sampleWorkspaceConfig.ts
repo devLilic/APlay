@@ -98,7 +98,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'title',
       dataFileName: 'title-main.json',
       datasourcePath: 'datasources/title-main.json',
-      control: { templateName: 'TITLE_MAIN', play: '/aplay/title/play', stop: '/aplay/title/stop', resume: '/aplay/title/resume' },
+      control: { templateName: 'TITLE_MAIN' },
       bindings: defaultGraphicBindingsByEntityType.title,
       preview: {
         id: 'title-preview',
@@ -117,7 +117,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'person',
       dataFileName: 'person-main.json',
       datasourcePath: 'datasources/person-main.json',
-      control: { templateName: 'PERSON_MAIN', play: '/aplay/person/play', stop: '/aplay/person/stop', resume: '/aplay/person/resume' },
+      control: { templateName: 'PERSON_MAIN' },
       bindings: defaultGraphicBindingsByEntityType.person,
       preview: {
         id: 'person-preview',
@@ -137,7 +137,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'location',
       dataFileName: 'location-main.json',
       datasourcePath: 'datasources/location-main.json',
-      control: { templateName: 'LOCATION_MAIN', play: '/aplay/location/play', stop: '/aplay/location/stop', resume: '/aplay/location/resume' },
+      control: { templateName: 'LOCATION_MAIN' },
       bindings: defaultGraphicBindingsByEntityType.location,
       preview: {
         id: 'location-preview',
@@ -156,7 +156,7 @@ export const sampleSettings: AppSettings = {
       entityType: 'phone',
       dataFileName: 'phone-main.json',
       datasourcePath: 'datasources/phone-main.json',
-      control: { templateName: 'PHONE_MAIN', play: '/aplay/phone/play', stop: '/aplay/phone/stop', resume: '/aplay/phone/resume' },
+      control: { templateName: 'PHONE_MAIN' },
       bindings: defaultGraphicBindingsByEntityType.phone,
       preview: {
         id: 'phone-preview',
@@ -180,7 +180,7 @@ export const sampleSettings: AppSettings = {
         assetPath: 'assets/static-image-main.png',
         assetType: 'image',
       },
-      control: { templateName: 'STATIC_IMAGE_MAIN', play: '/aplay/static-image/play', stop: '/aplay/static-image/stop', resume: '/aplay/static-image/resume' },
+      control: { templateName: 'STATIC_IMAGE_MAIN' },
       preview: {
         id: 'static-image-preview',
         designWidth: 1920,

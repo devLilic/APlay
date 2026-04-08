@@ -15,9 +15,6 @@ const titleMainGraphic: GraphicInstanceConfig = {
   datasourcePath: 'datasources/pa_title_main.json',
   control: {
     templateName: 'PA_TITLE_MAIN',
-    play: '/graphics/pa_title_main/play',
-    stop: '/graphics/pa_title_main/stop',
-    resume: '/graphics/pa_title_main/resume',
   },
   bindings: [
     { sourceField: 'Titlu', targetField: 'text', required: true },
@@ -40,9 +37,6 @@ const titleWaitingGraphic: GraphicInstanceConfig = {
   datasourcePath: 'datasources/pa_title_waiting.json',
   control: {
     templateName: 'PA_TITLE_WAITING',
-    play: '/graphics/pa_title_waiting/play',
-    stop: '/graphics/pa_title_waiting/stop',
-    resume: '/graphics/pa_title_waiting/resume',
   },
   bindings: [
     { sourceField: 'Titlu Asteptare', targetField: 'text', required: true },
@@ -145,12 +139,36 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
     expect(sendOscMessage).toHaveBeenCalledWith(
       '127.0.0.1',
       53000,
-      '/graphics/pa_title_waiting/play',
-      [],
+      '/global/play',
+      [{ type: 's', value: 'PA_TITLE_WAITING' }],
     )
   })
 
-  it('stop and resume use graphicConfig-specific OSC mappings', async () => {
+  it('writes the datasource before sending OSC when play is triggered', async () => {
+    const calls: string[] = []
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync: vi.fn(() => {
+          calls.push('write')
+        }),
+        sendOscMessage: vi.fn(async () => {
+          calls.push('osc')
+        }),
+      },
+    })
+
+    const result = await runWorkspaceGraphicAction(
+      'playGraphic',
+      selectedWaitingItem,
+      { pa_title_waiting: titleWaitingGraphic },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(calls).toEqual(['write', 'osc'])
+  })
+
+  it('stop and resume use the same global resolution rule when no local override exists', async () => {
     const sendOscMessage = vi.fn(async () => undefined)
     vi.stubGlobal('window', {
       settingsApi: {
@@ -176,15 +194,15 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
       1,
       '127.0.0.1',
       53000,
-      '/graphics/pa_title_waiting/stop',
-      [],
+      '/global/stop',
+      [{ type: 's', value: 'PA_TITLE_WAITING' }],
     )
     expect(sendOscMessage).toHaveBeenNthCalledWith(
       2,
       '127.0.0.1',
       53000,
-      '/graphics/pa_title_waiting/resume',
-      [],
+      '/global/resume',
+      [{ type: 's', value: 'PA_TITLE_WAITING' }],
     )
   })
 })

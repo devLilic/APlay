@@ -155,6 +155,24 @@ describe('OscClient contract', () => {
     })
   })
 
+  it('initializes the real osc UDPPort constructor from the library mock', async () => {
+    const client = createOscClient({
+      host: '10.0.0.5',
+      port: 12000,
+    })
+
+    await client.send('/liveboard/play', [{ type: 's', value: 'PERSON_MAIN' }])
+
+    expect(udpPortMock).toHaveBeenCalledTimes(1)
+    expect(udpPortMock).toHaveBeenLastCalledWith({
+      localAddress: '0.0.0.0',
+      localPort: 0,
+      remoteAddress: '10.0.0.5',
+      remotePort: 12000,
+      metadata: true,
+    })
+  })
+
   it('handles invalid host/port configuration safely', () => {
     expect(() => createOscClient({ host: '', port: 9000 })).toThrow('host')
     expect(() => createOscClient({ host: '127.0.0.1', port: 0 })).toThrow('port')
@@ -246,6 +264,73 @@ describe('OscClient contract', () => {
     expect(resolved).toBe(true)
   })
 
+  it('does not call send before the UDP port emits ready', async () => {
+    let readyListener: (() => void) | undefined
+    const send = vi.fn()
+    const client = createOscClient(
+      { host: '127.0.0.1', port: 9000 },
+      createDependencies({
+        createPort() {
+          return createFakePort({
+            send,
+            on(eventName, listener) {
+              if (eventName === 'ready') {
+                readyListener = listener as () => void
+              }
+            },
+          })
+        },
+      }),
+    )
+
+    const promise = client.send('/liveboard/play', [{ type: 's', value: 'TITLE_MAIN' }])
+
+    await Promise.resolve()
+    expect(send).not.toHaveBeenCalled()
+
+    readyListener?.()
+    await promise
+
+    expect(send).toHaveBeenCalledWith({
+      address: '/liveboard/play',
+      args: [{ type: 's', value: 'TITLE_MAIN' }],
+    })
+  })
+
+  it('resolves the send promise after the ready event triggers the OSC send', async () => {
+    let readyListener: (() => void) | undefined
+    const send = vi.fn()
+    const client = createOscClient(
+      { host: '127.0.0.1', port: 9000 },
+      createDependencies({
+        createPort() {
+          return createFakePort({
+            send,
+            on(eventName, listener) {
+              if (eventName === 'ready') {
+                readyListener = listener as () => void
+              }
+            },
+          })
+        },
+      }),
+    )
+
+    let resolved = false
+    const promise = client.send('/liveboard/stop', [{ type: 's', value: 'TITLE_MAIN' }]).then(() => {
+      resolved = true
+    })
+
+    await Promise.resolve()
+    expect(resolved).toBe(false)
+    expect(send).not.toHaveBeenCalled()
+
+    readyListener?.()
+    await promise
+
+    expect(resolved).toBe(true)
+  })
+
   it('logs debug output before send', async () => {
     const sequence: string[] = []
     const log = vi.fn(() => {
@@ -264,7 +349,12 @@ describe('OscClient contract', () => {
 
     await client.send('/aplay/play', args)
 
-    expect(log).toHaveBeenCalledWith('OSC SEND', '/aplay/play', args)
+    expect(log).toHaveBeenCalledWith('OSC SEND', {
+      address: '/aplay/play',
+      args,
+      host: '127.0.0.1',
+      port: 9000,
+    })
     expect(sequence).toEqual(['log', 'send'])
   })
 
@@ -287,6 +377,35 @@ describe('OscClient contract', () => {
     await expect(client.send('/aplay/play', [])).rejects.toThrow('send failed')
     expect(openCount).toBe(1)
     expect(sendCount).toBe(1)
+  })
+
+  it('catches UDP port errors and logs them safely', async () => {
+    let errorListener: ((error: unknown) => void) | undefined
+    const log = vi.fn()
+    const client = createOscClient(
+      { host: '127.0.0.1', port: 9000 },
+      createDependencies({
+        log,
+        createPort() {
+          return createFakePort({
+            on(eventName, listener) {
+              if (eventName === 'error') {
+                errorListener = listener as (error: unknown) => void
+              }
+            },
+          })
+        },
+      }),
+    )
+
+    const promise = client.send('/liveboard/play', [{ type: 's', value: 'PERSON_MAIN' }])
+    errorListener?.(new Error('udp send failed'))
+
+    await expect(promise).rejects.toThrow('udp send failed')
+    expect(log).toHaveBeenCalledWith('OSC ERROR', expect.objectContaining({
+      address: '/liveboard/play',
+      error: 'udp send failed',
+    }))
   })
 
   it('preserves simple fire-and-forget sender behavior', async () => {
