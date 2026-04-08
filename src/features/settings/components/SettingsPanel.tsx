@@ -1,4 +1,4 @@
-import { useEffect, useState, type PropsWithChildren } from 'react'
+import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { supportedEntityTypes } from '@/core/entities/entityTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import type {
@@ -144,6 +144,7 @@ export function SettingsPanel({
   const [isPickingReferenceImage, setIsPickingReferenceImage] = useState(false)
   const [isPickingSourceFile, setIsPickingSourceFile] = useState(false)
   const [isPickingDatasourceJson, setIsPickingDatasourceJson] = useState(false)
+  const [isPickingStaticAsset, setIsPickingStaticAsset] = useState(false)
   const [isExportingGraphicConfig, setIsExportingGraphicConfig] = useState(false)
   const [isExportingProfile, setIsExportingProfile] = useState(false)
   const [oscArgDrafts, setOscArgDrafts] = useState<Record<string, string>>({})
@@ -503,6 +504,32 @@ export function SettingsPanel({
     }
   }
 
+  const handlePickStaticAssetFile = async () => {
+    if (!window.settingsApi?.pickReferenceImage || !selectedGraphic) {
+      return
+    }
+
+    setIsPickingStaticAsset(true)
+
+    try {
+      const filePath = await window.settingsApi.pickReferenceImage()
+      if (!filePath) {
+        return
+      }
+
+      updateGraphic((graphic) => ({
+        ...graphic,
+        kind: 'static',
+        staticAsset: {
+          assetPath: filePath,
+          assetType: 'image',
+        },
+      }))
+    } finally {
+      setIsPickingStaticAsset(false)
+    }
+  }
+
   const handleGraphicConfigExport = async () => {
     if (!selectedGraphic || isExportingGraphicConfig) {
       return
@@ -717,7 +744,9 @@ export function SettingsPanel({
                   updateGraphic={updateGraphic}
                   updateBinding={updateBinding}
                   isPickingDatasourceJson={isPickingDatasourceJson}
+                  isPickingStaticAsset={isPickingStaticAsset}
                   onPickDatasourceJsonFile={handlePickDatasourceJsonFile}
+                  onPickStaticAssetFile={handlePickStaticAssetFile}
                   testingOscActionKey={testingOscActionKey}
                   onTestOscCommand={async (graphic, actionType) => {
                     const actionKey = `${graphic.id}:${actionType}`
@@ -953,19 +982,29 @@ function createDefaultGraphicConfig(
 ): GraphicInstanceConfig {
   const id = createUniqueGraphicConfigId(settings, preferredId ?? entityType)
   const dataFileName = `${id}.json`
+  const isStaticGraphic = entityType === 'logo' || entityType === 'staticImage'
 
   return {
     id,
     entityType,
+    ...(isStaticGraphic ? { kind: 'static' as const } : {}),
     dataFileName,
-    datasourcePath: `datasources/${dataFileName}`,
+    ...(!isStaticGraphic ? { datasourcePath: `datasources/${dataFileName}` } : {}),
     control: {
       play: `/graphics/${entityType}/play`,
       stop: `/graphics/${entityType}/stop`,
       resume: `/graphics/${entityType}/resume`,
       templateName: id.toUpperCase().replace(/[^A-Z0-9]+/g, '_'),
     },
-    bindings: [createDefaultBinding()],
+    ...(!isStaticGraphic ? { bindings: [createDefaultBinding()] } : {}),
+    ...(isStaticGraphic
+      ? {
+        staticAsset: {
+          assetPath: `assets/${dataFileName.replace(/\.json$/i, '.png')}`,
+          assetType: 'image' as const,
+        },
+      }
+      : {}),
     preview: {
       id: `${id}-preview`,
       designWidth: 1920,
@@ -1608,6 +1647,90 @@ function ProfileSection({
         </div>
       </div>
     </FormSection>
+  )
+}
+
+function IconActionButton({
+  label,
+  icon,
+  onClick,
+  tone,
+}: {
+  label: string
+  icon: ReactNode
+  onClick: () => void
+  tone: 'neutral' | 'emerald' | 'amber' | 'rose'
+}) {
+  const toneClass = tone === 'emerald'
+    ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100'
+    : tone === 'amber'
+      ? 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400 hover:bg-amber-100'
+      : tone === 'rose'
+        ? 'border-rose-300 bg-rose-50 text-rose-700 hover:border-rose-400 hover:bg-rose-100'
+        : 'border-border bg-white text-ink hover:border-accent'
+  const badgeToneClass = tone === 'emerald'
+    ? 'bg-emerald-600 text-white'
+    : tone === 'amber'
+      ? 'bg-amber-500 text-white'
+      : tone === 'rose'
+        ? 'bg-rose-600 text-white'
+        : 'bg-slate-800 text-white'
+
+  return (
+    <div className='group relative'>
+      <button
+        type='button'
+        onClick={onClick}
+        aria-label={label}
+        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition ${toneClass}`}
+      >
+        {icon}
+      </button>
+      <span className={`pointer-events-none absolute bottom-full right-0 mb-2 whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-semibold opacity-0 shadow-sm transition group-hover:opacity-100 ${badgeToneClass}`}>
+        {label}
+      </span>
+    </div>
+  )
+}
+
+function AddLinkIcon() {
+  return (
+    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+      <path d='M7.5 12.5 5.8 14.2a2.4 2.4 0 0 1-3.3-3.4L4.8 8.5a2.4 2.4 0 0 1 3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
+      <path d='M12.5 7.5 14.2 5.8a2.4 2.4 0 1 1 3.4 3.4l-2.3 2.3a2.4 2.4 0 0 1-3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
+      <path d='M7 10h6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+      <path d='M10 7v6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+    </svg>
+  )
+}
+
+function RemoveLinkIcon() {
+  return (
+    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+      <path d='M7.5 12.5 5.8 14.2a2.4 2.4 0 0 1-3.3-3.4L4.8 8.5a2.4 2.4 0 0 1 3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
+      <path d='M12.5 7.5 14.2 5.8a2.4 2.4 0 1 1 3.4 3.4l-2.3 2.3a2.4 2.4 0 0 1-3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
+      <path d='M7 10h6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+    </svg>
+  )
+}
+
+function DuplicateIcon() {
+  return (
+    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+      <rect x='6.5' y='6.5' width='9' height='9' rx='2' stroke='currentColor' strokeWidth='1.7' />
+      <path d='M4.5 12V6a1.5 1.5 0 0 1 1.5-1.5H12' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
+    </svg>
+  )
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+      <path d='M4.5 6h11' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+      <path d='M8 3.8h4' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+      <path d='M6.5 6 7 15a1.5 1.5 0 0 0 1.5 1.4h3a1.5 1.5 0 0 0 1.5-1.4l.5-9' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
+      <path d='M8.5 8.5v4.5M11.5 8.5v4.5' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+    </svg>
   )
 }
 
@@ -2327,7 +2450,7 @@ function GraphicSelectionSection({
           </p>
         </div>
 
-        <div className='grid gap-3 md:grid-cols-[9rem,minmax(0,1fr),auto] md:items-end'>
+        <div className='grid gap-3 md:grid-cols-[9rem,minmax(0,1fr)]'>
           <label className='space-y-2'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
             <select
@@ -2351,6 +2474,8 @@ function GraphicSelectionSection({
               className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
             />
           </label>
+        </div>
+        <div className='flex justify-end'>
           <button
             type='button'
             onClick={onCreateGraphicConfig}
@@ -2409,55 +2534,51 @@ function GraphicSelectionSection({
             return (
               <div
                 key={graphic.id}
-                className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
                   isSelected
                     ? 'border-accent bg-accent/5'
                     : 'border-border bg-white hover:border-accent/40'
                 }`}
               >
-                <div className='min-w-0 flex-1'>
-                  <button
-                    type='button'
-                    onClick={() => onSelectedGraphicIdChange(graphic.id)}
-                    className='w-full text-left'
-                  >
-                    <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
-                    <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
-                  </button>
-                </div>
-                <div className='flex flex-wrap items-center justify-end gap-2'>
-                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                <div className='flex items-start justify-between gap-3'>
+                  <div className='min-w-0 flex-1'>
+                    <button
+                      type='button'
+                      onClick={() => onSelectedGraphicIdChange(graphic.id)}
+                      className='w-full text-left'
+                    >
+                      <p className='truncate text-sm font-semibold text-ink'>{graphic.id}</p>
+                      <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                    </button>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${
                     isLoadedByProfile
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-amber-100 text-amber-700'
                   }`}>
                     {isLoadedByProfile ? 'Assigned to profile' : 'Library only'}
                   </span>
-                  <button
-                    type='button'
+                </div>
+
+                <div className='mt-3 flex items-center justify-end gap-2'>
+                  <IconActionButton
+                    label={isLoadedByProfile ? 'Remove from profile' : 'Add to profile'}
                     onClick={() => isLoadedByProfile ? onDetachGraphicConfig(graphic.id) : onAttachGraphicConfig(graphic.id)}
-                    className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
-                      isLoadedByProfile
-                        ? 'border border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400 hover:bg-amber-100'
-                        : 'border border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400 hover:bg-emerald-100'
-                    }`}
-                  >
-                    {isLoadedByProfile ? 'Remove from profile' : 'Add to profile'}
-                  </button>
-                  <button
-                    type='button'
+                    tone={isLoadedByProfile ? 'amber' : 'emerald'}
+                    icon={isLoadedByProfile ? <RemoveLinkIcon /> : <AddLinkIcon />}
+                  />
+                  <IconActionButton
+                    label='Duplicate'
                     onClick={() => onDuplicateGraphicConfig(graphic.id)}
-                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
-                  >
-                    Duplicate
-                  </button>
-                  <button
-                    type='button'
+                    tone='neutral'
+                    icon={<DuplicateIcon />}
+                  />
+                  <IconActionButton
+                    label='Delete from library'
                     onClick={() => onRequestDeleteGraphicConfig(graphic.id)}
-                    className='rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:border-rose-400 hover:bg-rose-100'
-                  >
-                    Delete from library
-                  </button>
+                    tone='rose'
+                    icon={<DeleteIcon />}
+                  />
                 </div>
                 {deleteIsPending ? (
                   <div className='basis-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700'>
@@ -2713,7 +2834,9 @@ function GraphicBindingSection({
   updateGraphic,
   updateBinding,
   isPickingDatasourceJson,
+  isPickingStaticAsset,
   onPickDatasourceJsonFile,
+  onPickStaticAssetFile,
   testingOscActionKey,
   onTestOscCommand,
 }: {
@@ -2721,15 +2844,19 @@ function GraphicBindingSection({
   updateGraphic: (updater: (graphic: GraphicInstanceConfig) => GraphicInstanceConfig) => void
   updateBinding: (bindingIndex: number, updater: (binding: GraphicFieldBinding) => GraphicFieldBinding) => void
   isPickingDatasourceJson: boolean
+  isPickingStaticAsset: boolean
   onPickDatasourceJsonFile: () => Promise<void>
+  onPickStaticAssetFile: () => Promise<void>
   testingOscActionKey: string | null
   onTestOscCommand: (
     graphic: GraphicInstanceConfig,
     actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   ) => Promise<void>
 }) {
+  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'logo' || graphic.entityType === 'staticImage'
+
   return (
-    <FormSection title='Graphic bindings' description='Datasource path, LiveBoard template name, source field bindings, and debug trigger actions live with the selected graphic config.'>
+    <FormSection title='Graphic configuration' description='Configure runtime behavior for the selected graphic config. Static graphics use image assets; dynamic graphics use datasource mappings.'>
       <div className='grid gap-3 md:grid-cols-2'>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic id</span>
@@ -2748,6 +2875,16 @@ function GraphicBindingSection({
               </option>
             ))}
           </select>
+        </label>
+        <label className='space-y-2'>
+          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Config kind</span>
+          <div className={`flex h-[42px] items-center rounded-xl border px-3 py-2 text-sm font-semibold ${
+            isStaticGraphic
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-sky-200 bg-sky-50 text-sky-700'
+          }`}>
+            {isStaticGraphic ? 'Static graphic config' : 'Dynamic graphic config'}
+          </div>
         </label>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Datasource file name</span>
@@ -2772,25 +2909,77 @@ function GraphicBindingSection({
             className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
           />
         </label>
-        <label className='space-y-2'>
-          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Datasource JSON path</span>
-          <div className='flex gap-2'>
-            <input
-              value={graphic.datasourcePath ?? ''}
-              onChange={(event) => updateGraphic((current) => ({ ...current, datasourcePath: event.target.value }))}
-              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-            />
+      </div>
+
+      {isStaticGraphic ? (
+        <div className='space-y-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4'>
+          <div>
+            <p className='text-sm font-semibold text-emerald-800'>Static asset</p>
+            <p className='mt-1 text-sm text-emerald-700'>
+              Static graphic configs render directly from an image asset and do not use datasource JSON or source bindings.
+            </p>
+          </div>
+
+          <div className='grid gap-3 md:grid-cols-[minmax(0,1fr),auto] md:items-end'>
+            <label className='space-y-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700'>Asset file path</span>
+              <input
+                value={graphic.staticAsset?.assetPath ?? ''}
+                onChange={(event) => updateGraphic((current) => ({
+                  ...current,
+                  kind: 'static',
+                  staticAsset: {
+                    assetPath: event.target.value,
+                    assetType: current.staticAsset?.assetType ?? 'image',
+                  },
+                }))}
+                placeholder='C:\\APlay\\assets\\logo.png'
+                className='w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-ink'
+              />
+            </label>
             <button
               type='button'
-              onClick={() => void onPickDatasourceJsonFile()}
-              disabled={isPickingDatasourceJson}
-              className='shrink-0 rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+              onClick={() => void onPickStaticAssetFile()}
+              disabled={isPickingStaticAsset}
+              className='rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-800 transition enabled:hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-50'
             >
-              {isPickingDatasourceJson ? 'Choosing...' : 'Choose JSON'}
+              {isPickingStaticAsset ? 'Choosing...' : 'Choose image'}
             </button>
           </div>
-        </label>
-      </div>
+
+          <div className='rounded-2xl border border-emerald-200 bg-white/80 px-4 py-3 text-sm text-emerald-800'>
+            Preview, play, and stop actions remain available for static graphics. Only datasource-specific controls are hidden.
+          </div>
+        </div>
+      ) : (
+        <div className='space-y-4 rounded-3xl border border-sky-200 bg-sky-50/60 p-4'>
+          <div>
+            <p className='text-sm font-semibold text-sky-800'>Dynamic datasource</p>
+            <p className='mt-1 text-sm text-sky-700'>
+              Dynamic graphic configs use datasource JSON and source-field bindings to publish values at runtime.
+            </p>
+          </div>
+
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-sky-700'>Datasource JSON path</span>
+            <div className='flex gap-2'>
+              <input
+                value={graphic.datasourcePath ?? ''}
+                onChange={(event) => updateGraphic((current) => ({ ...current, datasourcePath: event.target.value }))}
+                className='w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm text-ink'
+              />
+              <button
+                type='button'
+                onClick={() => void onPickDatasourceJsonFile()}
+                disabled={isPickingDatasourceJson}
+                className='shrink-0 rounded-xl border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-800 transition enabled:hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-50'
+              >
+                {isPickingDatasourceJson ? 'Choosing...' : 'Choose JSON'}
+              </button>
+            </div>
+          </label>
+        </div>
+      )}
 
       <div className='space-y-4 rounded-3xl border border-border bg-surface/30 p-4'>
         <div className='flex flex-wrap items-start justify-between gap-3'>
@@ -2838,55 +3027,61 @@ function GraphicBindingSection({
         )}
       </div>
 
-      <div className='space-y-3'>
-        <div className='flex items-center justify-between gap-3'>
-          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Required source field bindings</p>
-          <button
-            type='button'
-            onClick={() => updateGraphic((current) => ({ ...current, bindings: [...(current.bindings ?? []), createDefaultBinding()] }))}
-            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
-          >
-            Add binding
-          </button>
-        </div>
-
-          {(graphic.bindings ?? []).map((binding, bindingIndex) => (
-            <div key={bindingIndex} className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
-            <label className='space-y-2'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
-              <input
-                value={binding.sourceField}
-                onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-              />
-            </label>
-            <label className='space-y-2'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Target field</span>
-              <input
-                value={binding.targetField}
-                onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, targetField: event.target.value }))}
-                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
-              />
-            </label>
-            <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
-              <input
-                type='checkbox'
-                checked={binding.required ?? false}
-                onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, required: event.target.checked }))}
-                className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
-              />
-              Required
-            </label>
+      {!isStaticGraphic ? (
+        <div className='space-y-3'>
+          <div className='flex items-center justify-between gap-3'>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Required source field bindings</p>
             <button
               type='button'
-              onClick={() => updateGraphic((current) => ({ ...current, bindings: (current.bindings ?? []).filter((_, index) => index !== bindingIndex) }))}
-              className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+              onClick={() => updateGraphic((current) => ({ ...current, bindings: [...(current.bindings ?? []), createDefaultBinding()] }))}
+              className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
             >
-              Remove
+              Add binding
             </button>
           </div>
-        ))}
-      </div>
+
+            {(graphic.bindings ?? []).map((binding, bindingIndex) => (
+              <div key={bindingIndex} className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
+                <input
+                  value={binding.sourceField}
+                  onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, sourceField: event.target.value }))}
+                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                />
+              </label>
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Target field</span>
+                <input
+                  value={binding.targetField}
+                  onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, targetField: event.target.value }))}
+                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                />
+              </label>
+              <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
+                <input
+                  type='checkbox'
+                  checked={binding.required ?? false}
+                  onChange={(event) => updateBinding(bindingIndex, (current) => ({ ...current, required: event.target.checked }))}
+                  className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                />
+                Required
+              </label>
+              <button
+                type='button'
+                onClick={() => updateGraphic((current) => ({ ...current, bindings: (current.bindings ?? []).filter((_, index) => index !== bindingIndex) }))}
+                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className='rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-800'>
+          Source bindings are hidden for static graphic configs because they render directly from the selected asset.
+        </div>
+      )}
     </FormSection>
   )
 }

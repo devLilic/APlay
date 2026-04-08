@@ -9,6 +9,7 @@ import type {
   CsvSourceSchemaConfig,
   GraphicFieldBinding,
   GraphicControlConfig,
+  GraphicConfigKind,
   GraphicInstanceConfig,
   OscCommandSetConfig,
   OscSettingsConfig,
@@ -21,6 +22,8 @@ import type {
   PreviewTemplateDefinition,
   ReferenceImageAsset,
   ShowProfileConfig,
+  StaticGraphicAssetConfig,
+  StaticGraphicAssetType,
   TransformOrigin,
 } from '@/settings/models/appConfig'
 import {
@@ -56,6 +59,9 @@ const contentSourceTypes = ['csv'] as const
 const sourceSchemaTypes = ['csv'] as const
 const csvBlockDetectionModes = ['columnRegex'] as const
 const previewTextAlignValues = ['left', 'center'] as const
+const graphicConfigKinds = ['dynamic', 'static'] as const
+const staticGraphicAssetTypes = ['image'] as const
+const staticGraphicEntityTypes = ['logo', 'staticImage'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
   const value = assertRecord(input, 'referenceImageAsset')
@@ -313,6 +319,25 @@ export const graphicFieldBindingSchema = createSchema<GraphicFieldBinding>((inpu
   }
 })
 
+export const staticGraphicAssetConfigSchema = createSchema<StaticGraphicAssetConfig>((input) => {
+  const value = assertRecord(input, 'graphicInstanceConfig.staticAsset')
+  const assetPath = parseRequiredString(value, 'assetPath', 'graphicInstanceConfig.staticAsset')
+
+  if (!isSafeStaticAssetPath(assetPath)) {
+    throw new SchemaValidationError('graphicInstanceConfig.staticAsset.assetPath must be a valid non-empty file path')
+  }
+
+  return {
+    assetPath,
+    assetType: parseEnumValue(
+      value.assetType,
+      staticGraphicAssetTypes,
+      'graphicInstanceConfig.staticAsset',
+      'assetType',
+    ) as StaticGraphicAssetType,
+  }
+})
+
 export const csvBlockDetectionConfigSchema = createSchema<CsvBlockDetectionConfig>((input) => {
   const value = assertRecord(input, 'csvBlockDetectionConfig')
   const pattern = parseRequiredString(value, 'pattern', 'csvBlockDetectionConfig')
@@ -400,26 +425,45 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
   const actions = parseRequiredArray(value, 'actions', 'graphicInstanceConfig').map((action) =>
     actionButtonConfigSchema.parse(action),
   )
+  const entityType = parseEnumValue(
+    value.entityType,
+    supportedEntityTypes,
+    'graphicInstanceConfig',
+    'entityType',
+  )
+  const inferredKind = isStaticGraphicEntityType(entityType) ? 'static' : undefined
+  const kind = value.kind === undefined
+    ? inferredKind
+    : parseEnumValue(
+      value.kind,
+      graphicConfigKinds,
+      'graphicInstanceConfig',
+      'kind',
+    ) as GraphicConfigKind
   const bindings = value.bindings === undefined
     ? undefined
     : parseRequiredArray(value, 'bindings', 'graphicInstanceConfig').map((binding) =>
       graphicFieldBindingSchema.parse(binding),
     )
+  const staticAsset = value.staticAsset === undefined
+    ? undefined
+    : staticGraphicAssetConfigSchema.parse(value.staticAsset)
+
+  if (kind === 'static' && !staticAsset) {
+    throw new SchemaValidationError('graphicInstanceConfig.staticAsset is required for static graphic configs')
+  }
 
   return {
     id: parseRequiredString(value, 'id', 'graphicInstanceConfig'),
-    entityType: parseEnumValue(
-      value.entityType,
-      supportedEntityTypes,
-      'graphicInstanceConfig',
-      'entityType',
-    ),
+    entityType,
+    ...(kind ? { kind } : {}),
     dataFileName: parseRequiredString(value, 'dataFileName', 'graphicInstanceConfig'),
     ...(parseOptionalString(value, 'datasourcePath', 'graphicInstanceConfig')
       ? { datasourcePath: parseOptionalString(value, 'datasourcePath', 'graphicInstanceConfig') }
       : {}),
     control: graphicControlConfigSchema.parse(value.control),
     ...(bindings ? { bindings } : {}),
+    ...(staticAsset ? { staticAsset } : {}),
     preview: previewTemplateDefinitionSchema.parse(value.preview),
     actions,
   }
@@ -550,6 +594,19 @@ function isSafeContentSourcePath(filePath: string): boolean {
   }
 
   return !/[<>:"|?*]/.test(normalizedPath.replace(/^[a-zA-Z]:\\/, ''))
+}
+
+function isSafeStaticAssetPath(filePath: string): boolean {
+  const normalizedPath = filePath.trim()
+  if (normalizedPath.length === 0) {
+    return false
+  }
+
+  return !/[<>:"|?*]/.test(normalizedPath.replace(/^[a-zA-Z]:\\/, ''))
+}
+
+function isStaticGraphicEntityType(value: string): value is typeof staticGraphicEntityTypes[number] {
+  return staticGraphicEntityTypes.includes(value as typeof staticGraphicEntityTypes[number])
 }
 
 function parseTitleMapping(value: Record<string, unknown>) {

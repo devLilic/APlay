@@ -665,6 +665,166 @@ describe('preview element calculations', () => {
     expect(layout).not.toHaveProperty('osc')
     expect(layout).not.toHaveProperty('datasourceFile')
   })
+
+  it('renders a staticImage asset in preview', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'static-image-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'static-image',
+            kind: 'image',
+            sourceField: 'staticAsset',
+            previewText: 'C:\\APlay\\assets\\sponsor\\board.png',
+            box: {
+              x: 0,
+              y: 0,
+              width: 1920,
+              height: 1080,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      {},
+    )
+
+    expect(layout.elements[0]).toMatchObject({
+      kind: 'image',
+      content: 'C:\\APlay\\assets\\sponsor\\board.png',
+    })
+  })
+
+  it('renders a logo asset in preview', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'logo-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'logo-image',
+            kind: 'image',
+            sourceField: 'staticAsset',
+            previewText: 'C:\\APlay\\assets\\branding\\logo.png',
+            box: {
+              x: 40,
+              y: 40,
+              width: 240,
+              height: 120,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      {},
+    )
+
+    expect(layout.elements[0]).toMatchObject({
+      id: 'logo-image',
+      kind: 'image',
+      content: 'C:\\APlay\\assets\\branding\\logo.png',
+    })
+  })
+
+  it('respects positioning and sizing config for static preview images', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'logo-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'logo-image',
+            kind: 'image',
+            sourceField: 'staticAsset',
+            previewText: 'C:\\APlay\\assets\\branding\\logo.png',
+            box: {
+              x: 100,
+              y: 200,
+              width: 300,
+              height: 150,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      {},
+    )
+
+    expect(layout.elements[0]?.style).toMatchObject({
+      left: 50,
+      top: 100,
+      width: 150,
+      height: 75,
+    })
+  })
+
+  it('renders static preview images without datasource content', () => {
+    const layout = calculatePreviewTemplateLayout(
+      {
+        id: 'logo-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          {
+            id: 'logo-image',
+            kind: 'image',
+            sourceField: 'staticAsset',
+            previewText: 'C:\\APlay\\assets\\branding\\logo.png',
+            box: {
+              x: 100,
+              y: 120,
+              width: 240,
+              height: 120,
+            },
+          },
+        ],
+      },
+      { width: 960, height: 540 },
+      { staticAsset: undefined },
+    )
+
+    expect(layout.elements).toHaveLength(1)
+    expect(layout.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\logo.png')
+  })
+
+  it('updates preview image content when the static asset path changes', () => {
+    const template: PreviewTemplateDefinition = {
+      id: 'logo-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        {
+          id: 'logo-image',
+          kind: 'image',
+          sourceField: 'staticAsset',
+          box: {
+            x: 100,
+            y: 120,
+            width: 240,
+            height: 120,
+          },
+        },
+      ],
+    }
+
+    const first = calculatePreviewTemplateLayout(
+      template,
+      { width: 960, height: 540 },
+      { staticAsset: 'C:\\APlay\\assets\\branding\\logo-a.png' },
+    )
+    const second = calculatePreviewTemplateLayout(
+      template,
+      { width: 960, height: 540 },
+      { staticAsset: 'C:\\APlay\\assets\\branding\\logo-b.png' },
+    )
+
+    expect(first.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\logo-a.png')
+    expect(second.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\logo-b.png')
+  })
 })
 
 describe('preview background rendering', () => {

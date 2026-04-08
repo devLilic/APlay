@@ -12,6 +12,16 @@ describe('supportedEntityTypes', () => {
       'waitingTitle',
       'waitingLocation',
       'phone',
+      'logo',
+      'staticImage',
     ])
+  })
+
+  it('supports the static "logo" entity type', () => {
+    expect(supportedEntityTypes).toContain('logo')
+  })
+
+  it('supports the static "staticImage" entity type', () => {
+    expect(supportedEntityTypes).toContain('staticImage')
   })
 })

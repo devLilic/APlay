@@ -7,6 +7,8 @@ export const supportedEntityTypes = [
   'waitingTitle',
   'waitingLocation',
   'phone',
+  'logo',
+  'staticImage',
 ] as const
 
 export type SupportedEntityType = typeof supportedEntityTypes[number]

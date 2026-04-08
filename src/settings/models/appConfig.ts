@@ -10,6 +10,8 @@ export type PreviewTextAlign = 'left' | 'center'
 export type SourceSchemaType = 'csv'
 export type CsvBlockDetectionMode = 'columnRegex'
 export type OscArgType = 's' | 'i' | 'f'
+export type GraphicConfigKind = 'dynamic' | 'static'
+export type StaticGraphicAssetType = 'image'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
@@ -39,6 +41,11 @@ export interface GraphicFieldBinding {
   sourceField: string
   targetField: string
   required?: boolean
+}
+
+export interface StaticGraphicAssetConfig {
+  assetPath: string
+  assetType: StaticGraphicAssetType
 }
 
 export interface OscArgConfig {
@@ -116,10 +123,12 @@ export interface PreviewTemplateDefinition {
 export interface GraphicInstanceConfig {
   id: string
   entityType: SupportedEntityType
+  kind?: GraphicConfigKind
   dataFileName: string
   datasourcePath?: string
   control: GraphicControlConfig
   bindings?: GraphicFieldBinding[]
+  staticAsset?: StaticGraphicAssetConfig
   preview: PreviewTemplateDefinition
   actions: ActionButtonConfig[]
 }

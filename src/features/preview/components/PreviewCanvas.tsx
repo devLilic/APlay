@@ -17,6 +17,7 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
   const [resolvedBackgroundImageSrc, setResolvedBackgroundImageSrc] = useState<string | undefined>()
+  const [resolvedElementImageSources, setResolvedElementImageSources] = useState<Record<string, string | undefined>>({})
 
   useEffect(() => {
     const element = containerRef.current
@@ -73,6 +74,35 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
     : null
   const backgroundStyle = calculatePreviewBackgroundStyle(template, resolvedBackgroundImageSrc)
 
+  useEffect(() => {
+    let cancelled = false
+
+    const resolveElementImages = async () => {
+      const imageElements = (layout?.elements ?? []).filter((element) => element.kind === 'image')
+      if (imageElements.length === 0) {
+        setResolvedElementImageSources({})
+        return
+      }
+
+      const resolvedEntries = await Promise.all(
+        imageElements.map(async (element) => [
+          element.id,
+          await resolvePreviewImageSource(element.content),
+        ] as const),
+      )
+
+      if (!cancelled) {
+        setResolvedElementImageSources(Object.fromEntries(resolvedEntries))
+      }
+    }
+
+    void resolveElementImages()
+
+    return () => {
+      cancelled = true
+    }
+  }, [layout])
+
   return (
     <div
       ref={containerRef}
@@ -118,11 +148,11 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
                 zIndex: element.style.zIndex,
               }}
             >
-              {element.content ? (
+              {resolvedElementImageSources[element.id] ? (
                 <img
-                  src={element.content}
+                  src={resolvedElementImageSources[element.id]}
                   alt=''
-                  className='h-full w-full object-cover'
+                  className='h-full w-full object-contain'
                 />
               ) : null}
             </div>
@@ -157,6 +187,19 @@ export function PreviewCanvas({ template, content, backgroundImagePath }: Previe
 
 function isDirectPreviewImageSource(source: string): boolean {
   return /^(data:|https?:|blob:)/i.test(source)
+}
+
+async function resolvePreviewImageSource(source: string | undefined): Promise<string | undefined> {
+  const normalizedSource = source?.trim()
+  if (!normalizedSource) {
+    return undefined
+  }
+
+  if (isDirectPreviewImageSource(normalizedSource)) {
+    return normalizedSource
+  }
+
+  return await window.settingsApi?.readReferenceImage?.(normalizedSource) ?? normalizedSource
 }
 
 function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement }) {

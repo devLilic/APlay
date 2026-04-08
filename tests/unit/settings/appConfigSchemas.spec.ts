@@ -13,6 +13,74 @@ import {
   showProfileConfigSchema,
 } from '@/settings/schemas/appConfigSchemas'
 
+const staticLogoGraphicConfig = {
+  id: 'channel-logo',
+  entityType: 'logo',
+  dataFileName: 'channel-logo.json',
+  staticAsset: {
+    assetPath: 'C:\\APlay\\assets\\branding\\channel-logo.png',
+    assetType: 'image',
+  },
+  control: {
+    play: '/graphics/logo/play',
+    stop: '/graphics/logo/stop',
+    resume: '/graphics/logo/resume',
+  },
+  preview: {
+    id: 'channel-logo-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      {
+        id: 'logo-image',
+        kind: 'image',
+        sourceField: 'staticAsset',
+        previewText: 'C:\\APlay\\assets\\branding\\channel-logo.png',
+        box: {
+          x: 40,
+          y: 40,
+          width: 200,
+          height: 120,
+        },
+      },
+    ],
+  },
+  actions: [{ actionType: 'playGraphic', label: 'Play' }],
+} as const
+
+const staticImageGraphicConfig = {
+  id: 'sponsor-board',
+  entityType: 'staticImage',
+  dataFileName: 'sponsor-board.json',
+  staticAsset: {
+    assetPath: 'C:\\APlay\\assets\\sponsor\\board.png',
+    assetType: 'image',
+  },
+  control: {
+    templateName: 'SPONSOR_BOARD',
+  },
+  preview: {
+    id: 'sponsor-board-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      {
+        id: 'board-image',
+        kind: 'image',
+        sourceField: 'staticAsset',
+        previewText: 'C:\\APlay\\assets\\sponsor\\board.png',
+        box: {
+          x: 0,
+          y: 0,
+          width: 1920,
+          height: 1080,
+        },
+      },
+    ],
+  },
+  actions: [{ actionType: 'playGraphic', label: 'Play' }],
+} as const
+
 describe('CsvSourceSchemaConfig schema', () => {
   it('parses a configurable CSV source schema with delimiter, header, block detection, and entity mappings', () => {
     expect(
@@ -688,6 +756,70 @@ describe('GraphicInstanceConfig schema', () => {
         actions: [{ actionType: 'playGraphic', label: 'Play' }],
       }),
     ).toThrow('entityType')
+  })
+
+  it('allows static entity types without sourceBinding config', () => {
+    const parsed = graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown)
+
+    expect(parsed).not.toHaveProperty('bindings')
+  })
+
+  it('allows static entity types without datasource config', () => {
+    const parsed = graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown)
+
+    expect(parsed).not.toHaveProperty('datasourcePath')
+  })
+
+  it('supports staticAsset config for static graphic entity types', () => {
+    const parsed = graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown) as unknown as Record<string, unknown>
+
+    expect(parsed).toHaveProperty('staticAsset')
+    expect(parsed.staticAsset).toEqual({
+      assetPath: 'C:\\APlay\\assets\\branding\\channel-logo.png',
+      assetType: 'image',
+    })
+  })
+
+  it('allows static graphic configs without datasource when staticAsset is present', () => {
+    expect(
+      graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown),
+    ).toMatchObject({
+      id: 'channel-logo',
+      entityType: 'logo',
+    })
+  })
+
+  it('rejects static graphic configs when staticAsset is missing', () => {
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        ...staticLogoGraphicConfig,
+        staticAsset: undefined,
+      } as unknown),
+    ).toThrow('staticAsset')
+  })
+
+  it('rejects static graphic configs when staticAsset path is invalid', () => {
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        ...staticImageGraphicConfig,
+        staticAsset: {
+          assetPath: '',
+          assetType: 'image',
+        },
+      } as unknown),
+    ).toThrow('staticAsset')
+  })
+
+  it('keeps OSC config optional-but-valid for static graphic configs when present', () => {
+    expect(
+      graphicInstanceConfigSchema.parse(staticLogoGraphicConfig as unknown),
+    ).toMatchObject({
+      control: {
+        play: '/graphics/logo/play',
+        stop: '/graphics/logo/stop',
+        resume: '/graphics/logo/resume',
+      },
+    })
   })
 })
 
