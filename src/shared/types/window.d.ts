@@ -1,4 +1,5 @@
 import type { AppConfig } from '../../../config/types'
+import type { OscTransportStage } from '@/integrations/osc/oscClient'
 import type {
   AppInfoPayload,
   DatabaseQueryPayload,
@@ -74,7 +75,7 @@ declare global {
       writeDatasourceFileSync: (filePath: string, content: string) => void
       exportGraphicConfig: (graphicConfig: GraphicInstanceConfig, suggestedFileName?: string) => Promise<string | null>
       exportProfileConfig: (settings: AppSettings, profileId: string, suggestedFileName?: string) => Promise<string | null>
-      sendOscMessage: (host: string, port: number, address: string, args: OscArgConfig[]) => Promise<void>
+      sendOscMessage: (host: string, port: number, address: string, args: OscArgConfig[]) => Promise<OscTransportStage[]>
     }
   }
 }

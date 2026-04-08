@@ -146,6 +146,7 @@ function humanizeGraphicConfigId(graphicId: string): string {
     .join(' ')
 }
 
+
 function isSupportedGraphicEntityType(graphic: unknown): boolean {
   return !!graphic &&
     typeof graphic === 'object' &&

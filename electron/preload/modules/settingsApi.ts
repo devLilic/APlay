@@ -17,6 +17,7 @@ import {
   type TextFileReadResponse,
 } from '../../../src/shared/ipc/contracts'
 import type { AppSettings, GraphicInstanceConfig, OscArgConfig } from '../../../src/settings/models/appConfig'
+import type { OscTransportStage } from '../../../src/integrations/osc/oscClient'
 import type { UpdatePreferences, UiPreferences } from '../../../src/shared/settings/types'
 import { invoke } from './shared'
 
@@ -100,14 +101,14 @@ export function registerSettingsApi() {
       })
       return extractProfileConfigExportPath(response)
     },
-    async sendOscMessage(host: string, port: number, address: string, args: OscArgConfig[]): Promise<void> {
+    async sendOscMessage(host: string, port: number, address: string, args: OscArgConfig[]): Promise<OscTransportStage[]> {
       const response = await invoke(ipcInvokeChannels.settingsSendOscMessage, {
         host,
         port,
         address,
         args,
       })
-      extractOscSendResult(response)
+      return extractOscSendResult(response)
     },
   })
 }
@@ -152,10 +153,13 @@ function extractTextFileContent(payload: TextFileReadResponse): string | null {
   return payload.content
 }
 
-function extractOscSendResult(payload: OscSendResponse): void {
+function extractOscSendResult(payload: OscSendResponse): OscTransportStage[] {
   if (!payload.ok) {
-    throw new Error('OSC send failed')
+    const stageSummary = payload.stages.length > 0 ? ` [${payload.stages.join(' -> ')}]` : ''
+    throw new Error(`${payload.error ?? 'OSC send failed'}${stageSummary}`)
   }
+
+  return payload.stages
 }
 
 function extractDatasourceWriteResult(payload: DatasourceFileWriteResponse): void {

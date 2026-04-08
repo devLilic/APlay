@@ -5,8 +5,10 @@ export interface OscArg {
   value: string | number
 }
 
+export type OscTransportStage = 'opened' | 'ready' | 'sent' | 'error'
+
 export interface OscClient {
-  send(address: string, args: OscArg[]): Promise<void>
+  send(address: string, args: OscArg[]): Promise<OscTransportStage[]>
 }
 
 export interface OscClientConfig {
@@ -29,6 +31,16 @@ export interface OscClientDependencies {
   log: typeof console.log
 }
 
+export class OscTransportError extends Error {
+  readonly stages: OscTransportStage[]
+
+  constructor(message: string, stages: OscTransportStage[]) {
+    super(message)
+    this.name = 'OscTransportError'
+    this.stages = stages
+  }
+}
+
 const defaultDependencies: OscClientDependencies = {
   createPort(options) {
     const { UDPPort } = osc
@@ -44,7 +56,7 @@ export function createOscClient(
   const normalizedConfig = validateOscClientConfig(config)
 
   return {
-    send(address: string, args: OscArg[]): Promise<void> {
+    send(address: string, args: OscArg[]): Promise<OscTransportStage[]> {
       const normalizedAddress = validateOscAddress(address)
       const normalizedArgs = validateOscArgs(args)
 
@@ -63,8 +75,9 @@ export function createOscClient(
         metadata: true,
       })
 
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<OscTransportStage[]>((resolve, reject) => {
         let settled = false
+        const stages: OscTransportStage[] = []
 
         const cleanup = () => {
           if (typeof port.off === 'function') {
@@ -80,8 +93,8 @@ export function createOscClient(
 
           settled = true
           cleanup()
-          safelyClosePort(port)
-          resolve()
+          queueMicrotask(() => safelyClosePort(port))
+          resolve([...stages])
         }
 
         const finalizeReject = (error: unknown) => {
@@ -91,29 +104,56 @@ export function createOscClient(
 
           settled = true
           cleanup()
-          safelyClosePort(port)
-          reject(error instanceof Error ? error : new Error('OSC send failed'))
+          queueMicrotask(() => safelyClosePort(port))
+          const message = error instanceof Error ? error.message : 'OSC send failed'
+          reject(new OscTransportError(message, [...stages]))
         }
 
         const handleReady = () => {
+          stages.push('ready')
+          dependencies.log('OSC READY', {
+            address: normalizedAddress,
+            args: normalizedArgs,
+            host: normalizedConfig.host,
+            port: normalizedConfig.port,
+          })
+
           try {
             port.send({
               address: normalizedAddress,
               args: normalizedArgs,
             })
+            stages.push('sent')
+            dependencies.log('OSC SENT', {
+              address: normalizedAddress,
+              args: normalizedArgs,
+              host: normalizedConfig.host,
+              port: normalizedConfig.port,
+            })
             finalizeResolve()
           } catch (error) {
+            stages.push('error')
+            dependencies.log('OSC ERROR', {
+              address: normalizedAddress,
+              args: normalizedArgs,
+              host: normalizedConfig.host,
+              port: normalizedConfig.port,
+              error: error instanceof Error ? error.message : 'OSC send failed',
+              stages: [...stages],
+            })
             finalizeReject(error)
           }
         }
 
         const handleError = (error: unknown) => {
+          stages.push('error')
           dependencies.log('OSC ERROR', {
             address: normalizedAddress,
             args: normalizedArgs,
             host: normalizedConfig.host,
             port: normalizedConfig.port,
             error: error instanceof Error ? error.message : 'OSC port error',
+            stages: [...stages],
           })
           finalizeReject(error instanceof Error ? error : new Error('OSC port error'))
         }
@@ -122,8 +162,24 @@ export function createOscClient(
         port.on('error', handleError)
 
         try {
+          stages.push('opened')
+          dependencies.log('OSC OPEN', {
+            address: normalizedAddress,
+            args: normalizedArgs,
+            host: normalizedConfig.host,
+            port: normalizedConfig.port,
+          })
           port.open()
         } catch (error) {
+          stages.push('error')
+          dependencies.log('OSC ERROR', {
+            address: normalizedAddress,
+            args: normalizedArgs,
+            host: normalizedConfig.host,
+            port: normalizedConfig.port,
+            error: error instanceof Error ? error.message : 'OSC open failed',
+            stages: [...stages],
+          })
           finalizeReject(error)
         }
       })

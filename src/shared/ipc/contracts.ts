@@ -1,6 +1,7 @@
 import type { ProgressInfo } from 'electron-updater'
 import type { AppConfig, AppLanguage } from '../../../config/types'
 import type { AppSettings as WorkspaceAppSettings, GraphicInstanceConfig, OscArgConfig } from '../../settings/models/appConfig'
+import type { OscTransportStage } from '../../integrations/osc/oscClient'
 import type {
   LicenseActivationResult,
   LicenseEntitlementsRequest,
@@ -168,7 +169,9 @@ export interface OscSendRequest {
   args: OscArgConfig[]
 }
 export interface OscSendResponse {
-  ok: true
+  ok: boolean
+  stages: OscTransportStage[]
+  error?: string
 }
 
 export interface IpcInvokeContract {

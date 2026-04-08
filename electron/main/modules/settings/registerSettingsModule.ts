@@ -14,7 +14,7 @@ import { createSettingsStore } from './settingsStore'
 import type { AppSettings, SettingsKey } from '../../../../src/shared/settings/types'
 import { createGraphicConfigFileSaveService } from '../../../../src/settings/storage/graphicConfigExport'
 import { createProfileConfigFileSaveService } from '../../../../src/settings/storage/profileConfigExport'
-import { createOscClient } from '../../../../src/integrations/osc/oscClient'
+import { createOscClient, OscTransportError } from '../../../../src/integrations/osc/oscClient'
 
 let settingsHandlersRegistered = false
 
@@ -278,15 +278,24 @@ export function registerSettingsModule() {
   ipcMain.handle(
     ipcInvokeChannels.settingsSendOscMessage,
     async (_event, payload) => {
-      const client = createOscClient({
-        host: payload.host,
-        port: payload.port,
-      })
+      try {
+        const client = createOscClient({
+          host: payload.host,
+          port: payload.port,
+        })
 
-      await client.send(payload.address, payload.args)
+        const stages = await client.send(payload.address, payload.args)
 
-      return {
-        ok: true,
+        return {
+          ok: true,
+          stages,
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          stages: error instanceof OscTransportError ? error.stages : ['error'],
+          error: error instanceof Error ? error.message : 'OSC send failed',
+        }
       }
     },
   )

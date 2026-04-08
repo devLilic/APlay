@@ -88,7 +88,7 @@ describe('OscClient contract', () => {
       createDependenciesWithAutoReady(),
     )
 
-    await expect(client.send('/aplay/play', [])).resolves.toBeUndefined()
+    await expect(client.send('/aplay/play', [])).resolves.toEqual(['opened', 'ready', 'sent'])
   })
 
   it('preserves outgoing OSC message address and typed args', async () => {
@@ -144,7 +144,7 @@ describe('OscClient contract', () => {
       port: 53000,
     })
 
-    await expect(client.send('/aplay/play', [])).resolves.toBeUndefined()
+    await expect(client.send('/aplay/play', [])).resolves.toEqual(['opened', 'ready', 'sent'])
 
     expect(udpPortMock).toHaveBeenCalledWith({
       localAddress: '0.0.0.0',
@@ -199,7 +199,7 @@ describe('OscClient contract', () => {
       }),
     )
 
-    await expect(client.send('/aplay/stop', [])).resolves.toBeUndefined()
+    await expect(client.send('/aplay/stop', [])).resolves.toEqual(['opened', 'ready', 'sent'])
     expect(sentMessages).toEqual([{ address: '/aplay/stop', args: [] }])
   })
 
@@ -236,6 +236,7 @@ describe('OscClient contract', () => {
   it('resolves after the ready/send sequence completes', async () => {
     let readyListener: (() => void) | undefined
     let resolved = false
+    let stages: string[] | undefined
     const client = createOscClient(
       { host: '127.0.0.1', port: 9000 },
       createDependencies({
@@ -251,7 +252,8 @@ describe('OscClient contract', () => {
       }),
     )
 
-    const promise = client.send('/aplay/play', []).then(() => {
+    const promise = client.send('/aplay/play', []).then((result) => {
+      stages = result
       resolved = true
     })
 
@@ -300,6 +302,7 @@ describe('OscClient contract', () => {
   it('resolves the send promise after the ready event triggers the OSC send', async () => {
     let readyListener: (() => void) | undefined
     const send = vi.fn()
+    let stages: string[] | undefined
     const client = createOscClient(
       { host: '127.0.0.1', port: 9000 },
       createDependencies({
@@ -316,20 +319,22 @@ describe('OscClient contract', () => {
       }),
     )
 
-    let resolved = false
-    const promise = client.send('/liveboard/stop', [{ type: 's', value: 'TITLE_MAIN' }]).then(() => {
-      resolved = true
-    })
+      let resolved = false
+      const promise = client.send('/liveboard/stop', [{ type: 's', value: 'TITLE_MAIN' }]).then((result) => {
+        stages = result
+        resolved = true
+      })
 
     await Promise.resolve()
     expect(resolved).toBe(false)
     expect(send).not.toHaveBeenCalled()
 
-    readyListener?.()
-    await promise
+      readyListener?.()
+      await promise
 
-    expect(resolved).toBe(true)
-  })
+      expect(resolved).toBe(true)
+      expect(stages).toEqual(['opened', 'ready', 'sent'])
+    })
 
   it('logs debug output before send', async () => {
     const sequence: string[] = []
@@ -355,7 +360,25 @@ describe('OscClient contract', () => {
       host: '127.0.0.1',
       port: 9000,
     })
-    expect(sequence).toEqual(['log', 'send'])
+    expect(log).toHaveBeenCalledWith('OSC OPEN', {
+      address: '/aplay/play',
+      args,
+      host: '127.0.0.1',
+      port: 9000,
+    })
+    expect(log).toHaveBeenCalledWith('OSC READY', {
+      address: '/aplay/play',
+      args,
+      host: '127.0.0.1',
+      port: 9000,
+    })
+    expect(log).toHaveBeenCalledWith('OSC SENT', {
+      address: '/aplay/play',
+      args,
+      host: '127.0.0.1',
+      port: 9000,
+    })
+    expect(sequence).toEqual(['log', 'log', 'log', 'send', 'log'])
   })
 
   it('does not perform retry logic', async () => {
@@ -405,6 +428,7 @@ describe('OscClient contract', () => {
     expect(log).toHaveBeenCalledWith('OSC ERROR', expect.objectContaining({
       address: '/liveboard/play',
       error: 'udp send failed',
+      stages: ['opened', 'error'],
     }))
   })
 
@@ -419,7 +443,7 @@ describe('OscClient contract', () => {
       }),
     )
 
-    await expect(client.send('/aplay/resume', [])).resolves.toBeUndefined()
+    await expect(client.send('/aplay/resume', [])).resolves.toEqual(['opened', 'ready', 'sent'])
     expect(closeCount).toBe(1)
   })
 

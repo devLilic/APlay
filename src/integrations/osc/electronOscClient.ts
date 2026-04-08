@@ -7,7 +7,7 @@ export function createElectronOscClient(config: OscClientConfig): OscClient {
         throw new Error('OSC send is unavailable in this environment.')
       }
 
-      await window.settingsApi.sendOscMessage(config.host, config.port, address, args)
+      return await window.settingsApi.sendOscMessage(config.host, config.port, address, args)
     },
   }
 }

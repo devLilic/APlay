@@ -3,22 +3,16 @@
   "label": "Default News",
   "supportedEntityTypes": [
     "title",
-    "supertitle",
     "person",
     "location",
-    "breakingNews",
-    "waitingTitle",
-    "waitingLocation",
-    "phone"
+    "phone",
+    "staticImage"
   ],
   "graphicConfigIds": [
     "title",
-    "supertitle",
     "person",
     "location",
-    "breakingNews",
-    "waitingTitle",
-    "waitingLocation",
-    "phone"
+    "phone",
+    "staticImage"
   ]
 }
