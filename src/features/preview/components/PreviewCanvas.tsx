@@ -137,7 +137,7 @@ export function PreviewCanvas({ template, content, backgroundImagePath, composit
   return (
     <div
       ref={containerRef}
-      className='relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,_rgba(15,23,42,1),_rgba(30,41,59,0.96))]'
+      className='relative aspect-video overflow-hidden rounded-2xl border border-border-strong bg-[linear-gradient(180deg,_rgba(5,10,17,1),_rgba(11,15,20,1))] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]'
     >
       {backgroundStyle ? (
         <div className='absolute inset-0 z-0 flex items-center justify-center overflow-hidden'>

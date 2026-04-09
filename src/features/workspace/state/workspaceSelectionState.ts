@@ -152,7 +152,7 @@ export function resolveGraphicConfigEntityLists(
   const collections = block.entityCollections ?? {}
 
   return graphics
-    .filter((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'staticImage')
+    .filter((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'image')
     .map((graphic) => ({
       graphicConfigId: graphic.id,
       graphic,
@@ -288,7 +288,7 @@ function createInitialSelection(
     return {}
   }
 
-  const firstGraphicConfigId = graphics.find((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'staticImage')?.id
+  const firstGraphicConfigId = graphics.find((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'image')?.id
 
   return {
     selectedBlockIndex: 0,
@@ -359,7 +359,7 @@ function addSelectedItemToSelection(
   return {
     ...selection,
     selectedItems: [
-      ...(selection.selectedItems ?? []),
+      ...(selection.selectedItems ?? []).filter((item) => item.graphicConfigId !== graphicConfigId),
       { graphicConfigId, entityIndex },
     ],
   }

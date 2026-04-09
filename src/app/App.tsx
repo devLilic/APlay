@@ -6,8 +6,8 @@ function App() {
   const rendererModules = registerRendererModuleRegistry(config)
 
   return (
-    <main className='min-h-screen px-6 py-8 text-ink'>
-      <div className='flex w-full flex-col gap-6'>
+    <main className='ap-shell px-4 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6'>
+      <div className='mx-auto flex w-full max-w-[1800px] flex-col gap-5'>
         <WorkspaceScaffold />
       </div>
       {rendererModules.map((module) => {

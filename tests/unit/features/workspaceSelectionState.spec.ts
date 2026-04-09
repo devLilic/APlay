@@ -93,7 +93,7 @@ const multiSelectionGraphicsFixture: GraphicInstanceConfig[] = [
   {
     id: 'logo-main',
     name: 'Logo main',
-    entityType: 'staticImage',
+    entityType: 'image',
     kind: 'static',
     dataFileName: 'logo-main.json',
     control: { templateName: 'LOGO_MAIN' },
@@ -355,6 +355,28 @@ describe('multi-selection state', () => {
 
     expect(state.selection.selectedItems).toEqual([
       { graphicConfigId: 'pa_title_main', entityIndex: 0 },
+    ])
+  })
+
+  it('keeps only one grouped-selected item per graphic config collection', () => {
+    const documentWithTwoTitles: EditorialDocument = {
+      blocks: [
+        {
+          ...multiDocumentFixture.blocks[0]!,
+          entityCollections: {
+            ...multiDocumentFixture.blocks[0]!.entityCollections,
+            pa_title_main: [{ text: 'Title One', number: '1' }, { text: 'Title Two', number: '2' }],
+          },
+        },
+      ],
+    }
+
+    const state = createWorkspaceSelectionState(documentWithTwoTitles, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('pa_title_main', 1)
+
+    expect(state.selection.selectedItems).toEqual([
+      { graphicConfigId: 'pa_title_main', entityIndex: 1 },
     ])
   })
 

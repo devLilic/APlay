@@ -30,6 +30,14 @@ import {
   findGraphicConfigReferences,
   type GraphicConfigReference,
 } from '@/settings/storage/graphicConfigLibraryService'
+import {
+  SettingsHeaderActions,
+  SettingsIntroCard,
+  SettingsMessageBanner,
+  SettingsPlaceholderCard,
+  SettingsTabNavigation,
+  type SettingsTabMeta,
+} from '@/features/settings/components/SettingsPanelChrome'
 import { Panel } from '@/shared/ui/panel'
 
 export interface SettingsFeedback {
@@ -81,15 +89,11 @@ const graphicBindingSourceFieldOptions: Record<SupportedEntityType, string[]> = 
   person: ['name', 'role'],
   location: ['value'],
   phone: ['label', 'number'],
-  staticImage: ['staticAsset'],
+  image: ['staticAsset'],
 }
 type SettingsTabId = 'show' | 'osc' | 'graphics' | 'preview' | 'assets'
 
-const settingsTabs: Array<{
-  id: SettingsTabId
-  label: string
-  description: string
-}> = [
+const settingsTabs: SettingsTabMeta[] = [
   {
     id: 'show',
     label: 'Show',
@@ -116,6 +120,12 @@ const settingsTabs: Array<{
     description: 'Imagini de referinta folosite doar pentru calibrare preview.',
   },
 ]
+
+const settingsFieldClassName = 'ap-focus w-full rounded-xl border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary placeholder:text-text-disabled disabled:cursor-not-allowed disabled:border-border-muted disabled:bg-surface-muted disabled:text-text-disabled'
+const settingsReadOnlyFieldClassName = 'w-full rounded-xl border border-border-muted bg-surface-muted px-3 py-2.5 text-sm text-text-secondary'
+const settingsCheckboxRowClassName = 'ap-focus flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-text-primary'
+const settingsSubsectionClassName = 'rounded-2xl border border-border bg-card p-4'
+const settingsInsetSectionClassName = 'rounded-2xl border border-border-muted bg-surface-muted p-4'
 
 export function SettingsPanel({
   settings,
@@ -180,7 +190,6 @@ export function SettingsPanel({
   const selectedGraphic = selectedGraphicId
     ? settings.graphics.find((graphic) => graphic.id === selectedGraphicId)
     : undefined
-  const activeTabMeta = settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0]
 
   const applySettingsResult = (
     nextSettings: AppSettings,
@@ -571,110 +580,42 @@ export function SettingsPanel({
       title='Settings'
       eyebrow='Application config'
       aside={(
-        <div className='flex flex-wrap gap-2'>
-          <button
-            type='button'
-            onClick={() => void onImportProfile()}
-            disabled={isImportingProfile}
-            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
-          >
-            {isImportingProfile ? 'Importing profile...' : 'Import profile'}
-          </button>
-          <button
-            type='button'
-            onClick={() => void onImportGraphicConfig()}
-            disabled={isImportingGraphicConfig}
-            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
-          >
-            {isImportingGraphicConfig ? 'Importing graphic...' : 'Import graphic'}
-          </button>
-          <button
-            type='button'
-            onClick={handleProfileExport}
-            disabled={!selectedProfile || isExportingProfile}
-            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
-          >
-            {isExportingProfile ? 'Exporting profile...' : 'Export profile'}
-          </button>
-          <button
-            type='button'
-            onClick={handleGraphicConfigExport}
-            disabled={!selectedGraphic || isExportingGraphicConfig}
-            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
-          >
-            {isExportingGraphicConfig ? 'Exporting graphic...' : 'Export graphic'}
-          </button>
-          <button
-            type='button'
-            onClick={onReload}
-            className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
-          >
-            Reload
-          </button>
-          <button
-            type='button'
-            onClick={onSave}
-            disabled={invalidGraphicNames.length > 0}
-            className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
-          >
-            Save settings
-          </button>
-        </div>
+        <SettingsHeaderActions
+          isImportingProfile={isImportingProfile}
+          isImportingGraphicConfig={isImportingGraphicConfig}
+          canExportProfile={Boolean(selectedProfile)}
+          canExportGraphic={Boolean(selectedGraphic)}
+          isExportingProfile={isExportingProfile}
+          isExportingGraphicConfig={isExportingGraphicConfig}
+          canSave={invalidGraphicNames.length === 0}
+          onImportProfile={() => void onImportProfile()}
+          onImportGraphicConfig={() => void onImportGraphicConfig()}
+          onExportProfile={() => void handleProfileExport()}
+          onExportGraphicConfig={() => void handleGraphicConfigExport()}
+          onReload={onReload}
+          onSave={onSave}
+        />
       )}
     >
-      <div className='space-y-6'>
-        <div className='rounded-2xl border border-border bg-surface/40 p-4'>
-          <p className='text-sm font-semibold text-ink'>Preview settings are APlay-side only</p>
-          <p className='mt-1 text-sm text-muted'>
-            These forms edit the application preview approximation and output bindings. LiveBoard styling is not edited here.
-          </p>
-          <p className='mt-2 text-sm text-muted'>
-            Import actions use the local storage services and validation pipeline. They do not trigger playback, OSC, or datasource publishing.
-          </p>
-        </div>
+      <div className='ap-settings space-y-6 overflow-hidden'>
+        <SettingsIntroCard />
 
-        <div className='rounded-3xl border border-border bg-panel p-3 shadow-panel'>
-          <div className='flex flex-wrap gap-2'>
-            {settingsTabs.map((tab) => {
-              const isActive = tab.id === activeTab
-
-              return (
-                <button
-                  key={tab.id}
-                  type='button'
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                    isActive
-                      ? 'border border-accent bg-accent text-white shadow-sm'
-                      : 'border border-border bg-surface text-ink hover:border-accent hover:text-accent'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
-          <div className='mt-3 rounded-2xl border border-border bg-surface/30 px-4 py-3 text-sm text-muted'>
-            <span className='font-semibold text-ink'>{activeTabMeta.label}</span>
-            {' | '}
-            {activeTabMeta.description}
-          </div>
-        </div>
+        <SettingsTabNavigation
+          tabs={settingsTabs}
+          activeTabId={activeTab}
+          onTabChange={(tabId) => setActiveTab(tabId as SettingsTabId)}
+        />
 
         {feedback ? (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${feedback.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-            {feedback.message}
-          </div>
+          <SettingsMessageBanner kind={feedback.kind} message={feedback.message} />
         ) : null}
 
         {libraryFeedback ? (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${libraryFeedback.kind === 'success' ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-            {libraryFeedback.message}
-          </div>
+          <SettingsMessageBanner kind={libraryFeedback.kind} message={libraryFeedback.message} tone='library' />
         ) : null}
 
         {invalidGraphicNames.length > 0 ? (
-          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
+          <div className='ap-banner ap-banner-warning'>
             Display Name is required for every graphic config before settings can be saved.
           </div>
         ) : null}
@@ -688,7 +629,7 @@ export function SettingsPanel({
         ) : null}
 
         {diagnostics.length > 0 ? (
-          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+          <div className='ap-banner ap-banner-warning'>
             {diagnostics.join(' | ')}
           </div>
         ) : null}
@@ -774,9 +715,9 @@ export function SettingsPanel({
                   }}
                 />
               ) : (
-                <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-6 text-sm text-muted'>
+                <SettingsPlaceholderCard>
                   Select a profile-loaded graphic config to edit datasource and LiveBoard template settings.
-                </div>
+                </SettingsPlaceholderCard>
               )}
             </div>
           </section>
@@ -815,9 +756,9 @@ export function SettingsPanel({
                 updatePreviewElement={updatePreviewElement}
               />
             ) : (
-              <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-6 text-sm text-muted'>
+              <SettingsPlaceholderCard>
                 Select a profile-loaded graphic config to edit preview settings.
-              </div>
+              </SettingsPlaceholderCard>
             )}
           </section>
         ) : null}
@@ -844,10 +785,11 @@ export function SettingsPanel({
 
 function FormSection({ title, description, children }: PropsWithChildren<{ title: string; description: string }>) {
   return (
-    <section className='space-y-4 rounded-3xl border border-border bg-panel p-5 shadow-panel'>
-      <div>
-        <h3 className='text-lg font-semibold text-ink'>{title}</h3>
-        <p className='mt-1 text-sm text-muted'>{description}</p>
+    <section className='ap-form-section'>
+      <div className='ap-form-section-header'>
+        <p className='text-[11px] font-semibold uppercase tracking-[0.22em] text-accent'>Settings section</p>
+        <h3 className='ap-panel-title mt-2'>{title}</h3>
+        <p className='mt-1 max-w-3xl ap-help'>{description}</p>
       </div>
       <div className='space-y-4'>{children}</div>
     </section>
@@ -873,7 +815,7 @@ function NumberField({
 }) {
   return (
     <label className='space-y-2'>
-      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
+      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>{label}</span>
       <div className='space-y-2'>
         <input
           type='number'
@@ -889,7 +831,7 @@ function NumberField({
 
             onChange(nextValue)
           }}
-          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+          className={settingsFieldClassName}
         />
         {showSlider && min !== undefined && max !== undefined ? (
           <div className='flex items-center gap-3'>
@@ -902,7 +844,7 @@ function NumberField({
               onChange={(event) => onChange(Number(event.target.value))}
               className='w-full accent-accent'
             />
-            <span className='min-w-14 text-right text-xs font-medium text-muted'>{value}</span>
+            <span className='min-w-14 text-right text-xs font-medium text-text-secondary'>{value}</span>
           </div>
         ) : null}
       </div>
@@ -923,8 +865,8 @@ function ColorField({
 
   return (
     <label className='space-y-2'>
-      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
-      <div className='flex items-center gap-3 rounded-xl border border-border bg-white px-3 py-2'>
+      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>{label}</span>
+      <div className='flex items-center gap-3 rounded-xl border border-border bg-surface-app px-3 py-2.5'>
         <input
           type='color'
           value={normalizedValue}
@@ -935,7 +877,7 @@ function ColorField({
           value={value ?? ''}
           placeholder='#ffffff'
           onChange={(event) => onChange(normalizeOptionalInput(event.target.value))}
-          className='w-full bg-transparent text-sm text-ink outline-none'
+          className='w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-disabled'
         />
       </div>
     </label>
@@ -999,7 +941,7 @@ function getGraphicBindingTargetOptions(graphic: GraphicInstanceConfig): string[
     }
   }
 
-  if (graphic.kind === 'static' || graphic.entityType === 'staticImage') {
+  if (graphic.kind === 'static' || graphic.entityType === 'image') {
     options.add('staticAsset')
   }
 
@@ -1051,7 +993,7 @@ function createDefaultGraphicConfig(
 ): GraphicInstanceConfig {
   const id = createUniqueGraphicConfigId(settings, preferredId ?? entityType)
   const dataFileName = `${id}.json`
-  const isStaticGraphic = entityType === 'staticImage'
+  const isStaticGraphic = entityType === 'image'
 
   return {
     id,
@@ -1535,7 +1477,7 @@ function ProfileSection({
         <select
           value={settings.selectedProfileId}
           onChange={(event) => onSettingsChange({ ...settings, selectedProfileId: event.target.value })}
-          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+          className={settingsFieldClassName}
         >
           {settings.profiles.map((profile) => (
             <option key={profile.id} value={profile.id}>
@@ -1548,14 +1490,14 @@ function ProfileSection({
       <div className='grid gap-3 sm:grid-cols-2'>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile id</span>
-          <input value={selectedProfile?.id ?? ''} readOnly className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm text-muted' />
+          <input value={selectedProfile?.id ?? ''} readOnly className={settingsReadOnlyFieldClassName} />
         </label>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Label</span>
           <input
             value={selectedProfile?.label ?? ''}
             onChange={(event) => onProfileUpdate((profile) => ({ ...profile, label: event.target.value }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            className={settingsFieldClassName}
           />
         </label>
       </div>
@@ -1599,7 +1541,7 @@ function ProfileSection({
               value={selectedProfile?.source?.filePath ?? ''}
               readOnly
               placeholder='No CSV file selected for this profile'
-              className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm text-muted'
+              className={settingsReadOnlyFieldClassName}
             />
           </label>
         </div>
@@ -1650,7 +1592,7 @@ function ProfileSection({
               const graphic = settings.graphics.find((item) => item.id === graphicId)
               if (!graphic) {
                 return (
-                  <div key={graphicId} className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+                  <div key={graphicId} className='ap-banner ap-banner-warning'>
                     Missing graphic config reference: <span className='font-semibold'>{graphicId}</span>
                   </div>
                 )
@@ -1687,7 +1629,7 @@ function ProfileSection({
             <select
               value={graphicToAttach}
               onChange={(event) => setGraphicToAttach(event.target.value)}
-              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              className={settingsFieldClassName}
             >
               {availableGraphics.length === 0 ? <option value=''>No unassigned configs available</option> : null}
               {availableGraphics.map((graphic) => (
@@ -1921,7 +1863,7 @@ function CsvSchemaSection({
           <select
             value={selectedProfile?.source?.schemaId ?? selectedSchema?.id ?? ''}
             onChange={(event) => attachSchemaToProfile(normalizeOptionalInput(event.target.value))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            className={settingsFieldClassName}
           >
             <option value=''>No schema selected</option>
             {settings.sourceSchemas.map((schema) => (
@@ -1960,7 +1902,7 @@ function CsvSchemaSection({
               <input
                 value={selectedSchema.name}
                 onChange={(event) => updateSelectedSchema((schema) => ({ ...schema, name: event.target.value }))}
-                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                className={settingsFieldClassName}
               />
             </label>
             <label className='space-y-2'>
@@ -1968,7 +1910,7 @@ function CsvSchemaSection({
               <select
                 value={selectedSchema.delimiter}
                 onChange={(event) => updateSelectedSchema((schema) => ({ ...schema, delimiter: event.target.value }))}
-                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                className={settingsFieldClassName}
               >
                 <option value=';'>Semicolon (;)</option>
                 <option value=','>Comma (,)</option>
@@ -1976,7 +1918,7 @@ function CsvSchemaSection({
             </label>
           </div>
 
-          <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+          <label className={settingsCheckboxRowClassName}>
             <input
               type='checkbox'
               checked={selectedSchema.hasHeader}
@@ -2017,7 +1959,7 @@ function CsvSchemaSection({
                       pattern: event.target.value,
                     },
                   }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                  className={settingsFieldClassName}
                 />
               </label>
             </div>
@@ -2045,7 +1987,7 @@ function CsvSchemaSection({
             {profileGraphics.length > 0 ? (
               <div className='space-y-2'>
                 {profileGraphics.map((graphic) => {
-                  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'staticImage'
+                  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'image'
                   const targetOptions = getGraphicBindingTargetOptions(graphic)
 
                   return (
@@ -2115,7 +2057,7 @@ function CsvSchemaSection({
                                       }),
                                     )}
                                   />
-                                  <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+                                  <label className={settingsCheckboxRowClassName}>
                                     <input
                                       type='checkbox'
                                       checked={binding.required ?? false}
@@ -2201,7 +2143,7 @@ function SchemaColumnField({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
+          className={settingsFieldClassName}
         >
           <option value=''>Select column</option>
           {detectedColumns.map((column) => (
@@ -2215,7 +2157,7 @@ function SchemaColumnField({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
+          className={settingsFieldClassName}
         />
       )}
     </label>
@@ -2244,12 +2186,12 @@ function FieldOptionSelect({
 
   return (
     <label className='space-y-2'>
-      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
+      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>{label}</span>
       <select
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-muted'
+        className={settingsFieldClassName}
       >
         <option value=''>{emptyLabel}</option>
         {resolvedOptions.map((option) => (
@@ -2265,7 +2207,7 @@ function FieldOptionSelect({
 function ProfileSourceStatus({ profile }: { profile: ShowProfileConfig | undefined }) {
   if (!profile?.source) {
     return (
-      <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+      <div className='ap-banner ap-banner-warning'>
         This profile has no source configuration yet.
       </div>
     )
@@ -2273,7 +2215,7 @@ function ProfileSourceStatus({ profile }: { profile: ShowProfileConfig | undefin
 
   if (!profile.source.filePath) {
     return (
-      <div className='rounded-2xl border border-dashed border-border bg-surface/30 px-4 py-3 text-sm text-muted'>
+      <div className='rounded-2xl border border-dashed border-border bg-surface-muted px-4 py-3 text-sm text-text-secondary'>
         No CSV file selected for this profile.
       </div>
     )
@@ -2345,7 +2287,7 @@ function GraphicSelectionSection({
             <select
               value={draftGraphicEntityType}
               onChange={(event) => onDraftGraphicEntityTypeChange(event.target.value as GraphicInstanceConfig['entityType'])}
-              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              className={settingsFieldClassName}
             >
               {supportedEntityTypes.map((entityType) => (
                 <option key={entityType} value={entityType}>
@@ -2360,7 +2302,7 @@ function GraphicSelectionSection({
               value={draftGraphicId}
               onChange={(event) => onDraftGraphicIdChange(event.target.value)}
               placeholder={`${draftGraphicEntityType}-main`}
-              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              className={settingsFieldClassName}
             />
           </label>
         </div>
@@ -2380,7 +2322,7 @@ function GraphicSelectionSection({
         <select
           value={selectedGraphicId ?? ''}
           onChange={(event) => onSelectedGraphicIdChange(event.target.value || null)}
-          className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+          className={settingsFieldClassName}
         >
           <option value=''>Select a graphic config</option>
           {settings.graphics.map((graphic) => {
@@ -2652,7 +2594,7 @@ function ReferenceImagesSection({
               value={draftName}
               onChange={(event) => onDraftNameChange(event.target.value)}
               placeholder='Title reference'
-              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              className={settingsFieldClassName}
             />
           </label>
 
@@ -2662,7 +2604,7 @@ function ReferenceImagesSection({
               value={draftPath}
               onChange={(event) => onDraftPathChange(event.target.value)}
               placeholder='C:\\APlay\\references\\title.png'
-              className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+              className={settingsFieldClassName}
             />
           </label>
         </div>
@@ -2742,7 +2684,7 @@ function GraphicBindingSection({
     actionType: 'playGraphic' | 'stopGraphic' | 'resumeGraphic',
   ) => Promise<void>
 }) {
-  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'staticImage'
+  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'image'
   const sourceOptions = getGraphicBindingSourceOptions(graphic.entityType)
   const targetOptions = getGraphicBindingTargetOptions(graphic)
   const trimmedDisplayName = graphic.name.trim()
@@ -2766,7 +2708,7 @@ function GraphicBindingSection({
       <div className='grid gap-3 md:grid-cols-2'>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic id</span>
-          <input value={graphic.id} readOnly className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm text-muted' />
+          <input value={graphic.id} readOnly className={settingsReadOnlyFieldClassName} />
         </label>
         <label className='space-y-2'>
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Display name</span>
@@ -2790,7 +2732,7 @@ function GraphicBindingSection({
           <select
             value={graphic.entityType}
             onChange={(event) => updateGraphic((current) => ({ ...current, entityType: event.target.value as GraphicInstanceConfig['entityType'] }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            className={settingsFieldClassName}
           >
             {supportedEntityTypes.map((entityType) => (
               <option key={entityType} value={entityType}>
@@ -2814,7 +2756,7 @@ function GraphicBindingSection({
           <input
             value={graphic.dataFileName}
             onChange={(event) => updateGraphic((current) => ({ ...current, dataFileName: event.target.value }))}
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            className={settingsFieldClassName}
           />
         </label>
         <label className='space-y-2'>
@@ -2829,7 +2771,7 @@ function GraphicBindingSection({
               },
             }))}
             placeholder='LOWER_THIRD_01'
-            className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+            className={settingsFieldClassName}
           />
         </label>
         <label className='space-y-2 md:col-span-2'>
@@ -2985,7 +2927,7 @@ function GraphicBindingSection({
             Template argument is ready: <span className='font-semibold'>{graphic.control.templateName}</span>
           </div>
         ) : (
-          <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+          <div className='ap-banner ap-banner-warning'>
             Set a LiveBoard template name for this graphic if the global OSC commands use the <code>{'{{templateName}}'}</code> placeholder.
           </div>
         )}
@@ -3549,6 +3491,9 @@ function PreviewTemplateSection({
   ) => void
 }) {
   const previewBackground = resolveActivePreviewBackground(settings, graphic)
+  const resolvedPreviewContent = graphic.staticAsset?.assetPath
+    ? { ...previewContent, staticAsset: graphic.staticAsset.assetPath }
+    : previewContent
 
   return (
     <FormSection title='Preview template' description='Edit the APlay-side preview approximation for the selected graphic.'>
@@ -3560,7 +3505,7 @@ function PreviewTemplateSection({
               <input
                 value={graphic.preview.id}
                 onChange={(event) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, id: event.target.value } }))}
-                className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                className={settingsFieldClassName}
               />
             </label>
             <NumberField label='Design width' value={graphic.preview.designWidth} min={320} max={3840} step={10} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designWidth: value } }))} />
@@ -3598,7 +3543,7 @@ function PreviewTemplateSection({
                         },
                     },
                   }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                  className={settingsFieldClassName}
                 >
                   <option value=''>No background</option>
                   {settings.referenceImages.map((referenceImage) => (
@@ -3651,7 +3596,7 @@ function PreviewTemplateSection({
                       },
                     },
                   }))}
-                  className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                  className={settingsFieldClassName}
                 >
                   <option value='contain'>Contain</option>
                   <option value='cover'>Cover</option>
@@ -3680,7 +3625,7 @@ function PreviewTemplateSection({
             </div>
 
             {previewBackground.diagnostics.length > 0 ? (
-              <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+              <div className='ap-banner ap-banner-warning'>
                 {previewBackground.diagnostics.join(' | ')}
               </div>
             ) : null}
@@ -3721,7 +3666,7 @@ function PreviewTemplateSection({
                     <input
                       value={element.id}
                       onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
-                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      className={settingsFieldClassName}
                     />
                   </label>
                   <label className='space-y-2'>
@@ -3729,7 +3674,7 @@ function PreviewTemplateSection({
                     <select
                       value={element.kind}
                       onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
-                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      className={settingsFieldClassName}
                     >
                       {previewElementKinds.map((kind) => (
                         <option key={kind} value={kind}>
@@ -3743,7 +3688,7 @@ function PreviewTemplateSection({
                     <input
                       value={element.sourceField}
                       onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      className={settingsFieldClassName}
                     />
                   </label>
                   {element.kind === 'text' ? (
@@ -3753,7 +3698,7 @@ function PreviewTemplateSection({
                         value={element.previewText ?? ''}
                         onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
                         placeholder='Write the exact text you want to arrange in preview'
-                        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                        className={settingsFieldClassName}
                       />
                     </label>
                   ) : null}
@@ -3776,7 +3721,7 @@ function PreviewTemplateSection({
                     <select
                       value={element.transformOrigin ?? 'top-left'}
                       onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
-                      className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                      className={settingsFieldClassName}
                     >
                       {transformOrigins.map((origin) => (
                         <option key={origin} value={origin}>
@@ -3804,7 +3749,7 @@ function PreviewTemplateSection({
 
                 {element.kind === 'text' ? (
                   <div className='grid gap-3 rounded-2xl border border-border bg-surface/40 p-4 md:grid-cols-3'>
-                    <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+                    <label className={settingsCheckboxRowClassName}>
                       <input
                         type='checkbox'
                         checked={textBehavior?.allCaps ?? false}
@@ -3814,7 +3759,7 @@ function PreviewTemplateSection({
                       />
                       ALL CAPS
                     </label>
-                    <label className='flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'>
+                    <label className={settingsCheckboxRowClassName}>
                       <input
                         type='checkbox'
                         checked={textBehavior?.fitInBox ?? false}
@@ -3839,7 +3784,7 @@ function PreviewTemplateSection({
                         onChange={(event) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, fontFamily: normalizeOptionalInput(event.target.value) })))}
                         placeholder='Arial, Helvetica, "My Local Font"'
-                        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                        className={settingsFieldClassName}
                       />
                     </label>
                     <label className='space-y-2'>
@@ -3848,7 +3793,7 @@ function PreviewTemplateSection({
                         value={textBehavior?.textAlign ?? 'left'}
                         onChange={(event) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, textAlign: event.target.value as 'left' | 'center' })))}
-                        className='w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink'
+                        className={settingsFieldClassName}
                       >
                         <option value='left'>Left</option>
                         <option value='center'>Center</option>
@@ -3875,7 +3820,7 @@ function PreviewTemplateSection({
           <div className='rounded-3xl border border-white/10 bg-white/5 p-4'>
             <PreviewCanvas
               template={graphic.preview}
-              content={previewContent}
+              content={resolvedPreviewContent}
               backgroundImagePath={previewBackground.resolvedFilePath}
             />
           </div>
@@ -3887,3 +3832,4 @@ function PreviewTemplateSection({
     </FormSection>
   )
 }
+

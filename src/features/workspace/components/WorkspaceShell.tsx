@@ -37,6 +37,7 @@ import {
 } from '@/settings/storage/profileConfigImport'
 import { createWorkspaceConfigRepository, type WorkspaceConfigRepository, type WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
+import { getControlButtonClassName, getSelectableItemClassName, getStateBadgeClassName } from '@/shared/ui/theme'
 
 type ShellLoadState =
   | { status: 'loading' }
@@ -67,6 +68,7 @@ export function WorkspaceShell() {
   const [isImportingProfile, setIsImportingProfile] = useState(false)
   const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [blockFilter, setBlockFilter] = useState('')
   const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
 
   useEffect(() => {
@@ -82,6 +84,34 @@ export function WorkspaceShell() {
       setLoadState({ status: 'ready', snapshot, data })
       setSelection(initialState.selection)
     } catch (error) {
+      try {
+        const repository = repositoryRef.current ?? createWorkspaceConfigRepository(
+          window.localStorage,
+          createDefaultWorkspaceConfigSnapshot(),
+        )
+        repositoryRef.current = repository
+        const snapshot = repository.load()
+
+        if (snapshot.settings.profiles.length === 0) {
+          setLoadState({
+            status: 'ready',
+            snapshot,
+            data: {
+              document: { blocks: [] },
+              activeProfileLabel: 'No profile selected',
+              activeSourceFilePath: undefined,
+              graphics: [],
+              graphicsById: {},
+              diagnostics: ['Create or import a show profile to begin operating APlay.'],
+            },
+          })
+          setSelection({})
+          return
+        }
+      } catch {
+        // Fall through to the error state below when the repository cannot be recovered.
+      }
+
       setLoadState({
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown workspace error',
@@ -91,17 +121,17 @@ export function WorkspaceShell() {
 
   if (loadState.status === 'loading') {
     return (
-      <div className='rounded-[2rem] border border-border/80 bg-panel p-10 shadow-panel'>
-        <p className='text-sm font-medium text-muted'>Loading APlay workspace...</p>
+      <div className='ap-panel p-10'>
+        <p className='text-sm font-medium text-text-secondary'>Loading APlay workspace...</p>
       </div>
     )
   }
 
   if (loadState.status === 'error') {
     return (
-      <div className='rounded-[2rem] border border-rose-200 bg-rose-50 p-10 shadow-panel'>
-        <p className='text-sm font-semibold text-rose-700'>Workspace failed to load</p>
-        <p className='mt-2 text-sm text-rose-600'>{loadState.message}</p>
+      <div className='ap-banner ap-banner-danger p-10'>
+        <p className='text-sm font-semibold text-red-200'>Workspace failed to load</p>
+        <p className='mt-2 text-sm text-red-300'>{loadState.message}</p>
       </div>
     )
   }
@@ -118,7 +148,7 @@ export function WorkspaceShell() {
   const isCompositePreviewActive = multiSelectionCount > 1
   const previewBaseEntity = selectedEntity ?? selectedMultiItems[0]
   const previewGraphic = resolveGraphicForSelection(workspaceData.graphicsById, previewBaseEntity)
-  const previewContent = createEntityPreviewContent(previewBaseEntity)
+  const previewContent = createEntityPreviewContent(previewBaseEntity, previewGraphic)
   const compositePreviewItems = selectedMultiItems.flatMap((item) => {
     const isPreviewBaseItem = (
       previewBaseEntity?.graphicConfigId === item.graphicConfigId &&
@@ -137,10 +167,23 @@ export function WorkspaceShell() {
       graphicConfigId: item.graphicConfigId,
       zIndex: graphic.zIndex,
       template: graphic.preview,
-      content: createEntityPreviewContent(item),
+      content: createEntityPreviewContent(item, graphic),
     }]
   })
   const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, previewGraphic)
+  const availableProfiles = loadState.snapshot.settings.profiles
+  const hasProfiles = availableProfiles.length > 0
+  const trimmedBlockFilter = blockFilter.trim().toLowerCase()
+  const filteredBlockList = trimmedBlockFilter.length === 0
+    ? blockList
+    : blockList.filter((block) => block.name.toLowerCase().includes(trimmedBlockFilter))
+  const hasSourceLoaded = Boolean(workspaceData.activeSourceFilePath)
+  const hasBlocks = blockList.length > 0
+  const hasFilteredBlocks = filteredBlockList.length > 0
+  const hasGraphicCollections = graphicCollections.length > 0
+  const groupedSelectionLabel = multiSelectionCount === 0
+    ? 'No grouped items'
+    : `${multiSelectionCount} grouped item${multiSelectionCount === 1 ? '' : 's'}`
   const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
     const nextData = loadWorkspaceShellData(snapshot)
     setLoadState({
@@ -160,6 +203,17 @@ export function WorkspaceShell() {
   const handleGraphicConfigSelect = (graphicConfigId: string) => {
     setSelection(workspace.selectGraphicConfig(graphicConfigId).selection)
     setFeedback(null)
+  }
+
+  const handleProfileSelect = (profileId: string) => {
+    if (profileId === loadState.snapshot.settings.selectedProfileId) {
+      return
+    }
+
+    handleSettingsChange({
+      ...loadState.snapshot.settings,
+      selectedProfileId: profileId,
+    })
   }
 
   const handleEntitySelect = (graphicConfigId: string, entityIndex: number) => {
@@ -497,17 +551,8 @@ export function WorkspaceShell() {
 
   return (
     <>
-      <header className='flex flex-col gap-4 rounded-[2rem] border border-border/80 bg-slate-950 px-6 py-6 text-slate-50 shadow-panel lg:flex-row lg:items-end lg:justify-between'>
-        <div className='space-y-3'>
-          <p className='text-xs font-semibold uppercase tracking-[0.28em] text-emerald-300'>APlay V1</p>
-          <div className='space-y-2'>
-            <h1 className='text-3xl font-semibold tracking-tight'>Editorial graphics control shell</h1>
-            <p className='max-w-3xl text-sm text-slate-300'>
-              Blocks drive the left panel, profile graphic collections fill the middle panel, and the right panel previews and triggers the selected graphic.
-            </p>
-          </div>
-        </div>
-        <div className='grid gap-2 text-sm text-slate-200 sm:grid-cols-3'>
+      <header className='ap-panel flex flex-col gap-4 bg-surface-panel px-6 py-6 lg:flex-row lg:items-end lg:justify-between'>
+        <div className='grid gap-2 text-sm text-text-secondary sm:grid-cols-3'>
           <StatCard label='Profile' value={workspaceData.activeProfileLabel} />
           <StatCard label='Blocks' value={String(blockList.length)} />
           <StatCard label='Diagnostics' value={String(workspaceData.diagnostics.length)} />
@@ -518,21 +563,24 @@ export function WorkspaceShell() {
         <button
           type='button'
           onClick={handleSourceRefresh}
-          className='rounded-2xl border border-border bg-panel px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+          className={getControlButtonClassName()}
         >
           Refresh source
         </button>
         <button
           type='button'
           onClick={() => setShowSettings((current) => !current)}
-          className='rounded-2xl border border-border bg-panel px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
+          className={getControlButtonClassName({
+            tone: showSettings ? 'selected' : 'neutral',
+            variant: showSettings ? 'solid' : 'outline',
+          })}
         >
           {showSettings ? 'Hide settings' : 'Open settings'}
         </button>
       </div>
 
       {sourceRefreshFeedback ? (
-        <div className={`rounded-2xl border px-4 py-3 text-sm ${sourceRefreshFeedback.kind === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+        <div className={sourceRefreshFeedback.kind === 'success' ? 'ap-banner ap-banner-success' : 'ap-banner ap-banner-danger'}>
           {sourceRefreshFeedback.message}
         </div>
       ) : null}
@@ -561,121 +609,146 @@ export function WorkspaceShell() {
       ) : null}
 
       {workspaceData.diagnostics.length > 0 ? (
-        <div className='rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700'>
+        <div className='ap-banner ap-banner-warning'>
           {workspaceData.diagnostics.join(' | ')}
         </div>
       ) : null}
 
-      <section className='grid min-h-[40rem] gap-6 xl:grid-cols-[16rem,minmax(0,0.7fr),minmax(28rem,1.3fr)]'>
-        <Panel title='Editorial blocks' eyebrow='Left panel'>
-          {blockList.length === 0 ? (
-            <EmptyState title='No source data' description='Load a CSV source to populate editorial blocks.' />
+      <section className='grid min-h-0 gap-4 xl:h-[calc(100vh-13.5rem)] xl:grid-cols-[minmax(18rem,22rem),minmax(26rem,1fr),minmax(30rem,42rem)]'>
+        <Panel
+          title='Navigation'
+          eyebrow='Left panel'
+          className='overflow-hidden'
+          contentClassName='gap-4 overflow-hidden'
+          aside={selectedBlock ? <span className={getStateBadgeClassName('selected')}>Block active</span> : null}
+        >
+          {!hasProfiles ? (
+            <EmptyState title='No profile' description='Create or import a show profile before loading source content and graphics.' />
           ) : (
             <div className='space-y-3'>
-              {blockList.map((block, index) => {
-                const isSelected = workspace.selection.selectedBlockIndex === index
+              <div className='ap-card p-4'>
+                <label className='block text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary' htmlFor='workspace-profile-select'>
+                  Show profile
+                </label>
+                <select
+                  id='workspace-profile-select'
+                  value={loadState.snapshot.settings.selectedProfileId}
+                  onChange={(event) => handleProfileSelect(event.target.value)}
+                  className='ap-focus mt-3 min-h-11 w-full rounded-lg border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary'
+                >
+                  {availableProfiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.label}
+                    </option>
+                  ))}
+                </select>
+                <div className='mt-3 flex flex-wrap items-center gap-2'>
+                  <span className={getStateBadgeClassName(hasSourceLoaded ? 'active' : 'warning')}>
+                    {hasSourceLoaded ? 'Source loaded' : 'No source loaded'}
+                  </span>
+                  <span className={getStateBadgeClassName(selectedBlock ? 'selected' : 'disabled')}>
+                    {selectedBlock ? selectedBlock.name : 'No block selected'}
+                  </span>
+                </div>
+              </div>
 
-                return (
-                  <button
-                    key={block.name}
-                    type='button'
-                    onClick={() => handleBlockSelect(index)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                      isSelected
-                        ? 'border-accent bg-accent/10 text-ink'
-                        : 'border-border bg-surface/40 text-muted hover:border-accent/40 hover:text-ink'
-                    }`}
-                  >
-                    <div className='flex items-center justify-between gap-3'>
-                      <p className='font-semibold'>{block.name}</p>
-                      <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>
-                        {countBlockEntities(block)}
-                      </span>
-                    </div>
-                    <p className='mt-1 text-xs uppercase tracking-[0.18em]'>Editorial block</p>
-                  </button>
-                )
-              })}
+              <div className='ap-card p-4'>
+                <label className='block text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary' htmlFor='workspace-block-filter'>
+                  Block filter
+                </label>
+                <input
+                  id='workspace-block-filter'
+                  type='text'
+                  value={blockFilter}
+                  onChange={(event) => setBlockFilter(event.target.value)}
+                  placeholder='Filter blocks'
+                  className='ap-focus mt-3 min-h-11 w-full rounded-lg border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary placeholder:text-text-disabled'
+                />
+              </div>
             </div>
           )}
+
+          <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+            {!hasProfiles ? (
+              <EmptyState title='No navigation available' description='A profile is required before blocks and source navigation can appear here.' />
+            ) : !hasSourceLoaded ? (
+              <EmptyState title='No source loaded' description='Select a profile with a configured source file to populate the block list.' />
+            ) : !hasBlocks ? (
+              <EmptyState title='No blocks available' description='The current source loaded successfully but produced no editorial blocks.' />
+            ) : !hasFilteredBlocks ? (
+              <EmptyState title='No matching blocks' description='Adjust the block filter to see the available editorial blocks again.' />
+            ) : (
+              <div className='space-y-3'>
+                {filteredBlockList.map((block) => {
+                  const blockIndex = blockList.indexOf(block)
+                  const isSelected = workspace.selection.selectedBlockIndex === blockIndex
+
+                  return (
+                    <button
+                      key={`${block.name}-${blockIndex}`}
+                      type='button'
+                      onClick={() => handleBlockSelect(blockIndex)}
+                      className={[
+                        'w-full px-4 py-3 text-left',
+                        getSelectableItemClassName({
+                          selected: isSelected,
+                          interactive: true,
+                        }),
+                      ].join(' ')}
+                    >
+                      <div className='flex items-start justify-between gap-3'>
+                        <div className='min-w-0'>
+                          <p className='text-sm font-semibold leading-5 text-text-primary break-words'>{block.name}</p>
+                          <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-text-secondary'>Editorial block</p>
+                        </div>
+                        <span className={getStateBadgeClassName(isSelected ? 'selected' : 'disabled')}>
+                          {countBlockEntities(block)}
+                        </span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </Panel>
 
         <Panel
           title='Entity collections'
-          eyebrow='Middle panel'
-          aside={<span className='rounded-full bg-surface px-3 py-1 text-xs font-medium text-muted'>Grouped by graphic config</span>}
+          eyebrow='Center panel'
+          className='overflow-hidden'
+          contentClassName='gap-4 overflow-hidden'
+          aside={<span className={getStateBadgeClassName('multiSelected')}>{groupedSelectionLabel}</span>}
         >
-          {!selectedBlock ? (
-            <EmptyState title='No selected block' description='Choose a block from the left panel to inspect its entity collections.' />
-          ) : (
-            <div className='space-y-4'>
-              <div className={`flex flex-col gap-3 rounded-2xl border p-4 md:flex-row md:items-center md:justify-between ${
-                multiSelectionCount > 0
-                  ? 'border-emerald-200 bg-emerald-50/70'
-                  : 'border-border bg-surface/30'
-              }`}>
-                <div className='space-y-1'>
-                  <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Grouped actions</p>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      multiSelectionCount > 0
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-white text-ink'
-                    }`}>
-                      {multiSelectionCount} selected
-                    </span>
-                    {isCompositePreviewActive ? (
-                      <span className='rounded-full bg-slate-950 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200'>
-                        Composite preview active
-                      </span>
-                    ) : null}
-                    {multiSelectionCount === 1 ? (
-                      <span className='rounded-full bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted'>
-                        Ready as grouped set
-                      </span>
-                    ) : null}
-                    <span className='text-sm text-muted'>
-                      Multi-selection drives grouped preview, datasource publish, and OSC actions.
-                    </span>
-                  </div>
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  <button
-                    type='button'
-                    onClick={() => handleGroupedAction('playGraphic')}
-                    disabled={multiSelectionCount === 0}
-                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
-                  >
-                    Play selected
-                  </button>
-                  <button
-                    type='button'
-                    onClick={() => handleGroupedAction('stopGraphic')}
-                    disabled={multiSelectionCount === 0}
-                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
-                  >
-                    Stop selected
-                  </button>
-                  <button
-                    type='button'
-                    onClick={() => handleGroupedAction('resumeGraphic')}
-                    disabled={multiSelectionCount === 0}
-                    className='rounded-xl border border-border bg-panel px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50'
-                  >
-                    Resume selected
-                  </button>
-                  <button
-                    type='button'
-                    onClick={handleClearMultiSelection}
-                    disabled={multiSelectionCount === 0}
-                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-semibold text-muted transition hover:border-rose-300 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-50'
-                  >
-                    Clear selection
-                  </button>
-                </div>
-              </div>
+          <div className={multiSelectionCount > 0 ? 'ap-state-multi rounded-xl border p-4' : 'ap-card-muted p-4'}>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>Selection status</p>
+            <div className='mt-3 flex flex-wrap items-center gap-2'>
+              <span className={getStateBadgeClassName(selectedBlock ? 'selected' : 'disabled')}>
+                {selectedBlock ? `Active block: ${selectedBlock.name}` : 'No active block'}
+              </span>
+              <span className={getStateBadgeClassName(multiSelectionCount > 0 ? 'multiSelected' : 'disabled')}>
+                {groupedSelectionLabel}
+              </span>
+              <span className={getStateBadgeClassName(previewGraphic ? (isCompositePreviewActive ? 'active' : 'selected') : 'disabled')}>
+                {previewGraphic ? (isCompositePreviewActive ? 'Composite preview' : 'Single preview') : 'No preview target'}
+              </span>
+            </div>
+            <p className='mt-3 text-sm text-text-secondary'>
+              Single click sets the preview target. The toggle button adds or removes items from grouped play.
+            </p>
+          </div>
 
-              <div className='grid gap-3 md:grid-cols-2'>
+          <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+            {!hasProfiles ? (
+              <EmptyState title='No profile' description='Select or create a profile to reveal grouped entity collections.' />
+            ) : !hasSourceLoaded ? (
+              <EmptyState title='No source loaded' description='Entity collections appear here after a profile source is configured and loaded.' />
+            ) : !selectedBlock ? (
+              <EmptyState title='No block selected' description='Choose a block from the left panel to inspect its grouped entity collections.' />
+            ) : !hasGraphicCollections ? (
+              <EmptyState title='No collections for this block' description='This block does not currently expose any graphic collections for the active profile.' />
+            ) : (
+              <div className='space-y-3'>
                 {graphicCollections.map((group) => {
                   const isSelectedGroup = workspace.selection.selectedGraphicConfigId === group.graphicConfigId
                   const isEmptyGroup = group.items.length === 0
@@ -683,215 +756,351 @@ export function WorkspaceShell() {
                   return (
                     <article
                       key={group.graphicConfigId}
-                      className={`rounded-2xl border p-4 transition ${
-                        isSelectedGroup ? 'border-accent bg-accent/5' : 'border-border bg-surface/40'
-                      }`}
+                      className={[
+                        'p-4',
+                        getSelectableItemClassName({
+                          selected: isSelectedGroup,
+                          warning: isEmptyGroup,
+                          interactive: false,
+                        }),
+                      ].join(' ')}
                     >
                       <button
                         type='button'
                         onClick={() => handleGraphicConfigSelect(group.graphicConfigId)}
-                        className='flex w-full items-center justify-between gap-3 text-left'
+                        className='ap-focus flex w-full items-start justify-between gap-3 rounded-lg text-left'
                       >
                         <div className='min-w-0'>
-                          <h3 className='text-sm font-semibold text-ink'>{group.graphic.name}</h3>
-                          <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-muted'>
+                          <h3 className='text-sm font-semibold leading-5 text-text-primary break-words'>{group.graphic.name}</h3>
+                          <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-text-secondary'>
                             {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
                           </p>
                         </div>
-                        <span className='rounded-full bg-white px-2.5 py-1 text-xs font-medium text-muted'>{group.items.length}</span>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          {isEmptyGroup ? <span className={getStateBadgeClassName('warning')}>Empty</span> : null}
+                          <span className={getStateBadgeClassName(isSelectedGroup ? 'selected' : 'disabled')}>
+                            {group.items.length}
+                          </span>
+                        </div>
                       </button>
 
-                      {!isEmptyGroup ? (
+                      {isEmptyGroup ? (
+                        <div className='mt-3'>
+                          <EmptyState title='Empty collection' description='This graphic group is available, but the active block has no matching items in it yet.' />
+                        </div>
+                      ) : (
                         <div className='mt-3 space-y-2'>
                           {group.items.map((item, index) => {
                             const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
                             const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
+                            const groupedSelectionForGroup = workspace.selection.selectedItems?.find(
+                              (selectedItem) => selectedItem.graphicConfigId === group.graphicConfigId,
+                            )
+                            const willReplaceGroupedItem = Boolean(
+                              groupedSelectionForGroup &&
+                              groupedSelectionForGroup.entityIndex !== index &&
+                              !isMultiSelected,
+                            )
 
                             return (
                               <div
                                 key={`${group.graphicConfigId}-${index}`}
-                                className={`rounded-xl border px-3 py-2 transition ${
-                                  isMultiSelected
-                                    ? 'border-emerald-300 bg-emerald-50/70'
-                                    : isSelectedItem
-                                      ? 'border-accent bg-white'
-                                      : 'border-border/80 bg-white/70'
-                                }`}
+                                className={[
+                                  'rounded-lg p-3',
+                                  getSelectableItemClassName({
+                                    selected: isSelectedItem,
+                                    multiSelected: isMultiSelected,
+                                    interactive: false,
+                                  }),
+                                ].join(' ')}
                               >
                                 <div className='flex items-start gap-3'>
                                   <button
                                     type='button'
                                     onClick={() => handleMultiSelectionToggle(group.graphicConfigId, index)}
                                     aria-pressed={isMultiSelected}
-                                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[10px] font-bold transition ${
+                                    className={[
+                                      'ap-focus mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-bold',
                                       isMultiSelected
-                                        ? 'border-emerald-500 bg-emerald-500 text-white'
-                                        : 'border-border bg-white text-transparent hover:border-emerald-400'
-                                    }`}
-                                    title={isMultiSelected ? 'Remove from grouped selection' : 'Add to grouped selection'}
+                                        ? 'border-state-multi bg-state-multi text-slate-950'
+                                        : 'border-border bg-surface-app text-text-disabled hover:border-state-multi hover:text-accent',
+                                    ].join(' ')}
+                                    title={isMultiSelected ? 'Remove from grouped selection' : willReplaceGroupedItem ? 'Replace grouped selection in this collection' : 'Add to grouped selection'}
                                   >
-                                    +
+                                    {isMultiSelected ? '✓' : '+'}
                                   </button>
                                   <button
                                     type='button'
                                     onClick={() => handleEntitySelect(group.graphicConfigId, index)}
-                                    className='min-w-0 flex-1 text-left'
+                                    className='ap-focus min-w-0 flex-1 rounded-lg text-left'
                                   >
-                                    <div className='flex items-center justify-between gap-3'>
-                                      <p className={`text-sm ${isSelectedItem ? 'font-semibold text-ink' : 'text-ink'}`}>
-                                        {formatEntityCollectionLabel(item)}
-                                      </p>
-                                      {isMultiSelected ? (
-                                        <span className='rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-700'>
-                                          Grouped
-                                        </span>
-                                      ) : null}
+                                    <div className='flex flex-wrap items-center justify-between gap-3'>
+                                      <div className='min-w-0'>
+                                        <p className={`text-sm leading-5 break-words ${isSelectedItem ? 'font-semibold text-text-primary' : 'text-text-primary'}`}>
+                                          {formatEntityCollectionLabel(item)}
+                                        </p>
+                                        <p className='mt-1 text-xs text-text-secondary'>
+                                          Item {index + 1} in this collection
+                                        </p>
+                                      </div>
+                                      <div className='flex flex-wrap gap-2'>
+                                        {isSelectedItem ? <span className={getStateBadgeClassName('selected')}>Preview</span> : null}
+                                        {isMultiSelected ? <span className={getStateBadgeClassName('multiSelected')}>Grouped</span> : null}
+                                        {willReplaceGroupedItem ? <span className={getStateBadgeClassName('warning')}>Replaces grouped</span> : null}
+                                      </div>
                                     </div>
-                                    <p className='mt-1 text-xs text-muted'>
-                                      {isSelectedItem ? 'Preview selected' : 'Click for preview'} | {isMultiSelected ? 'Included in grouped actions' : 'Available for grouped actions'}
-                                    </p>
+                                    <div className='mt-2 flex flex-wrap items-center gap-3 text-xs text-text-secondary'>
+                                      <span>{isSelectedItem ? 'Selected for preview' : 'Click to preview'}</span>
+                                      <span>{isMultiSelected ? 'Included in grouped play' : willReplaceGroupedItem ? 'Selecting group toggle replaces the current grouped item in this collection' : 'Available for grouped play'}</span>
+                                    </div>
                                   </button>
+                                  <div className='hidden shrink-0 self-center md:flex'>
+                                    <button
+                                      type='button'
+                                      onClick={() => handleMultiSelectionToggle(group.graphicConfigId, index)}
+                                      aria-pressed={isMultiSelected}
+                                      className={getControlButtonClassName({
+                                        tone: isMultiSelected ? 'accent' : 'neutral',
+                                        variant: isMultiSelected ? 'outline' : 'ghost',
+                                      })}
+                                    >
+                                      {isMultiSelected ? 'Grouped' : willReplaceGroupedItem ? 'Replace group' : 'Group'}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             )
                           })}
                         </div>
-                      ) : null}
+                      )}
                     </article>
                   )
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </Panel>
 
-        <Panel title='Selected entity' eyebrow='Right panel'>
-          {!previewGraphic ? (
-            <div className='flex h-full flex-col gap-4'>
-              <div className='rounded-3xl border border-border bg-slate-950 p-4 text-white'>
-                <div className='mb-3 flex items-center justify-between text-xs uppercase tracking-[0.22em] text-slate-400'>
+        <Panel
+          title='Preview and execution'
+          eyebrow='Right panel'
+          className='overflow-hidden'
+          contentClassName='gap-4 overflow-y-auto'
+          aside={<span className={getStateBadgeClassName(previewGraphic ? (isCompositePreviewActive ? 'active' : 'selected') : 'disabled')}>{previewGraphic ? (isCompositePreviewActive ? 'Composite' : 'Selected') : 'Idle'}</span>}
+        >
+          <div className='rounded-2xl border border-border-strong bg-surface-app p-4'>
+            <div className='mb-4 flex flex-wrap items-start justify-between gap-3'>
+              <div>
+                <div className='flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.22em] text-text-secondary'>
                   <span>Preview16x9</span>
-                  <span>No playback controls</span>
+                  {multiSelectionCount > 0 ? (
+                    <span className={getStateBadgeClassName(isCompositePreviewActive ? 'active' : 'multiSelected')}>
+                      {isCompositePreviewActive ? 'Composite preview' : 'Grouped preview'}
+                    </span>
+                  ) : previewGraphic ? (
+                    <span className={getStateBadgeClassName('selected')}>
+                      Single-item preview
+                    </span>
+                  ) : null}
                 </div>
-                <div className='aspect-video rounded-2xl border border-white/10 bg-white/5' />
+                <p className='mt-2 text-base font-semibold text-text-primary'>
+                  {selectedGraphic?.name ?? previewGraphic?.name ?? 'No preview target'}
+                </p>
+                <p className='mt-1 text-sm text-text-secondary'>
+                  {multiSelectionCount > 0
+                    ? `Preview is showing ${multiSelectionCount} selected item${multiSelectionCount === 1 ? '' : 's'} together.`
+                    : selectedEntity && selectedGraphic
+                      ? `Previewing ${formatEntityLabel(selectedEntity.entity)} in ${selectedGraphic.name}.`
+                      : 'Preview is visual-only. Playback controls are in the dedicated control area below.'}
+                </p>
               </div>
-              <EmptyState title='No selected entity' description='Choose an item from the middle panel to preview and trigger its graphic.' />
+              <div className='flex flex-wrap items-center gap-2'>
+                <span className={getStateBadgeClassName(previewGraphic ? (isCompositePreviewActive ? 'active' : 'selected') : 'disabled')}>
+                  {previewGraphic ? 'Preview ready' : 'Preview idle'}
+                </span>
+                <span className={getStateBadgeClassName(multiSelectionCount > 0 ? 'multiSelected' : 'disabled')}>
+                  {multiSelectionCount > 0 ? `${multiSelectionCount} grouped` : 'No grouped set'}
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className='flex h-full flex-col gap-4'>
-              <div className='rounded-3xl border border-border bg-slate-950 p-4 text-white'>
-                <div className='mb-3 flex items-center justify-between text-xs uppercase tracking-[0.22em] text-slate-400'>
-                  <div className='flex items-center gap-2'>
-                    <span>Preview16x9</span>
-                    {multiSelectionCount > 0 ? (
-                      <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-[0.16em] ${
-                        isCompositePreviewActive
-                          ? 'bg-emerald-400/15 text-emerald-200'
-                          : 'bg-white/10 text-slate-200'
-                      }`}>
-                        {isCompositePreviewActive ? 'Composite set' : 'Grouped ready'}
-                      </span>
-                    ) : null}
-                  </div>
-                  <span>{selectedGraphic?.name ?? `${previewGraphic.name} composite`}</span>
-                </div>
+
+            {!previewGraphic ? (
+              <div className='space-y-4'>
+                <div className='aspect-video rounded-2xl border border-border-strong bg-panel shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]' />
+                {!hasProfiles ? (
+                  <EmptyState title='No profile' description='Select or create a profile before preview content can appear.' />
+                ) : !hasSourceLoaded ? (
+                  <EmptyState title='No source loaded' description='Load a source file for the active profile to enable preview and output control.' />
+                ) : !selectedBlock ? (
+                  <EmptyState title='No block selected' description='Pick a block from the left panel before choosing an item to preview.' />
+                ) : (
+                  <EmptyState title='No entity selected' description='Choose an item from the center panel to preview and trigger its graphic.' />
+                )}
+              </div>
+            ) : (
+              <>
                 {multiSelectionCount > 0 ? (
-                  <div className='mb-3 flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs text-emerald-100'>
-                    <span className='font-semibold uppercase tracking-[0.18em]'>Preview mode</span>
-                    <span>
-                      Showing {multiSelectionCount} grouped item{multiSelectionCount === 1 ? '' : 's'} in the same 16:9 frame.
-                    </span>
-                    <span className='text-emerald-200/80'>
-                      Single click still controls detail inspection.
-                    </span>
+                  <div className='ap-banner ap-banner-success mb-4'>
+                    Composite mode is active. The preview frame shows the full grouped selection, while execution controls stay separate below.
                   </div>
-                ) : null}
+                ) : (
+                  <div className='ap-card mb-4 px-4 py-3'>
+                    <p className='text-xs font-semibold uppercase tracking-[0.22em] text-text-secondary'>Preview context</p>
+                    <p className='mt-1 text-sm text-text-primary'>
+                      {selectedEntity && selectedGraphic
+                        ? `${formatEntityLabel(selectedEntity.entity)} in ${selectedGraphic.name}`
+                        : 'Single selected item'}
+                    </p>
+                  </div>
+                )}
                 <PreviewCanvas
                   template={previewGraphic.preview}
                   content={previewContent}
                   backgroundImagePath={selectedBackground.resolvedFilePath}
                   compositeItems={compositePreviewItems}
                 />
-              </div>
+              </>
+            )}
+          </div>
 
-              <div className='rounded-2xl border border-border bg-surface/30 p-4'>
-                <p className='text-xs font-semibold uppercase tracking-[0.22em] text-muted'>
-                  {selectedEntity ? 'Selected content' : 'Composite preview'}
-                </p>
-                {selectedEntity && selectedGraphic ? (
-                  <>
-                    <p className='mt-2 text-sm font-semibold text-ink'>{formatEntityLabel(selectedEntity.entity)}</p>
-                    <p className='mt-1 text-sm text-muted'>
-                      Block: {selectedEntity.blockName} | Graphic config: {selectedGraphic.name}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className='mt-2 text-sm font-semibold text-ink'>
-                      {selectedMultiItems.length} grouped item{selectedMultiItems.length === 1 ? '' : 's'} in preview
-                    </p>
-                    <p className='mt-1 text-sm text-muted'>
-                      Multi-selection drives the composite preview and grouped output, while single-click selection still controls detail and per-item playback.
-                    </p>
-                  </>
-                )}
-              </div>
-
-              {multiSelectionCount > 0 ? (
-                <div className='rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4'>
-                  <p className='text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700'>Grouped set</p>
-                  <p className='mt-2 text-sm font-semibold text-ink'>
-                    {multiSelectionCount} item{multiSelectionCount === 1 ? '' : 's'} prepared for composite preview and grouped output.
-                  </p>
-                  <p className='mt-1 text-sm text-muted'>
-                    Use the action bar in the middle panel to publish datasources and send OSC for the whole set.
-                  </p>
-                </div>
-              ) : null}
-
+          <div className='grid gap-4 lg:grid-cols-[minmax(0,1fr),minmax(17rem,20rem)]'>
+            <div className='ap-card p-4'>
+              <p className='text-xs font-semibold uppercase tracking-[0.22em] text-text-secondary'>
+                {selectedEntity ? 'Selected item context' : multiSelectionCount > 0 ? 'Grouped context' : 'Execution context'}
+              </p>
               {selectedEntity && selectedGraphic ? (
-                <div className='grid grid-cols-3 gap-3'>
-                  {Object.values(actionTypes).map((actionType) => (
-                    <button
-                      key={actionType}
-                      type='button'
-                      onClick={() => handleAction(actionType)}
-                      className='rounded-2xl border border-border bg-panel px-4 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent'
-                    >
-                      {actionType === 'playGraphic' ? 'Play' : actionType === 'stopGraphic' ? 'Stop' : 'Resume'}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-
-              {feedback ? (
-                <div className={`rounded-2xl border px-4 py-3 text-sm ${
-                  feedback.kind === 'success'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border-rose-200 bg-rose-50 text-rose-700'
-                }`}>
-                  <div className='mb-2 flex flex-wrap items-center gap-2'>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                      feedback.kind === 'success'
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-rose-100 text-rose-700'
-                    }`}>
-                      {multiSelectionCount > 0 ? 'Grouped execution' : 'Single item'}
-                    </span>
-                    {multiSelectionCount > 0 ? (
-                      <span className='rounded-full bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted'>
-                        {multiSelectionCount} selected
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className='font-semibold'>{feedback.title}</p>
-                  <div className='mt-1 space-y-1'>
-                    {feedback.details.map((detail) => <p key={detail}>{detail}</p>)}
-                  </div>
-                </div>
-              ) : null}
+                <>
+                  <p className='mt-2 text-sm font-semibold text-text-primary'>{formatEntityLabel(selectedEntity.entity)}</p>
+                  <p className='mt-1 text-sm text-text-secondary'>
+                    Block: {selectedEntity.blockName} | Graphic: {selectedGraphic.name}
+                  </p>
+                </>
+              ) : multiSelectionCount > 0 ? (
+                <>
+                  <p className='mt-2 text-sm font-semibold text-text-primary'>
+                    {multiSelectionCount} item{multiSelectionCount === 1 ? '' : 's'} prepared for grouped output
+                  </p>
+                  <p className='mt-1 text-sm text-text-secondary'>
+                    Grouped play uses the toggled items from the center panel and can drive composite preview, datasource publish, and OSC output.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className='mt-2 text-sm font-semibold text-text-primary'>No execution target selected</p>
+                  <p className='mt-1 text-sm text-text-secondary'>
+                    Select a center-panel item for single preview and output, or toggle multiple items for grouped play.
+                  </p>
+                </>
+              )}
             </div>
-          )}
+
+            <div className='ap-card p-4'>
+              <p className='text-xs font-semibold uppercase tracking-[0.22em] text-text-secondary'>Status readout</p>
+              <div className='mt-3 space-y-3'>
+                <StatusRow label='Profile' value={workspaceData.activeProfileLabel} />
+                <StatusRow label='Block' value={selectedBlock?.name ?? 'None selected'} />
+                <StatusRow label='Preview target' value={selectedGraphic?.name ?? previewGraphic?.name ?? 'None'} />
+                <StatusRow label='Selected count' value={String(multiSelectionCount)} />
+              </div>
+            </div>
+          </div>
+
+          {multiSelectionCount > 0 ? (
+            <div className='ap-state-multi rounded-xl border p-4'>
+              <div className='flex flex-wrap items-center justify-between gap-3'>
+                <div>
+                  <p className='text-xs font-semibold uppercase tracking-[0.22em] text-cyan-300'>Grouped action bar</p>
+                  <p className='mt-1 text-sm text-text-primary'>
+                    {multiSelectionCount} selected for grouped play, stop, or resume.
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  onClick={handleClearMultiSelection}
+                  disabled={multiSelectionCount === 0}
+                  className={getControlButtonClassName({ tone: 'danger', variant: 'outline' })}
+                >
+                  Clear grouped set
+                </button>
+              </div>
+              <div className='mt-4 grid gap-3 sm:grid-cols-3'>
+                <button
+                  type='button'
+                  onClick={() => handleGroupedAction('playGraphic')}
+                  disabled={multiSelectionCount === 0}
+                  className={getControlButtonClassName({ tone: 'success', variant: 'solid', fullWidth: true })}
+                >
+                  Play grouped
+                </button>
+                <button
+                  type='button'
+                  onClick={() => handleGroupedAction('stopGraphic')}
+                  disabled={multiSelectionCount === 0}
+                  className={getControlButtonClassName({ tone: 'danger', variant: 'solid', fullWidth: true })}
+                >
+                  Stop grouped
+                </button>
+                <button
+                  type='button'
+                  onClick={() => handleGroupedAction('resumeGraphic')}
+                  disabled={multiSelectionCount === 0}
+                  className={getControlButtonClassName({ tone: 'warning', variant: 'solid', fullWidth: true })}
+                >
+                  Resume grouped
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className={selectedEntity && selectedGraphic ? 'ap-card p-4' : 'ap-card-muted p-4'}>
+            <div className='flex flex-wrap items-center justify-between gap-3'>
+              <p className='text-xs font-semibold uppercase tracking-[0.22em] text-text-secondary'>Single-item controls</p>
+              <span className={getStateBadgeClassName(selectedEntity && selectedGraphic ? 'selected' : 'disabled')}>
+                {selectedEntity && selectedGraphic ? 'Single item armed' : 'No single item'}
+              </span>
+            </div>
+            {!selectedEntity || !selectedGraphic ? (
+              <div className='mt-3'>
+                <EmptyState title='No entity selected' description='Choose one item in the center panel to enable single-item play, stop, and resume controls.' />
+              </div>
+            ) : (
+              <div className='mt-4 grid gap-3 sm:grid-cols-3'>
+                {Object.values(actionTypes).map((actionType) => (
+                  <button
+                    key={actionType}
+                    type='button'
+                    onClick={() => handleAction(actionType)}
+                    className={getControlButtonClassName({
+                      tone: actionType === 'playGraphic' ? 'success' : actionType === 'stopGraphic' ? 'danger' : 'warning',
+                      variant: 'solid',
+                      fullWidth: true,
+                    })}
+                  >
+                    {actionType === 'playGraphic' ? 'Play' : actionType === 'stopGraphic' ? 'Stop' : 'Resume'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {feedback ? (
+            <div className={feedback.kind === 'success' ? 'ap-banner ap-banner-success' : 'ap-banner ap-banner-danger'}>
+              <div className='mb-2 flex flex-wrap items-center gap-2'>
+                <span className={getStateBadgeClassName(feedback.kind === 'success' ? 'active' : 'invalid')}>
+                  {multiSelectionCount > 0 ? 'Grouped execution' : 'Single item execution'}
+                </span>
+                {multiSelectionCount > 0 ? (
+                  <span className={getStateBadgeClassName('multiSelected')}>
+                    {multiSelectionCount} selected
+                  </span>
+                ) : null}
+              </div>
+              <p className='font-semibold'>{feedback.title}</p>
+              <div className='mt-1 space-y-1'>
+                {feedback.details.map((detail) => <p key={detail}>{detail}</p>)}
+              </div>
+            </div>
+          ) : null}
         </Panel>
       </section>
     </>
@@ -937,18 +1146,27 @@ function createProfileImportFeedbackMessage(
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className='rounded-2xl border border-white/10 bg-white/5 px-4 py-3'>
-      <p className='text-xs uppercase tracking-[0.2em] text-slate-400'>{label}</p>
-      <p className='mt-1 font-medium'>{value}</p>
+    <div className='ap-card-muted px-4 py-3'>
+      <p className='text-xs uppercase tracking-[0.2em] text-text-secondary'>{label}</p>
+      <p className='mt-1 text-sm font-semibold text-text-primary'>{value}</p>
+    </div>
+  )
+}
+
+function StatusRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='flex items-start justify-between gap-3 border-b border-border-muted pb-3 last:border-b-0 last:pb-0'>
+      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>{label}</p>
+      <p className='max-w-[14rem] text-right text-sm text-text-primary'>{value}</p>
     </div>
   )
 }
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
-      <p className='font-semibold text-ink'>{title}</p>
-      <p className='mt-1'>{description}</p>
+    <div className='ap-empty-state'>
+      <p className='ap-section-title'>{title}</p>
+      <p className='mt-1 ap-help'>{description}</p>
     </div>
   )
 }
