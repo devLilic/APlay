@@ -197,7 +197,7 @@ describe('grouped entity lists', () => {
 })
 
 describe('selected entity context', () => {
-  it('derives selected entity context for the right panel', () => {
+it('derives selected entity context for the active workspace target', () => {
     const state = createWorkspaceSelectionState(documentFixture, graphicsFixture)
       .selectGraphicConfig('pa_title_waiting')
       .selectEntity(0)
