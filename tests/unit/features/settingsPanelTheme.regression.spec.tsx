@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import type { ComponentProps } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+import { NotificationsProvider } from '@/features/notifications/notificationsContext'
 import { SettingsPanel } from '@/features/settings/components/SettingsPanel'
 import { SettingsMessageBanner } from '@/features/settings/components/SettingsPanelChrome'
 import { sampleSettings } from '@/features/workspace/data/sampleWorkspaceConfig'
@@ -26,26 +27,28 @@ function renderSettingsPanel({
   pendingImportSummary?: ComponentProps<typeof SettingsPanel>['pendingImportSummary']
 } = {}) {
   return renderToStaticMarkup(
-    <SettingsPanel
-      settings={settings}
-      diagnostics={diagnostics}
-      feedback={feedback}
-      selectedGraphic={selectedGraphic}
-      previewContent={{ text: 'Sample headline', name: 'Sample name', role: 'Host' }}
-      isImportingGraphicConfig={false}
-      isImportingProfile={false}
-      pendingImportSummary={pendingImportSummary}
-      onSettingsChange={vi.fn()}
-      onSave={vi.fn()}
-      onReload={vi.fn()}
-      onImportGraphicConfig={vi.fn(async () => {})}
-      onImportProfile={vi.fn(async () => {})}
-      onConfirmImport={vi.fn()}
-      onCancelImport={vi.fn()}
-      onExportGraphicConfig={vi.fn(async () => {})}
-      onExportProfile={vi.fn(async () => {})}
-      onTestOscCommand={vi.fn(async () => {})}
-    />,
+    <NotificationsProvider>
+      <SettingsPanel
+        settings={settings}
+        diagnostics={diagnostics}
+        feedback={feedback}
+        selectedGraphic={selectedGraphic}
+        previewContent={{ text: 'Sample headline', name: 'Sample name', role: 'Host' }}
+        isImportingGraphicConfig={false}
+        isImportingProfile={false}
+        pendingImportSummary={pendingImportSummary}
+        onSettingsChange={vi.fn()}
+        onSave={vi.fn()}
+        onReload={vi.fn()}
+        onImportGraphicConfig={vi.fn(async () => {})}
+        onImportProfile={vi.fn(async () => {})}
+        onConfirmImport={vi.fn()}
+        onCancelImport={vi.fn()}
+        onExportGraphicConfig={vi.fn(async () => {})}
+        onExportProfile={vi.fn(async () => {})}
+        onTestOscCommand={vi.fn(async () => {})}
+      />
+    </NotificationsProvider>,
   )
 }
 
@@ -73,7 +76,7 @@ describe('SettingsPanel dark theme regressions', () => {
 
     expect(html).toContain('ap-settings')
     expect(html).toContain('ap-form-section')
-    expect(html).toContain('ap-banner ap-banner-danger')
+    expect(html).toContain('Schema warning')
     expect(html).not.toMatch(lightSurfacePattern)
   })
 

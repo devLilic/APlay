@@ -31,7 +31,6 @@ import {
 } from '@/settings/storage/graphicConfigLibraryService'
 import {
   SettingsHeaderActions,
-  SettingsIntroCard,
   SettingsPlaceholderCard,
   SettingsTabNavigation,
   PreviewCanvasSidebar,
@@ -661,9 +660,7 @@ export function SettingsPanel({
         />
       )}
     >
-      <div className='ap-settings space-y-6 overflow-hidden'>
-        <SettingsIntroCard />
-
+      <div className='ap-settings space-y-6'>
         <SettingsTabNavigation
           tabs={settingsTabs}
           activeTabId={activeTab}
@@ -2633,9 +2630,9 @@ function ReferenceImagesSection({
 }) {
   return (
     <FormSection title='Reference images' description='Manage reusable background images used only for Preview16x9 calibration.'>
-      <div className={`space-y-3 ${settingsSubsectionClassName}`}>
-        <div className='grid gap-3'>
-          <label className='space-y-2'>
+      <div className='grid gap-4 xl:grid-cols-[minmax(0,22rem),minmax(0,1fr)]'>
+        <div className={`space-y-2 ${settingsSubsectionClassName}`}>
+          <label className='space-y-1.5'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image name</span>
             <input
               value={draftName}
@@ -2645,65 +2642,112 @@ function ReferenceImagesSection({
             />
           </label>
 
-          <label className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image file path</span>
-            <input
-              value={draftPath}
-              onChange={(event) => onDraftPathChange(event.target.value)}
-              placeholder='C:\\APlay\\references\\title.png'
-              className={settingsFieldClassName}
-            />
-          </label>
+          <div className='grid gap-2.5 sm:grid-cols-[minmax(0,1fr),auto,auto] sm:items-end'>
+            <label className='space-y-1.5 sm:col-span-3'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image file path</span>
+              <input
+                value={draftPath}
+                onChange={(event) => onDraftPathChange(event.target.value)}
+                placeholder='C:\\APlay\\references\\title.png'
+                className={settingsFieldClassName}
+              />
+            </label>
+            <button
+              type='button'
+              onClick={onPickReferenceImage}
+              disabled={isPickingReferenceImage}
+              className={settingsSecondaryButtonClassName}
+            >
+              {isPickingReferenceImage ? 'Choosing file...' : 'Choose image'}
+            </button>
+            <button
+              type='button'
+              onClick={onAddReferenceImage}
+              disabled={draftName.trim().length === 0 || draftPath.trim().length === 0}
+              className={settingsAccentButtonClassName}
+            >
+              Add image
+            </button>
+          </div>
         </div>
 
-        <div className='flex flex-wrap gap-2'>
-          <button
-            type='button'
-            onClick={onPickReferenceImage}
-            disabled={isPickingReferenceImage}
-            className={settingsSecondaryButtonClassName}
-          >
-            {isPickingReferenceImage ? 'Choosing file...' : 'Choose image'}
-          </button>
-          <button
-            type='button'
-            onClick={onAddReferenceImage}
-            disabled={draftName.trim().length === 0 || draftPath.trim().length === 0}
-            className={settingsAccentButtonClassName}
-          >
-            Add image
-          </button>
-        </div>
-      </div>
-
-      <div className='space-y-3'>
-        <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Available reference images</p>
-        {referenceImages.length > 0 ? (
-          <div className={settingsCompactFieldGroupClassName}>
-            {referenceImages.map((image) => (
-              <div key={image.id} className='ap-card flex flex-wrap items-start justify-between gap-3 p-4'>
-                <div className='min-w-0 flex-1'>
-                  <p className='text-sm font-semibold text-text-primary'>{image.name}</p>
-                  <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{image.id}</p>
-                  <p className='mt-2 break-all text-sm text-muted'>{image.filePath}</p>
-                </div>
-                <button
-                  type='button'
-                  onClick={() => onRemoveReferenceImage(image.id)}
-                  className={settingsDangerButtonClassName}
-                >
-                  Delete
-                </button>
+        <div className={`space-y-3 ${settingsSubsectionClassName}`}>
+          <div className='flex items-center justify-between gap-3'>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Reference image previews</p>
+            <span className={getStateBadgeClassName(referenceImages.length > 0 ? 'selected' : 'disabled')}>
+              Preview panel
+            </span>
+          </div>
+          <div className='max-h-[28rem] overflow-y-auto pr-1'>
+            {referenceImages.length > 0 ? (
+              <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+                {referenceImages.map((image) => (
+                  <ReferenceImagePreviewTile
+                    key={image.id}
+                    image={image}
+                    onRemove={() => onRemoveReferenceImage(image.id)}
+                  />
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className='ap-empty-state rounded-2xl border border-dashed border-border bg-surface/30 p-4'>
+                <p className='ap-section-title'>No reference images added yet.</p>
+                <p className='mt-1 ap-help'>Preview panel</p>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
-            No reference images added yet.
-          </div>
-        )}
+        </div>
       </div>
     </FormSection>
+  )
+}
+
+function ReferenceImagePreviewTile({
+  image,
+  onRemove,
+}: {
+  image: ReferenceImageAsset
+  onRemove: () => void
+}) {
+  const [hasLoadError, setHasLoadError] = useState(false)
+
+  return (
+    <article className='ap-card group overflow-hidden p-2 transition-colors hover:border-border-focus'>
+      <div className='relative'>
+        <div className='aspect-video overflow-hidden rounded-lg border border-border bg-surface-app transition-colors group-hover:border-border-focus'>
+          {hasLoadError ? (
+            <div className='flex h-full w-full items-center justify-center bg-surface-muted px-3 text-center'>
+              <div>
+                <p className='text-sm font-semibold text-text-primary'>Preview unavailable</p>
+                <p className='mt-1 text-xs text-text-secondary'>Image could not be loaded.</p>
+              </div>
+            </div>
+          ) : (
+            <img
+              src={image.filePath}
+              alt={image.name}
+              loading='lazy'
+              onError={() => setHasLoadError(true)}
+              className='h-full w-full object-cover'
+            />
+          )}
+        </div>
+        <button
+          type='button'
+          onClick={onRemove}
+          aria-label={`Delete image ${image.name}`}
+          className={`absolute right-2 top-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${settingsDangerButtonClassName}`}
+        >
+          Delete image
+        </button>
+      </div>
+      <p
+        className='mt-2 truncate text-center text-xs font-semibold text-text-primary'
+        title={image.name}
+      >
+        {image.name}
+      </p>
+    </article>
   )
 }
 
