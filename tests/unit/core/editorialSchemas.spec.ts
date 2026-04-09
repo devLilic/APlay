@@ -77,7 +77,7 @@ describe('supported V1 entity types', () => {
       'person',
       'location',
       'phone',
-      'staticImage',
+      'image',
     ])
   })
 })

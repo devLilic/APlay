@@ -88,7 +88,12 @@ export function loadWorkspaceShellData(
 const datasourceFiles = new Map<string, string>()
 const sentOscAddresses: string[] = []
 
-export const createEntityPreviewContent = createSelectedEntityPreviewData
+export function createEntityPreviewContent(
+  selectedEntity: SelectedEntityContext | SelectedMultiEntityContext | undefined,
+  graphic?: GraphicInstanceConfig,
+): Record<string, string | undefined> {
+  return createSelectedEntityPreviewData(selectedEntity, graphic)
+}
 
 export function resolveGraphicForSelection(
   graphicsById: Partial<Record<string, GraphicInstanceConfig>>,
@@ -213,13 +218,13 @@ export function runWorkspaceGraphicDebugAction(
 ): Promise<SelectedEntityControlFeedback> {
   const adapter = createWorkspaceGraphicsAdapter()
   const entityType = graphic.entityType
-  const entity = createDebugEntityForGraphic(entityType, previewContent)
+  const debugEntity = createDebugEntityForGraphic(entityType, previewContent, graphic)
 
   return runGraphicsAdapterFeedback(
     actionType === 'playGraphic'
       ? adapter.play({
         entityType,
-        entity: entity as never,
+        entity: debugEntity as never,
         graphic,
         bindings: graphic.bindings ?? [],
         oscSettings,
@@ -227,14 +232,14 @@ export function runWorkspaceGraphicDebugAction(
       : actionType === 'stopGraphic'
         ? adapter.stop({
           entityType,
-          entity: entity as never,
+          entity: debugEntity as never,
           graphic,
           bindings: graphic.bindings ?? [],
           oscSettings,
         })
         : adapter.resume({
           entityType,
-          entity: entity as never,
+          entity: debugEntity as never,
           graphic,
           bindings: graphic.bindings ?? [],
           oscSettings,
@@ -633,7 +638,7 @@ function doesGraphicRequireDatasource(
   actionType: ActionType,
   graphic: GraphicInstanceConfig,
 ): boolean {
-  return actionType === 'playGraphic' && graphic.kind !== 'static' && graphic.entityType !== 'staticImage'
+  return actionType === 'playGraphic' && graphic.kind !== 'static' && graphic.entityType !== 'image'
 }
 
 function resolveGroupedDatasourceTargetFile(graphic: GraphicInstanceConfig): string {
@@ -769,6 +774,7 @@ function formatGraphicConfigDiagnostic(
 function createDebugEntityForGraphic(
   entityType: GraphicInstanceConfig['entityType'],
   previewContent: Record<string, string | undefined>,
+  graphic: GraphicInstanceConfig,
 ) {
   switch (entityType) {
     case 'title':
@@ -789,7 +795,9 @@ function createDebugEntityForGraphic(
         label: previewContent.label ?? 'Debug label',
         number: previewContent.number ?? '000',
       }
-    case 'staticImage':
-      return {}
+    case 'image':
+      return {
+        staticAsset: graphic.staticAsset?.assetPath ?? previewContent.staticAsset,
+      }
   }
 }

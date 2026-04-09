@@ -18,7 +18,7 @@ interface GraphicCollectionPlan {
 
 export function createGraphicCollectionPlans(graphics: GraphicInstanceConfig[]): GraphicCollectionPlan[] {
   return graphics
-    .filter((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'staticImage')
+    .filter((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'image')
     .map((graphic) => ({
       graphicId: graphic.id,
       entityType: graphic.entityType,
@@ -129,7 +129,7 @@ export function deriveLegacyEntityCollectionsFromGraphicConfigs(
           }
         }
         break
-      case 'staticImage':
+      case 'image':
         break
     }
   }

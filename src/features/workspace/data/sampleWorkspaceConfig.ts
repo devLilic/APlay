@@ -8,7 +8,7 @@ const defaultGraphicBindingsByEntityType: Record<string, FieldBinding[]> = {
   person: [{ sourceField: 'name', targetField: 'name', required: true }, { sourceField: 'role', targetField: 'role' }],
   location: [{ sourceField: 'value', targetField: 'value', required: true }],
   phone: [{ sourceField: 'label', targetField: 'label', required: true }, { sourceField: 'number', targetField: 'number', required: true }],
-  staticImage: [],
+  image: [],
 }
 
 export const sampleSettings: AppSettings = {
@@ -173,7 +173,7 @@ export const sampleSettings: AppSettings = {
     {
       id: 'static-image-main',
       name: 'Static image main',
-      entityType: 'staticImage',
+      entityType: 'image',
       kind: 'static',
       dataFileName: 'static-image-main.json',
       staticAsset: {

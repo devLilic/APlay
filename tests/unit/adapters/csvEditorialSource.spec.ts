@@ -162,7 +162,7 @@ const graphicConfigCollectionGraphics: GraphicInstanceConfig[] = [
   {
     id: 'static-bug',
     name: 'Static bug',
-    entityType: 'staticImage',
+    entityType: 'image',
     kind: 'static',
     dataFileName: 'static-bug.json',
     control: { templateName: 'STATIC_BUG' },

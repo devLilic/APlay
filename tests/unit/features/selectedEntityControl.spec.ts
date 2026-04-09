@@ -283,4 +283,28 @@ describe('selected entity preview data', () => {
       role: 'Anchor',
     })
   })
+
+  it('includes the static asset path for image graphics', () => {
+    expect(createSelectedEntityPreviewData(undefined, {
+      id: 'logo-main',
+      name: 'Logo main',
+      entityType: 'image',
+      kind: 'static',
+      dataFileName: 'logo-main.json',
+      staticAsset: {
+        assetPath: 'assets/logo.png',
+        assetType: 'image',
+      },
+      control: { templateName: 'LOGO_MAIN' },
+      preview: {
+        id: 'logo-main-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [],
+      },
+      actions: [],
+    })).toEqual({
+      staticAsset: 'assets/logo.png',
+    })
+  })
 })

@@ -3,7 +3,7 @@ export const supportedEntityTypes = [
   'person',
   'location',
   'phone',
-  'staticImage',
+  'image',
 ] as const
 
 export type SupportedEntityType = typeof supportedEntityTypes[number]

@@ -61,7 +61,7 @@ const csvBlockDetectionModes = ['columnRegex'] as const
 const previewTextAlignValues = ['left', 'center'] as const
 const graphicConfigKinds = ['dynamic', 'static'] as const
 const staticGraphicAssetTypes = ['image'] as const
-const staticGraphicEntityTypes = ['staticImage'] as const
+const staticGraphicEntityTypes = ['image', 'staticImage'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
   const value = assertRecord(input, 'referenceImageAsset')
@@ -421,8 +421,11 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
   const actions = parseRequiredArray(value, 'actions', 'graphicInstanceConfig').map((action) =>
     actionButtonConfigSchema.parse(action),
   )
+  const normalizedEntityType = value.entityType === 'staticImage'
+    ? 'image'
+    : value.entityType
   const entityType = parseEnumValue(
-    value.entityType,
+    normalizedEntityType,
     supportedEntityTypes,
     'graphicInstanceConfig',
     'entityType',
