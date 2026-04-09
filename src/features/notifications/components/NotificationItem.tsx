@@ -7,9 +7,9 @@ interface NotificationItemProps {
 }
 
 const bannerVariantClassNames = {
-  success: 'ap-banner-success',
-  warning: 'ap-banner-warning',
-  danger: 'ap-banner-danger',
+  success: 'border-state-active/60 bg-panel text-emerald-200',
+  warning: 'border-state-warning/60 bg-panel text-amber-200',
+  danger: 'border-state-danger/60 bg-panel text-red-200',
 } as const
 
 const badgeVariantState = {
@@ -21,10 +21,11 @@ const badgeVariantState = {
 export function NotificationItem({ notification, onDismiss }: NotificationItemProps) {
   return (
     <div
-      className={`ap-banner ${bannerVariantClassNames[notification.variant]} pointer-events-auto w-full min-w-0 rounded-xl border px-4 py-3`}
+      className={`ap-banner ${bannerVariantClassNames[notification.variant]} pointer-events-auto w-full min-w-0 rounded-xl border px-4 py-3 shadow-panel transition-colors hover:bg-surface-raised`}
       data-notification-id={notification.id}
       aria-live={notification.variant === 'danger' ? 'assertive' : 'polite'}
       role='status'
+      onClick={onDismiss}
     >
       <div className='flex items-start gap-3'>
         <div className='min-w-0 flex-1 space-y-2'>
@@ -42,11 +43,14 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
         </div>
         <button
           aria-label='Dismiss notification'
-          className='inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-app-border bg-app-card text-app-text-secondary transition-colors hover:border-app-border-strong hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app-panel'
+          className='inline-flex h-8 w-8 items-center justify-center rounded-md border border-app-border bg-app-card text-app-text-secondary transition-colors hover:border-app-border-strong hover:text-app-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app-panel'
           type='button'
-          onClick={onDismiss}
+          onClick={(event) => {
+            event.stopPropagation()
+            onDismiss()
+          }}
         >
-          <span aria-hidden='true' className='text-base leading-none'>x</span>
+          <span aria-hidden='true' className='text-sm leading-none'>x</span>
         </button>
       </div>
     </div>

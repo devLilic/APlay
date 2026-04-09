@@ -1,4 +1,5 @@
 export type NotificationVariant = 'success' | 'warning' | 'danger'
+const defaultNotificationTimeoutMs = 10000
 
 export interface NotificationRecord {
   id: string
@@ -44,6 +45,7 @@ export function createNotificationStore(): NotificationStore {
       const notification: NotificationRecord = {
         ...input,
         id,
+        timeoutMs: input.timeoutMs ?? defaultNotificationTimeoutMs,
       }
 
       notifications = [...notifications, notification]

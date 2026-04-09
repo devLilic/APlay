@@ -1,4 +1,4 @@
-import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { supportedEntityTypes, type SupportedEntityType } from '@/core/entities/entityTypes'
 import type {
   AppSettings,
@@ -32,12 +32,12 @@ import {
 import {
   SettingsHeaderActions,
   SettingsIntroCard,
-  SettingsMessageBanner,
   SettingsPlaceholderCard,
   SettingsTabNavigation,
   PreviewCanvasSidebar,
   type SettingsTabMeta,
 } from '@/features/settings/components/SettingsPanelChrome'
+import { useNotificationStore } from '@/features/notifications/notificationsContext'
 import { Panel } from '@/shared/ui/panel'
 import { getControlButtonClassName, getStateBadgeClassName } from '@/shared/ui/theme'
 
@@ -170,6 +170,7 @@ export function SettingsPanel({
   onExportProfile,
   onTestOscCommand,
 }: SettingsPanelProps) {
+  const notificationStore = useNotificationStore()
   const selectedProfile = settings.profiles.find((profile) => profile.id === settings.selectedProfileId)
   const invalidGraphicNames = settings.graphics.filter((graphic) => graphic.name.trim().length === 0)
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(selectedProfile?.graphicConfigIds[0] ?? null)
@@ -191,6 +192,46 @@ export function SettingsPanel({
   const [oscArgDrafts, setOscArgDrafts] = useState<Record<string, string>>({})
   const [testingOscActionKey, setTestingOscActionKey] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SettingsTabId>('show')
+  const lastExternalFeedbackRef = useRef<SettingsFeedback | null>(null)
+  const lastLibraryFeedbackRef = useRef<SettingsFeedback | null>(null)
+
+  useEffect(() => {
+    if (!feedback) {
+      lastExternalFeedbackRef.current = null
+      return
+    }
+
+    if (lastExternalFeedbackRef.current === feedback) {
+      return
+    }
+
+    notificationStore.publish({
+      variant: feedback.kind === 'success' ? 'success' : 'danger',
+      title: 'Settings',
+      message: feedback.message,
+      timeoutMs: 8000,
+    })
+    lastExternalFeedbackRef.current = feedback
+  }, [feedback, notificationStore])
+
+  useEffect(() => {
+    if (!libraryFeedback) {
+      lastLibraryFeedbackRef.current = null
+      return
+    }
+
+    if (lastLibraryFeedbackRef.current === libraryFeedback) {
+      return
+    }
+
+    notificationStore.publish({
+      variant: libraryFeedback.kind === 'success' ? 'success' : 'danger',
+      title: 'Settings library',
+      message: libraryFeedback.message,
+      timeoutMs: 8000,
+    })
+    lastLibraryFeedbackRef.current = libraryFeedback
+  }, [libraryFeedback, notificationStore])
 
   useEffect(() => {
     const nextGraphicId = selectedProfile?.graphicConfigIds[0] ?? null
@@ -628,14 +669,6 @@ export function SettingsPanel({
           activeTabId={activeTab}
           onTabChange={(tabId) => setActiveTab(tabId as SettingsTabId)}
         />
-
-        {feedback ? (
-          <SettingsMessageBanner kind={feedback.kind} message={feedback.message} />
-        ) : null}
-
-        {libraryFeedback ? (
-          <SettingsMessageBanner kind={libraryFeedback.kind} message={libraryFeedback.message} tone='library' />
-        ) : null}
 
         {invalidGraphicNames.length > 0 ? (
           <div className='ap-banner ap-banner-warning'>

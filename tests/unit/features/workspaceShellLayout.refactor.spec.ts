@@ -22,9 +22,11 @@ describe('WorkspaceShell dual-preview layout refactor', () => {
   it('keeps only the left and center operational panels in the lower workspace area', () => {
     const source = readWorkspaceShellSource()
 
-    expect(source).toContain("title='Navigation'")
+    expect(source).toContain("title=''")
     expect(source).toContain("eyebrow='Left panel'")
-    expect(source).toContain("title='Entity collections'")
+    expect(source).toContain("eyebrow='Center panel'")
+    expect(source).not.toContain("title='Navigation'")
+    expect(source).not.toContain("title='Entity collections'")
     expect(source).toContain("eyebrow='Center panel'")
     expect(source).not.toContain("title='Preview and execution'")
     expect(source).not.toContain("eyebrow='Right panel'")
@@ -44,9 +46,10 @@ describe('WorkspaceShell dual-preview layout refactor', () => {
   it('renders preview content in the Preview screen and a coherent empty state in the ONAIR screen', () => {
     const source = readWorkspaceShellSource()
 
-    expect(source).toContain('Selected preview')
-    expect(source).toContain('Preview target')
-    expect(source).toContain('On-air output')
+    expect(source).toContain("label='Preview'")
+    expect(source).toContain("label='ONAIR'")
+    expect(source).not.toContain('Selected preview')
+    expect(source).not.toContain('On-air output')
     expect(source).toContain('No on-air graphic')
     expect(source).toContain('Waiting for live output')
   })

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type ReactNode } from 'react'
 import { actionTypes } from '@/core/actions/actionTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import { useNotificationStore } from '@/features/notifications/notificationsContext'
@@ -78,8 +78,9 @@ export function WorkspaceShell() {
   const [isImportingProfile, setIsImportingProfile] = useState(false)
   const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [blockFilter, setBlockFilter] = useState('')
   const [onAirState, setOnAirState] = useState(createWorkspaceOnAirState)
+  const [featuredCollectionId, setFeaturedCollectionId] = useState<string>()
+  const [draggedCollectionId, setDraggedCollectionId] = useState<string | null>(null)
   const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
   const lastSourceRefreshFeedbackRef = useRef<SettingsFeedback | null>(null)
   const lastSettingsFeedbackRef = useRef<SettingsFeedback | null>(null)
@@ -196,6 +197,27 @@ export function WorkspaceShell() {
     }
   }, [])
 
+  const readyGraphicCollections = loadState.status === 'ready'
+    ? resolveGraphicConfigEntityLists(
+      loadState.data.document,
+      createWorkspaceSelectionState(loadState.data.document, loadState.data.graphics, selection).selection,
+      loadState.data.graphics,
+    )
+    : []
+
+  useEffect(() => {
+    if (readyGraphicCollections.length === 0) {
+      if (featuredCollectionId !== undefined) {
+        setFeaturedCollectionId(undefined)
+      }
+      return
+    }
+
+    if (!featuredCollectionId || !readyGraphicCollections.some((group) => group.graphicConfigId === featuredCollectionId)) {
+      setFeaturedCollectionId(readyGraphicCollections[0]?.graphicConfigId)
+    }
+  }, [featuredCollectionId, readyGraphicCollections])
+
   if (loadState.status === 'loading') {
     return (
       <div className='ap-panel p-10'>
@@ -250,17 +272,19 @@ export function WorkspaceShell() {
   const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, previewGraphic)
   const availableProfiles = loadState.snapshot.settings.profiles
   const hasProfiles = availableProfiles.length > 0
-  const trimmedBlockFilter = blockFilter.trim().toLowerCase()
-  const filteredBlockList = trimmedBlockFilter.length === 0
-    ? blockList
-    : blockList.filter((block) => block.name.toLowerCase().includes(trimmedBlockFilter))
+  const filteredBlockList = blockList
   const hasSourceLoaded = Boolean(workspaceData.activeSourceFilePath)
   const hasBlocks = blockList.length > 0
-  const hasFilteredBlocks = filteredBlockList.length > 0
   const hasGraphicCollections = graphicCollections.length > 0
   const groupedSelectionLabel = multiSelectionCount === 0
     ? 'No grouped items'
     : `${multiSelectionCount} grouped item${multiSelectionCount === 1 ? '' : 's'}`
+  const featuredCollection = graphicCollections.find((group) => group.graphicConfigId === featuredCollectionId)
+    ?? graphicCollections[0]
+  const secondaryCollections = graphicCollections.filter(
+    (group) => group.graphicConfigId !== featuredCollection?.graphicConfigId,
+  )
+
   const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
     const nextData = loadWorkspaceShellData(snapshot)
     setLoadState({
@@ -269,6 +293,7 @@ export function WorkspaceShell() {
       data: nextData,
     })
     setOnAirState(createWorkspaceOnAirState())
+    setFeaturedCollectionId(undefined)
     setSelection((currentSelection) =>
       createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
   }
@@ -386,6 +411,46 @@ export function WorkspaceShell() {
   const handleClearMultiSelection = () => {
     setSelection(workspace.clearSelectedItems().selection)
     setFeedback(null)
+  }
+
+  const handleCollectionDragStart = (event: DragEvent<HTMLElement>, graphicConfigId: string) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/aplay-graphic-collection', graphicConfigId)
+    setDraggedCollectionId(graphicConfigId)
+  }
+
+  const handleCollectionDragEnd = () => {
+    setDraggedCollectionId(null)
+  }
+
+  const resolveDraggedCollectionId = (event: DragEvent<HTMLElement>) => (
+    event.dataTransfer.getData('text/aplay-graphic-collection') || draggedCollectionId || ''
+  )
+
+  const handleFeaturedZoneDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    const nextCollectionId = resolveDraggedCollectionId(event)
+    if (!nextCollectionId) {
+      return
+    }
+
+    setFeaturedCollectionId(nextCollectionId)
+    setDraggedCollectionId(null)
+  }
+
+  const handleSecondaryZoneDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    const nextCollectionId = resolveDraggedCollectionId(event)
+    if (!nextCollectionId || nextCollectionId !== featuredCollection?.graphicConfigId) {
+      setDraggedCollectionId(null)
+      return
+    }
+
+    const fallbackCollection = graphicCollections.find((group) => group.graphicConfigId !== nextCollectionId)
+    if (fallbackCollection) {
+      setFeaturedCollectionId(fallbackCollection.graphicConfigId)
+    }
+    setDraggedCollectionId(null)
   }
 
   const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
@@ -745,7 +810,7 @@ export function WorkspaceShell() {
 
       <section className='grid min-h-0 gap-4 xl:h-[calc(100vh-13.5rem)] xl:grid-cols-[minmax(18rem,22rem),minmax(26rem,1fr)]'>
         <Panel
-          title='Navigation'
+          title=''
           eyebrow='Left panel'
           className='overflow-hidden'
           contentClassName='gap-4 overflow-hidden'
@@ -781,19 +846,6 @@ export function WorkspaceShell() {
                 </div>
               </div>
 
-              <div className='ap-card p-4'>
-                <label className='block text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary' htmlFor='workspace-block-filter'>
-                  Block filter
-                </label>
-                <input
-                  id='workspace-block-filter'
-                  type='text'
-                  value={blockFilter}
-                  onChange={(event) => setBlockFilter(event.target.value)}
-                  placeholder='Filter blocks'
-                  className='ap-focus mt-3 min-h-11 w-full rounded-lg border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary placeholder:text-text-disabled'
-                />
-              </div>
             </div>
           )}
 
@@ -804,8 +856,6 @@ export function WorkspaceShell() {
               <EmptyState title='No source loaded' description='Select a profile with a configured source file to populate the block list.' />
             ) : !hasBlocks ? (
               <EmptyState title='No blocks available' description='The current source loaded successfully but produced no editorial blocks.' />
-            ) : !hasFilteredBlocks ? (
-              <EmptyState title='No matching blocks' description='Adjust the block filter to see the available editorial blocks again.' />
             ) : (
               <div className='space-y-3'>
                 {filteredBlockList.map((block) => {
@@ -843,115 +893,131 @@ export function WorkspaceShell() {
         </Panel>
 
         <Panel
-          title='Entity collections'
+          title=''
           eyebrow='Center panel'
           className='overflow-hidden'
           contentClassName='gap-4 overflow-hidden'
           aside={<span className={getStateBadgeClassName('multiSelected')}>{groupedSelectionLabel}</span>}
         >
-          <div className={multiSelectionCount > 0 ? 'ap-state-multi rounded-xl border p-4' : 'ap-card p-4'}>
-            <div className='flex flex-wrap items-start justify-between gap-4'>
-              <div>
-                <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>Center panel controls</p>
-                <div className='mt-2 flex flex-wrap items-center gap-2'>
-                  <span className={getStateBadgeClassName(multiSelectionCount > 0 ? 'multiSelected' : selectedEntity && selectedGraphic ? 'selected' : 'disabled')}>
-                    {multiSelectionCount > 0 ? 'Grouped actions' : selectedEntity && selectedGraphic ? 'Single-item actions' : 'No target armed'}
-                  </span>
-                  {selectedEntity && selectedGraphic && multiSelectionCount === 0 ? (
-                    <span className={getStateBadgeClassName('selected')}>
-                      {formatEntityLabel(selectedEntity.entity)}
+          <div className='grid min-h-0 flex-1 gap-4 xl:grid-cols-2'>
+            <div
+              className={[
+                'min-h-0 rounded-xl border border-dashed p-3',
+                draggedCollectionId ? 'border-state-multi/60 bg-cyan-500/5' : 'border-border bg-surface-muted/40',
+              ].join(' ')}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={handleFeaturedZoneDrop}
+            >
+              <div className='mb-3 flex items-center justify-between gap-3'>
+                <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>Featured collection</p>
+                <span className={getStateBadgeClassName(featuredCollection ? 'selected' : 'disabled')}>
+                  {featuredCollection ? 'Pinned' : 'Empty'}
+                </span>
+              </div>
+
+              {featuredCollection ? (
+                <GraphicCollectionCard
+                  group={featuredCollection}
+                  isSelectedGroup={workspace.selection.selectedGraphicConfigId === featuredCollection.graphicConfigId}
+                  workspace={workspace}
+                  onGraphicConfigSelect={handleGraphicConfigSelect}
+                  onEntitySelect={handleEntitySelect}
+                  onMultiSelectionToggle={handleMultiSelectionToggle}
+                  onDragStart={handleCollectionDragStart}
+                  onDragEnd={handleCollectionDragEnd}
+                  isDragged={draggedCollectionId === featuredCollection.graphicConfigId}
+                />
+              ) : (
+                <EmptyState title='No featured collection' description='Drag a graphic collection into this lane to keep it isolated for faster operation.' />
+              )}
+            </div>
+
+            <div className='grid min-h-0 gap-4 xl:grid-rows-[auto,minmax(0,1fr)]'>
+              <div className='flex justify-end'>
+                <div className={multiSelectionCount > 0 ? 'ap-state-multi w-full max-w-4xl rounded-xl border p-4' : 'ap-card w-full max-w-4xl p-4'}>
+                  <p className='sr-only'>Center panel controls</p>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <span
+                      className={getStateBadgeClassName(
+                        multiSelectionCount > 0
+                          ? 'multiSelected'
+                          : selectedEntity && selectedGraphic
+                            ? 'selected'
+                            : 'disabled',
+                      )}
+                    >
+                      {multiSelectionCount > 0
+                        ? `Group selected: ${multiSelectionCount}`
+                        : selectedEntity && selectedGraphic
+                          ? 'Graphic selected'
+                          : 'No selection'}
                     </span>
-                  ) : null}
+                  </div>
+
+                  <div className='mt-4 grid gap-3 sm:grid-cols-3'>
+                    <div className='grid gap-3 sm:grid-cols-3'>
+                      <button
+                        type='button'
+                        onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('playGraphic') : handleAction('playGraphic'))}
+                        disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
+                        className={getControlButtonClassName({ tone: 'success', variant: 'solid', fullWidth: true })}
+                      >Play</button>
+                      <button
+                        type='button'
+                        onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('stopGraphic') : handleAction('stopGraphic'))}
+                        disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
+                        className={getControlButtonClassName({ tone: 'danger', variant: 'solid', fullWidth: true })}
+                      >Stop</button>
+                      <button
+                        type='button'
+                        onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('resumeGraphic') : handleAction('resumeGraphic'))}
+                        disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
+                        className={getControlButtonClassName({ tone: 'warning', variant: 'solid', fullWidth: true })}
+                      >Resume</button>
+                    </div>
+                  </div>
                 </div>
-                <p className='mt-2 text-sm text-text-secondary'>
-                  {multiSelectionCount > 0
-                    ? `Grouped execution is armed for ${multiSelectionCount} item${multiSelectionCount === 1 ? '' : 's'}.`
-                    : selectedEntity && selectedGraphic
-                      ? 'Single selected item is armed for the current preview and live actions.'
-                      : 'Select one item for preview or build a grouped set before running output actions.'}
-                </p>
               </div>
-              <div className='flex flex-wrap items-center gap-2'>
-                <span className={getStateBadgeClassName(selectedBlock ? 'selected' : 'disabled')}>
-                  {selectedBlock ? `Active block: ${selectedBlock.name}` : 'No active block'}
-                </span>
-                <span className={getStateBadgeClassName(previewGraphic ? (isCompositePreviewActive ? 'multiSelected' : 'selected') : 'disabled')}>
-                  {previewGraphic ? `Preview target: ${selectedGraphic?.name ?? previewGraphic.name}` : 'No preview target'}
-                </span>
-                <span className={getStateBadgeClassName(multiSelectionCount > 0 ? 'multiSelected' : 'disabled')}>
-                  {groupedSelectionLabel}
-                </span>
-              </div>
-            </div>
 
-            <div className='mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr),auto] md:items-start'>
-              <div className='grid gap-3 sm:grid-cols-3'>
-                <button
-                  type='button'
-                  onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('playGraphic') : handleAction('playGraphic'))}
-                  disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
-                  className={getControlButtonClassName({ tone: 'success', variant: 'solid', fullWidth: true })}
-                >Play</button>
-                <button
-                  type='button'
-                  onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('stopGraphic') : handleAction('stopGraphic'))}
-                  disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
-                  className={getControlButtonClassName({ tone: 'danger', variant: 'solid', fullWidth: true })}
-                >Stop</button>
-                <button
-                  type='button'
-                  onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('resumeGraphic') : handleAction('resumeGraphic'))}
-                  disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
-                  className={getControlButtonClassName({ tone: 'warning', variant: 'solid', fullWidth: true })}
-                >Resume</button>
-              </div>
-              <div className='flex flex-wrap items-center justify-start gap-2 md:justify-end'>
-                {multiSelectionCount > 0 ? (
-                  <button
-                    type='button'
-                    onClick={handleClearMultiSelection}
-                    className={getControlButtonClassName({ tone: 'danger', variant: 'outline' })}
-                  >
-                    Clear grouped set
-                  </button>
-                ) : null}
-                <span className={getStateBadgeClassName(
-                  multiSelectionCount > 0
-                    ? 'multiSelected'
-                    : selectedEntity && selectedGraphic
-                      ? 'selected'
-                      : 'disabled',
+              <div
+                className={[
+                  'min-h-0 overflow-y-auto rounded-xl border border-dashed p-3 pr-2',
+                  draggedCollectionId ? 'border-state-multi/60 bg-cyan-500/5' : 'border-border bg-surface-muted/20',
+                ].join(' ')}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleSecondaryZoneDrop}
+              >
+                {!hasProfiles ? (
+                  <EmptyState title='No profile' description='Select or create a profile to reveal graphic collections.' />
+                ) : !hasSourceLoaded ? (
+                  <EmptyState title='No source loaded' description='Graphic collections appear here after a profile source is configured and loaded.' />
+                ) : !selectedBlock ? (
+                  <EmptyState title='No block selected' description='Choose a block from the left panel to inspect its graphic collections.' />
+                ) : !hasGraphicCollections ? (
+                  <EmptyState title='No collections for this block' description='This block does not currently expose any graphic collections for the active profile.' />
+                ) : secondaryCollections.length === 0 ? (
+                  <EmptyState title='No additional collections' description='Drag the featured collection back into this area or load more graphic collections for this block.' />
+                ) : (
+                  <div className='space-y-3 pr-1'>
+                    {secondaryCollections.map((group) => (
+                      <GraphicCollectionCard
+                        key={group.graphicConfigId}
+                        group={group}
+                        isSelectedGroup={workspace.selection.selectedGraphicConfigId === group.graphicConfigId}
+                        workspace={workspace}
+                        onGraphicConfigSelect={handleGraphicConfigSelect}
+                        onEntitySelect={handleEntitySelect}
+                        onMultiSelectionToggle={handleMultiSelectionToggle}
+                        onDragStart={handleCollectionDragStart}
+                        onDragEnd={handleCollectionDragEnd}
+                        isDragged={draggedCollectionId === group.graphicConfigId}
+                      />
+                    ))}
+                  </div>
                 )}
-                >
-                  {multiSelectionCount > 0
-                    ? `${multiSelectionCount} grouped ready`
-                    : selectedEntity && selectedGraphic
-                      ? 'Single target ready'
-                      : 'Waiting for target'}
-                </span>
               </div>
-            </div>
-          </div>
 
-          <div className={multiSelectionCount > 0 ? 'ap-state-multi rounded-xl border p-4' : 'ap-card-muted p-4'}>
-            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>Selection status</p>
-            <div className='mt-3 flex flex-wrap items-center gap-2'>
-              <span className={getStateBadgeClassName(selectedBlock ? 'selected' : 'disabled')}>
-                {selectedBlock ? `Active block: ${selectedBlock.name}` : 'No active block'}
-              </span>
-              <span className={getStateBadgeClassName(multiSelectionCount > 0 ? 'multiSelected' : 'disabled')}>
-                {groupedSelectionLabel}
-              </span>
-              <span className={getStateBadgeClassName(previewGraphic ? (isCompositePreviewActive ? 'active' : 'selected') : 'disabled')}>
-                {previewGraphic ? (isCompositePreviewActive ? 'Composite preview' : 'Single preview') : 'No preview target'}
-              </span>
-            </div>
-            <p className='mt-3 text-sm text-text-secondary'>
-              Single click sets the preview target. The toggle button adds or removes items from grouped play.
-            </p>
-          </div>
-
-          <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+          <div className='hidden min-h-0 flex-1 overflow-y-auto pr-1'>
             {!hasProfiles ? (
               <EmptyState title='No profile' description='Select or create a profile to reveal grouped entity collections.' />
             ) : !hasSourceLoaded ? (
@@ -1092,9 +1158,161 @@ export function WorkspaceShell() {
               </div>
             )}
           </div>
+            </div>
+          </div>
         </Panel>
       </section>
     </>
+  )
+}
+
+function GraphicCollectionCard({
+  group,
+  isSelectedGroup,
+  workspace,
+  onGraphicConfigSelect,
+  onEntitySelect,
+  onMultiSelectionToggle,
+  onDragStart,
+  onDragEnd,
+  isDragged,
+}: {
+  group: ReturnType<typeof resolveGraphicConfigEntityLists>[number]
+  isSelectedGroup: boolean
+  workspace: ReturnType<typeof createWorkspaceSelectionState>
+  onGraphicConfigSelect: (graphicConfigId: string) => void
+  onEntitySelect: (graphicConfigId: string, entityIndex: number) => void
+  onMultiSelectionToggle: (graphicConfigId: string, entityIndex: number) => void
+  onDragStart: (event: DragEvent<HTMLElement>, graphicConfigId: string) => void
+  onDragEnd: () => void
+  isDragged: boolean
+}) {
+  const isEmptyGroup = group.items.length === 0
+
+  return (
+    <article
+      draggable
+      onDragStart={(event) => onDragStart(event, group.graphicConfigId)}
+      onDragEnd={onDragEnd}
+      className={[
+        'cursor-grab p-4 active:cursor-grabbing',
+        isDragged ? 'opacity-60' : '',
+        getSelectableItemClassName({
+          selected: isSelectedGroup,
+          warning: isEmptyGroup,
+          interactive: false,
+        }),
+      ].join(' ').trim()}
+    >
+      <button
+        type='button'
+        onClick={() => onGraphicConfigSelect(group.graphicConfigId)}
+        className='ap-focus flex w-full items-start justify-between gap-3 rounded-lg text-left'
+      >
+        <div className='min-w-0'>
+          <h3 className='text-sm font-semibold leading-5 text-text-primary break-words'>{group.graphic.name}</h3>
+          <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-text-secondary'>
+            {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
+          </p>
+        </div>
+        <div className='flex flex-wrap items-center gap-2'>
+          {isEmptyGroup ? <span className={getStateBadgeClassName('warning')}>Empty</span> : null}
+          <span className={getStateBadgeClassName(isSelectedGroup ? 'selected' : 'disabled')}>
+            {group.items.length}
+          </span>
+        </div>
+      </button>
+
+      {isEmptyGroup ? (
+        <div className='mt-3'>
+          <EmptyState title='Empty collection' description='This graphic group is available, but the active block has no matching items in it yet.' />
+        </div>
+      ) : (
+        <div className='mt-3 space-y-2'>
+          {group.items.map((item, index) => {
+            const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
+            const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
+            const groupedSelectionForGroup = workspace.selection.selectedItems?.find(
+              (selectedItem) => selectedItem.graphicConfigId === group.graphicConfigId,
+            )
+            const willReplaceGroupedItem = Boolean(
+              groupedSelectionForGroup &&
+              groupedSelectionForGroup.entityIndex !== index &&
+              !isMultiSelected,
+            )
+
+            return (
+              <div
+                key={`${group.graphicConfigId}-${index}`}
+                className={[
+                  'rounded-lg p-3',
+                  getSelectableItemClassName({
+                    selected: isSelectedItem,
+                    multiSelected: isMultiSelected,
+                    interactive: false,
+                  }),
+                ].join(' ')}
+              >
+                <div className='flex items-start gap-3'>
+                  <button
+                    type='button'
+                    onClick={() => onMultiSelectionToggle(group.graphicConfigId, index)}
+                    aria-pressed={isMultiSelected}
+                    className={[
+                      'ap-focus mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-bold',
+                      isMultiSelected
+                        ? 'border-state-multi bg-state-multi text-slate-950'
+                        : 'border-border bg-surface-app text-text-disabled hover:border-state-multi hover:text-accent',
+                    ].join(' ')}
+                    title={isMultiSelected ? 'Remove from grouped selection' : willReplaceGroupedItem ? 'Replace grouped selection in this collection' : 'Add to grouped selection'}
+                  >
+                    {isMultiSelected ? 'OK' : '+'}
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => onEntitySelect(group.graphicConfigId, index)}
+                    className='ap-focus min-w-0 flex-1 rounded-lg text-left'
+                  >
+                    <div className='flex flex-wrap items-center justify-between gap-3'>
+                      <div className='min-w-0'>
+                        <p className={`text-sm leading-5 break-words ${isSelectedItem ? 'font-semibold text-text-primary' : 'text-text-primary'}`}>
+                          {formatEntityCollectionLabel(item)}
+                        </p>
+                        <p className='mt-1 text-xs text-text-secondary'>
+                          Item {index + 1} in this collection
+                        </p>
+                      </div>
+                      <div className='flex flex-wrap gap-2'>
+                        {isSelectedItem ? <span className={getStateBadgeClassName('selected')}>Preview</span> : null}
+                        {isMultiSelected ? <span className={getStateBadgeClassName('multiSelected')}>Grouped</span> : null}
+                        {willReplaceGroupedItem ? <span className={getStateBadgeClassName('warning')}>Replaces grouped</span> : null}
+                      </div>
+                    </div>
+                    <div className='mt-2 flex flex-wrap items-center gap-3 text-xs text-text-secondary'>
+                      <span>{isSelectedItem ? 'Selected for preview' : 'Click to preview'}</span>
+                      <span>{isMultiSelected ? 'Included in grouped play' : willReplaceGroupedItem ? 'Selecting group toggle replaces the current grouped item in this collection' : 'Available for grouped play'}</span>
+                    </div>
+                  </button>
+                  <div className='hidden shrink-0 self-center md:flex'>
+                    <button
+                      type='button'
+                      onClick={() => onMultiSelectionToggle(group.graphicConfigId, index)}
+                      aria-pressed={isMultiSelected}
+                      className={getControlButtonClassName({
+                        tone: isMultiSelected ? 'accent' : 'neutral',
+                        variant: isMultiSelected ? 'outline' : 'ghost',
+                      })}
+                    >
+                      {isMultiSelected ? 'Grouped' : willReplaceGroupedItem ? 'Replace group' : 'Group'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </article>
   )
 }
 
@@ -1168,15 +1386,6 @@ function DualDisplayArea({
     <section className='grid gap-4 xl:grid-cols-2'>
       <DisplayScreen
         label='Preview'
-        eyebrow='Selected preview'
-        title={selectedGraphic?.name ?? previewGraphic?.name ?? 'No preview target'}
-        description={multiSelectionCount > 1
-          ? `Preview target shows ${multiSelectionCount} grouped items together.`
-          : selectedEntityLabel && selectedGraphic
-            ? `Preview target: ${selectedEntityLabel} in ${selectedGraphic.name}.`
-            : 'Preview target is visual-only. Choose an item below to arm it for output.'}
-        status={previewGraphic ? (isCompositePreviewActive ? `${multiSelectionCount} grouped` : 'Preview target') : 'Idle'}
-        state={previewGraphic ? (isCompositePreviewActive ? 'multiSelected' : 'selected') : 'disabled'}
       >
         {!previewGraphic ? (
           <DisplayEmptyState
@@ -1207,11 +1416,6 @@ function DualDisplayArea({
 
       <DisplayScreen
         label='ONAIR'
-        eyebrow='On-air output'
-        title={onAirSnapshot?.title ?? 'No on-air graphic'}
-        description={onAirSnapshot?.description ?? 'Waiting for live output.'}
-        status={onAirSnapshot ? (onAirSnapshot.mode === 'grouped' ? `${onAirSnapshot.itemCount} live` : 'Live') : 'Idle'}
-        state={onAirSnapshot ? 'active' : 'disabled'}
       >
         {!onAirSnapshot ? (
           <DisplayEmptyState
@@ -1233,35 +1437,17 @@ function DualDisplayArea({
 
 function DisplayScreen({
   label,
-  eyebrow,
-  title,
-  description,
-  status,
-  state,
   children,
 }: {
   label: string
-  eyebrow: string
-  title: string
-  description: string
-  status: string
-  state: Parameters<typeof getStateBadgeClassName>[0]
   children: ReactNode
 }) {
   return (
-    <article className='ap-panel overflow-hidden p-0'>
-      <div className='flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4'>
-        <div>
-          <p className='text-xs font-semibold uppercase tracking-[0.22em] text-text-secondary'>{eyebrow}</p>
-          <div className='mt-2 flex flex-wrap items-center gap-2'>
-            <p className='text-base font-semibold text-text-primary'>{label}</p>
-            <span className={getStateBadgeClassName(state)}>{status}</span>
-          </div>
-          <p className='mt-2 text-sm font-medium text-text-primary'>{title}</p>
-          <p className='mt-1 text-sm text-text-secondary'>{description}</p>
-        </div>
-      </div>
-      <div className='p-5'>
+    <article className='ap-panel overflow-hidden p-3'>
+      <div className='relative'>
+        <p className='pointer-events-none absolute left-3 top-3 z-20 text-sm font-semibold tracking-[0.18em] text-text-primary/80'>
+          {label}
+        </p>
         {children}
       </div>
     </article>

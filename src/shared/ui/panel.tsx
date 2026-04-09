@@ -26,7 +26,7 @@ export function Panel({
       <header className='ap-panel-header'>
         <div className='space-y-1'>
           {eyebrow ? <p className='ap-section-eyebrow'>{eyebrow}</p> : null}
-          <h2 className={controlClassNames.panelTitle}>{title}</h2>
+          {title ? <h2 className={controlClassNames.panelTitle}>{title}</h2> : null}
         </div>
         {aside}
       </header>
