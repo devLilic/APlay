@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { actionTypes } from '@/core/actions/actionTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
+import { useNotificationStore } from '@/features/notifications/notificationsContext'
 import { SettingsPanel, type SettingsFeedback } from '@/features/settings/components/SettingsPanel'
 import { Panel } from '@/shared/ui/panel'
 import {
@@ -38,6 +39,7 @@ import {
 import { createWorkspaceConfigRepository, type WorkspaceConfigRepository, type WorkspaceConfigSnapshot } from '@/settings/storage/workspaceConfigRepository'
 import { resolveActivePreviewBackground } from '@/settings/utils/previewBackgrounds'
 import { getControlButtonClassName, getSelectableItemClassName, getStateBadgeClassName } from '@/shared/ui/theme'
+import { publishWorkspaceShellNotifications } from '@/features/workspace/components/workspaceShellNotifications'
 
 type ShellLoadState =
   | { status: 'loading' }
@@ -59,6 +61,7 @@ type PendingImportSummary =
   }
 
 export function WorkspaceShell() {
+  const notificationStore = useNotificationStore()
   const [loadState, setLoadState] = useState<ShellLoadState>({ status: 'loading' })
   const [selection, setSelection] = useState<WorkspaceSelection>({})
   const [feedback, setFeedback] = useState<WorkspaceActionFeedback | null>(null)
@@ -70,6 +73,51 @@ export function WorkspaceShell() {
   const [showSettings, setShowSettings] = useState(false)
   const [blockFilter, setBlockFilter] = useState('')
   const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
+  const lastSourceRefreshFeedbackRef = useRef<SettingsFeedback | null>(null)
+  const lastSettingsFeedbackRef = useRef<SettingsFeedback | null>(null)
+  const lastExecutionFeedbackRef = useRef<WorkspaceActionFeedback | null>(null)
+
+  useEffect(() => {
+    if (!sourceRefreshFeedback || lastSourceRefreshFeedbackRef.current === sourceRefreshFeedback) {
+      return
+    }
+
+    publishWorkspaceShellNotifications({
+      store: notificationStore,
+      sourceRefreshFeedback,
+      settingsFeedback: null,
+      executionFeedback: null,
+    })
+    lastSourceRefreshFeedbackRef.current = sourceRefreshFeedback
+  }, [notificationStore, sourceRefreshFeedback])
+
+  useEffect(() => {
+    if (!settingsFeedback || lastSettingsFeedbackRef.current === settingsFeedback) {
+      return
+    }
+
+    publishWorkspaceShellNotifications({
+      store: notificationStore,
+      sourceRefreshFeedback: null,
+      settingsFeedback,
+      executionFeedback: null,
+    })
+    lastSettingsFeedbackRef.current = settingsFeedback
+  }, [notificationStore, settingsFeedback])
+
+  useEffect(() => {
+    if (!feedback || lastExecutionFeedbackRef.current === feedback) {
+      return
+    }
+
+    publishWorkspaceShellNotifications({
+      store: notificationStore,
+      sourceRefreshFeedback: null,
+      settingsFeedback: null,
+      executionFeedback: feedback,
+    })
+    lastExecutionFeedbackRef.current = feedback
+  }, [feedback, notificationStore])
 
   useEffect(() => {
     try {
@@ -579,17 +627,11 @@ export function WorkspaceShell() {
         </button>
       </div>
 
-      {sourceRefreshFeedback ? (
-        <div className={sourceRefreshFeedback.kind === 'success' ? 'ap-banner ap-banner-success' : 'ap-banner ap-banner-danger'}>
-          {sourceRefreshFeedback.message}
-        </div>
-      ) : null}
-
       {showSettings ? (
         <SettingsPanel
           settings={loadState.snapshot.settings}
           diagnostics={workspaceData.diagnostics}
-          feedback={settingsFeedback}
+          feedback={null}
           selectedGraphic={selectedGraphic ?? previewGraphic}
           previewContent={previewContent}
           isImportingGraphicConfig={isImportingGraphicConfig}
@@ -1083,24 +1125,6 @@ export function WorkspaceShell() {
             )}
           </div>
 
-          {feedback ? (
-            <div className={feedback.kind === 'success' ? 'ap-banner ap-banner-success' : 'ap-banner ap-banner-danger'}>
-              <div className='mb-2 flex flex-wrap items-center gap-2'>
-                <span className={getStateBadgeClassName(feedback.kind === 'success' ? 'active' : 'invalid')}>
-                  {multiSelectionCount > 0 ? 'Grouped execution' : 'Single item execution'}
-                </span>
-                {multiSelectionCount > 0 ? (
-                  <span className={getStateBadgeClassName('multiSelected')}>
-                    {multiSelectionCount} selected
-                  </span>
-                ) : null}
-              </div>
-              <p className='font-semibold'>{feedback.title}</p>
-              <div className='mt-1 space-y-1'>
-                {feedback.details.map((detail) => <p key={detail}>{detail}</p>)}
-              </div>
-            </div>
-          ) : null}
         </Panel>
       </section>
     </>
