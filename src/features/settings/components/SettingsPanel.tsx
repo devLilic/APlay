@@ -1,6 +1,5 @@
 import { useEffect, useState, type PropsWithChildren, type ReactNode } from 'react'
 import { supportedEntityTypes, type SupportedEntityType } from '@/core/entities/entityTypes'
-import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import type {
   AppSettings,
   CsvSourceSchemaConfig,
@@ -36,9 +35,11 @@ import {
   SettingsMessageBanner,
   SettingsPlaceholderCard,
   SettingsTabNavigation,
+  PreviewCanvasSidebar,
   type SettingsTabMeta,
 } from '@/features/settings/components/SettingsPanelChrome'
 import { Panel } from '@/shared/ui/panel'
+import { getControlButtonClassName, getStateBadgeClassName } from '@/shared/ui/theme'
 
 export interface SettingsFeedback {
   kind: 'success' | 'error'
@@ -123,9 +124,31 @@ const settingsTabs: SettingsTabMeta[] = [
 
 const settingsFieldClassName = 'ap-focus w-full rounded-xl border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary placeholder:text-text-disabled disabled:cursor-not-allowed disabled:border-border-muted disabled:bg-surface-muted disabled:text-text-disabled'
 const settingsReadOnlyFieldClassName = 'w-full rounded-xl border border-border-muted bg-surface-muted px-3 py-2.5 text-sm text-text-secondary'
-const settingsCheckboxRowClassName = 'ap-focus flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm text-text-primary'
-const settingsSubsectionClassName = 'rounded-2xl border border-border bg-card p-4'
+const settingsLabelClassName = 'text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'
+const settingsEyebrowClassName = 'text-[11px] font-semibold uppercase tracking-[0.22em] text-accent/90'
+const settingsHelperTextClassName = 'text-sm leading-6 text-text-secondary'
+const settingsMetaTextClassName = 'text-xs uppercase tracking-[0.16em] text-text-secondary'
+const settingsCheckboxRowClassName = 'ap-focus flex items-center gap-2 rounded-xl border border-border-muted bg-surface-app/60 px-3 py-2.5 text-sm text-text-primary'
+const settingsSubsectionClassName = 'rounded-2xl border border-border bg-card p-4 sm:p-5'
 const settingsInsetSectionClassName = 'rounded-2xl border border-border-muted bg-surface-muted p-4'
+const settingsActionRowClassName = 'flex flex-wrap items-center gap-2'
+const settingsActionRowEndClassName = 'flex flex-wrap items-center justify-end gap-2'
+const settingsSplitActionRowClassName = 'flex flex-wrap items-start justify-between gap-3'
+const settingsCompactFieldGroupClassName = 'space-y-3'
+const settingsNestedEditorRowClassName = 'grid gap-3 rounded-xl border border-border-muted bg-surface-app/40 p-4'
+const settingsSecondaryButtonClassName = getControlButtonClassName()
+const settingsDangerButtonClassName = getControlButtonClassName({ tone: 'danger', variant: 'outline' })
+const settingsSuccessButtonClassName = getControlButtonClassName({ tone: 'success', variant: 'outline' })
+const settingsWarningButtonClassName = getControlButtonClassName({ tone: 'warning', variant: 'outline' })
+const settingsAccentButtonClassName = getControlButtonClassName({ tone: 'accent', variant: 'solid' })
+
+function getSettingsStatusClassName(kind: 'success' | 'warning' | 'error'): string {
+  return kind === 'success'
+    ? 'ap-banner ap-banner-success'
+    : kind === 'warning'
+      ? 'ap-banner ap-banner-warning'
+      : 'ap-banner ap-banner-danger'
+}
 
 export function SettingsPanel({
   settings,
@@ -787,9 +810,9 @@ function FormSection({ title, description, children }: PropsWithChildren<{ title
   return (
     <section className='ap-form-section'>
       <div className='ap-form-section-header'>
-        <p className='text-[11px] font-semibold uppercase tracking-[0.22em] text-accent'>Settings section</p>
+        <p className={settingsEyebrowClassName}>Settings section</p>
         <h3 className='ap-panel-title mt-2'>{title}</h3>
-        <p className='mt-1 max-w-3xl ap-help'>{description}</p>
+        <p className={`mt-1 max-w-3xl ${settingsHelperTextClassName}`}>{description}</p>
       </div>
       <div className='space-y-4'>{children}</div>
     </section>
@@ -815,7 +838,7 @@ function NumberField({
 }) {
   return (
     <label className='space-y-2'>
-      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>{label}</span>
+      <span className={settingsLabelClassName}>{label}</span>
       <div className='space-y-2'>
         <input
           type='number'
@@ -865,8 +888,8 @@ function ColorField({
 
   return (
     <label className='space-y-2'>
-      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>{label}</span>
-      <div className='flex items-center gap-3 rounded-xl border border-border bg-surface-app px-3 py-2.5'>
+      <span className={settingsLabelClassName}>{label}</span>
+      <div className='flex items-center gap-3 rounded-xl border border-border-muted bg-surface-app px-3 py-2.5'>
         <input
           type='color'
           value={normalizedValue}
@@ -1314,11 +1337,10 @@ function coerceOscArgValue(type: OscArgType, currentValue: string | number): str
 }
 
 function getOscInputClass(hasError: boolean): string {
-  return `w-full rounded-xl border px-3 py-2 text-sm outline-none transition ${
-    hasError
-      ? 'border-rose-300 bg-rose-50 text-rose-900 focus:border-rose-400'
-      : 'border-border bg-white text-ink focus:border-accent'
-  }`
+  return [
+    settingsFieldClassName,
+    hasError ? 'border-state-danger bg-state-danger/10 text-text-primary' : '',
+  ].filter(Boolean).join(' ')
 }
 
 function getOscTargetValidationMessages(target: { host: string; port: number } | undefined): string[] {
@@ -1502,21 +1524,21 @@ function ProfileSection({
         </label>
       </div>
 
-      <div className='flex flex-wrap gap-2'>
-        <button type='button' onClick={addProfile} className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'>
+      <div className={settingsActionRowClassName}>
+        <button type='button' onClick={addProfile} className={settingsSecondaryButtonClassName}>
           Add profile
         </button>
         <button
           type='button'
           onClick={removeProfile}
           disabled={settings.profiles.length === 1}
-          className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+          className={settingsDangerButtonClassName}
         >
           Remove profile
         </button>
       </div>
 
-      <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+      <div className={`space-y-3 ${settingsSubsectionClassName}`}>
         <div>
           <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Working source file</p>
           <p className='mt-1 text-sm text-muted'>
@@ -1530,7 +1552,7 @@ function ProfileSection({
             <select
               value={selectedProfile?.source?.type ?? 'csv'}
               disabled
-              className='w-full rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm font-medium text-muted'
+              className={settingsReadOnlyFieldClassName}
             >
               <option value='csv'>CSV</option>
             </select>
@@ -1546,12 +1568,12 @@ function ProfileSection({
           </label>
         </div>
 
-        <div className='flex flex-wrap gap-2'>
+        <div className={settingsActionRowClassName}>
           <button
             type='button'
             onClick={() => void onPickSourceFile()}
             disabled={!selectedProfile || isPickingSourceFile}
-            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+            className={settingsSecondaryButtonClassName}
           >
             {isPickingSourceFile ? 'Selecting CSV...' : 'Choose CSV file'}
           </button>
@@ -1564,7 +1586,7 @@ function ProfileSection({
               },
             }))}
             disabled={!selectedProfile?.source?.filePath}
-            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+            className={settingsDangerButtonClassName}
           >
             Clear file
           </button>
@@ -1573,15 +1595,15 @@ function ProfileSection({
         <ProfileSourceStatus profile={selectedProfile} />
       </div>
 
-      <div className='space-y-4 rounded-2xl border border-border bg-surface/30 p-4'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
+      <div className={`space-y-4 ${settingsInsetSectionClassName}`}>
+        <div className={settingsSplitActionRowClassName}>
           <div>
             <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile graphic configs</p>
             <p className='mt-1 text-sm text-muted'>
               Remove from profile only detaches the config from this show. It does not delete it from the global library.
             </p>
           </div>
-          <span className='rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700'>
+          <span className={getStateBadgeClassName('multiSelected')}>
             Profile assignment only
           </span>
         </div>
@@ -1599,16 +1621,16 @@ function ProfileSection({
               }
 
               return (
-                <div key={graphic.id} className='rounded-2xl border border-border bg-white px-4 py-3'>
+                <div key={graphic.id} className='ap-card px-4 py-3'>
                   <div className='min-w-0'>
-                    <p className='truncate text-sm font-semibold text-ink'>{graphic.name}</p>
+                    <p className='truncate text-sm font-semibold text-text-primary'>{graphic.name}</p>
                     <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                   </div>
                   <div className='mt-3'>
                     <button
                       type='button'
                       onClick={() => onDetachGraphicConfig(graphic.id)}
-                      className='rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 transition hover:border-amber-400 hover:bg-amber-100'
+                      className={settingsWarningButtonClassName}
                     >
                       Remove from profile
                     </button>
@@ -1618,12 +1640,12 @@ function ProfileSection({
             })}
           </div>
         ) : (
-          <div className='rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted'>
+          <div className='ap-empty-state'>
             No graphic configs are assigned to this profile yet.
           </div>
         )}
 
-        <div className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),auto] md:items-end'>
+        <div className={`grid gap-3 ${settingsSubsectionClassName} md:grid-cols-[minmax(0,1fr),auto] md:items-end`}>
           <label className='space-y-2'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Add existing library config</span>
             <select
@@ -1643,7 +1665,7 @@ function ProfileSection({
             type='button'
             onClick={() => graphicToAttach && onAttachGraphicConfig(graphicToAttach)}
             disabled={!graphicToAttach}
-            className='rounded-xl border border-accent bg-accent px-4 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+            className={settingsAccentButtonClassName}
           >
             Add to profile
           </button>
@@ -1665,19 +1687,19 @@ function IconActionButton({
   tone: 'neutral' | 'emerald' | 'amber' | 'rose'
 }) {
   const toneClass = tone === 'emerald'
-    ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:border-emerald-400 hover:bg-emerald-100'
+    ? getControlButtonClassName({ tone: 'success', variant: 'outline' })
     : tone === 'amber'
-      ? 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400 hover:bg-amber-100'
+      ? getControlButtonClassName({ tone: 'warning', variant: 'outline' })
       : tone === 'rose'
-        ? 'border-rose-300 bg-rose-50 text-rose-700 hover:border-rose-400 hover:bg-rose-100'
-        : 'border-border bg-white text-ink hover:border-accent'
+        ? getControlButtonClassName({ tone: 'danger', variant: 'outline' })
+        : getControlButtonClassName()
   const badgeToneClass = tone === 'emerald'
-    ? 'bg-emerald-600 text-white'
+    ? 'border-state-active/50 bg-state-active text-slate-950'
     : tone === 'amber'
-      ? 'bg-amber-500 text-white'
+      ? 'border-state-warning/50 bg-state-warning text-slate-950'
       : tone === 'rose'
-        ? 'bg-rose-600 text-white'
-        : 'bg-slate-800 text-white'
+        ? 'border-state-danger/50 bg-state-danger text-white'
+        : 'border-border-strong bg-card text-text-primary'
 
   return (
     <div className='group relative'>
@@ -1685,11 +1707,11 @@ function IconActionButton({
         type='button'
         onClick={onClick}
         aria-label={label}
-        className={`flex h-9 w-9 items-center justify-center rounded-xl border transition ${toneClass}`}
+        className={`h-9 w-9 !min-h-9 !px-0 !py-0 ${toneClass}`}
       >
         {icon}
       </button>
-      <span className={`pointer-events-none absolute bottom-full right-0 mb-2 whitespace-nowrap rounded-md px-2 py-1 text-[10px] font-semibold opacity-0 shadow-sm transition group-hover:opacity-100 ${badgeToneClass}`}>
+      <span className={`pointer-events-none absolute bottom-full right-0 mb-2 whitespace-nowrap rounded-md border px-2 py-1 text-[10px] font-semibold opacity-0 transition group-hover:opacity-100 ${badgeToneClass}`}>
         {label}
       </span>
     </div>
@@ -1876,7 +1898,7 @@ function CsvSchemaSection({
         <button
           type='button'
           onClick={addSchema}
-          className='self-end rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+          className={`self-end ${settingsSecondaryButtonClassName}`}
         >
           Add schema
         </button>
@@ -1884,14 +1906,14 @@ function CsvSchemaSection({
           type='button'
           onClick={removeSchema}
           disabled={!selectedSchema || settings.sourceSchemas.length <= 1}
-          className='self-end rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+          className={`self-end ${settingsDangerButtonClassName}`}
         >
           Remove schema
         </button>
       </div>
 
       {!selectedSchema ? (
-        <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+        <div className={getSettingsStatusClassName('error')}>
           No CSV schema is attached to the active profile.
         </div>
       ) : (
@@ -1928,7 +1950,7 @@ function CsvSchemaSection({
             CSV has header row
           </label>
 
-          <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+          <div className={`space-y-3 ${settingsSubsectionClassName}`}>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Block detection</p>
               <p className='mt-1 text-sm text-muted'>
@@ -1965,7 +1987,7 @@ function CsvSchemaSection({
             </div>
           </div>
 
-          <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+          <div className={`space-y-3 ${settingsSubsectionClassName}`}>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Detected header columns</p>
               <p className='mt-1 text-sm text-muted'>
@@ -1976,7 +1998,7 @@ function CsvSchemaSection({
             </div>
           </div>
 
-          <div className='space-y-3 rounded-2xl border border-border bg-surface/30 p-4'>
+          <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Profile graphic config mapping</p>
               <p className='mt-1 text-sm text-muted'>
@@ -1991,17 +2013,13 @@ function CsvSchemaSection({
                   const targetOptions = getGraphicBindingTargetOptions(graphic)
 
                   return (
-                    <div key={graphic.id} className='rounded-2xl border border-border bg-white px-4 py-3'>
+                    <div key={graphic.id} className='ap-card px-4 py-3'>
                       <div className='flex flex-wrap items-start justify-between gap-3'>
                         <div className='min-w-0'>
-                          <p className='truncate text-sm font-semibold text-ink'>{graphic.name}</p>
+                          <p className='truncate text-sm font-semibold text-text-primary'>{graphic.name}</p>
                           <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                         </div>
-                        <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                          isStaticGraphic
-                            ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : 'border border-sky-200 bg-sky-50 text-sky-700'
-                        }`}>
+                        <span className={getStateBadgeClassName(isStaticGraphic ? 'active' : 'multiSelected')}>
                           {isStaticGraphic ? 'Static asset' : 'Manual bindings'}
                         </span>
                       </div>
@@ -2020,7 +2038,7 @@ function CsvSchemaSection({
                                 graphic.id,
                                 (current) => ({ ...current, bindings: [...(current.bindings ?? []), createProfileBindingDraft(current, detectedColumns)] }),
                               )}
-                              className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                              className={settingsSecondaryButtonClassName}
                             >
                               Add binding
                             </button>
@@ -2029,7 +2047,7 @@ function CsvSchemaSection({
                           {(graphic.bindings ?? []).length > 0 ? (
                             <div className='space-y-2'>
                               {(graphic.bindings ?? []).map((binding, index) => (
-                                <div key={`${graphic.id}-${index}`} className='grid gap-3 rounded-2xl border border-border bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
+                                <div key={`${graphic.id}-${index}`} className={`grid gap-3 ${settingsInsetSectionClassName} md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end`}>
                                   <SchemaColumnField
                                     label='Source field'
                                     value={binding.sourceField}
@@ -2082,7 +2100,7 @@ function CsvSchemaSection({
                                         bindings: (current.bindings ?? []).filter((_, bindingIndex) => bindingIndex !== index),
                                       }),
                                     )}
-                                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                                    className={settingsDangerButtonClassName}
                                   >
                                     Remove
                                   </button>
@@ -2090,7 +2108,7 @@ function CsvSchemaSection({
                               ))}
                             </div>
                           ) : (
-                            <div className='rounded-xl border border-dashed border-border bg-slate-50 p-3 text-sm text-muted'>
+                            <div className='ap-empty-state px-3 py-3'>
                               No bindings configured yet for this graphic config.
                             </div>
                           )}
@@ -2101,18 +2119,18 @@ function CsvSchemaSection({
                 })}
               </div>
             ) : (
-              <div className='rounded-2xl border border-dashed border-border bg-white p-4 text-sm text-muted'>
+              <div className='ap-empty-state'>
                 No graphic configs are assigned to the active profile yet.
               </div>
             )}
           </div>
 
           {validationMessages.length > 0 ? (
-            <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+            <div className={getSettingsStatusClassName('error')}>
               {validationMessages.join(' | ')}
             </div>
           ) : (
-            <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+            <div className={getSettingsStatusClassName('success')}>
               CSV schema is structurally valid.
             </div>
           )}
@@ -2137,7 +2155,7 @@ function SchemaColumnField({
 }) {
   return (
     <label className='space-y-2'>
-      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</span>
+      <span className={settingsLabelClassName}>{label}</span>
       {detectedColumns.length > 0 ? (
         <select
           value={value}
@@ -2223,14 +2241,14 @@ function ProfileSourceStatus({ profile }: { profile: ShowProfileConfig | undefin
 
   if (!isValidCsvFilePath(profile.source.filePath)) {
     return (
-      <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+      <div className={getSettingsStatusClassName('error')}>
         The selected source path is invalid. Choose a valid `.csv` file.
       </div>
     )
   }
 
   return (
-    <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+    <div className={getSettingsStatusClassName('success')}>
       Active source file: {profile.source.filePath}
     </div>
   )
@@ -2273,7 +2291,7 @@ function GraphicSelectionSection({
 }) {
   return (
     <FormSection title='Graphic config library' description='Create, select, duplicate, and delete reusable graphic configs. Editing happens in the panel on the right.'>
-      <div className='grid gap-3 rounded-2xl border border-border bg-surface/30 p-4'>
+      <div className={`grid gap-3 ${settingsInsetSectionClassName}`}>
         <div>
           <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Create new graphic config</p>
           <p className='mt-1 text-sm text-muted'>
@@ -2306,7 +2324,7 @@ function GraphicSelectionSection({
             />
           </label>
         </div>
-        <div className='flex justify-end'>
+        <div className={settingsActionRowEndClassName}>
           <button
             type='button'
             onClick={onCreateGraphicConfig}
@@ -2351,7 +2369,7 @@ function GraphicSelectionSection({
               Remove from profile only detaches from the active show. Delete from library removes the config globally.
             </p>
           </div>
-          <span className='rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700'>
+          <span className={getStateBadgeClassName('invalid')}>
             Delete from library is global
           </span>
         </div>
@@ -2368,7 +2386,7 @@ function GraphicSelectionSection({
                 className={`rounded-2xl border px-4 py-3 text-left transition ${
                   isSelected
                     ? 'border-accent bg-accent/5'
-                    : 'border-border bg-white hover:border-accent/40'
+                    : 'border-border bg-card hover:border-accent/40'
                 }`}
               >
                 <div className='flex items-start justify-between gap-3'>
@@ -2378,15 +2396,11 @@ function GraphicSelectionSection({
                       onClick={() => onSelectedGraphicIdChange(graphic.id)}
                       className='w-full text-left'
                     >
-                      <p className='truncate text-sm font-semibold text-ink'>{graphic.name}</p>
+                      <p className='truncate text-sm font-semibold text-text-primary'>{graphic.name}</p>
                       <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
                     </button>
                   </div>
-                  <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${
-                    isLoadedByProfile
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
-                  }`}>
+                  <span className={getStateBadgeClassName(isLoadedByProfile ? 'active' : 'warning')}>
                     {isLoadedByProfile ? 'Assigned to profile' : 'Library only'}
                   </span>
                 </div>
@@ -2412,7 +2426,7 @@ function GraphicSelectionSection({
                   />
                 </div>
                 {deleteIsPending ? (
-                  <div className='basis-full rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700'>
+                  <div className='basis-full ap-banner ap-banner-danger p-4'>
                     <p className='font-semibold'>Delete "{graphic.name}" from the library?</p>
                     {pendingGraphicDelete.references.length > 0 ? (
                       <div className='mt-2 space-y-2'>
@@ -2426,11 +2440,11 @@ function GraphicSelectionSection({
                         This permanently removes the config from the reusable library for all profiles.
                       </p>
                     )}
-                    <div className='mt-3 flex flex-wrap gap-2'>
+                <div className={`mt-3 ${settingsActionRowClassName}`}>
                       <button
                         type='button'
                         onClick={onCancelDeleteGraphicConfig}
-                        className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                        className={settingsSecondaryButtonClassName}
                       >
                         Cancel
                       </button>
@@ -2474,25 +2488,25 @@ function ImportSummaryCard({
   onCancel: () => void
 }) {
   return (
-    <section className='rounded-3xl border border-sky-200 bg-sky-50/80 p-5 shadow-panel'>
+    <section className='ap-panel p-5'>
       <div className='flex flex-wrap items-start justify-between gap-4'>
         <div>
-          <p className='text-xs font-semibold uppercase tracking-[0.2em] text-sky-700'>Import summary</p>
-          <h3 className='mt-1 text-lg font-semibold text-slate-900'>Review before importing</h3>
-          <p className='mt-1 text-sm text-slate-600'>{summary.filePath}</p>
+          <p className='ap-section-eyebrow'>Import summary</p>
+          <h3 className='mt-1 text-lg font-semibold text-text-primary'>Review before importing</h3>
+          <p className='mt-1 text-sm text-text-secondary'>{summary.filePath}</p>
         </div>
-        <div className='flex flex-wrap gap-2'>
+        <div className={settingsActionRowClassName}>
           <button
             type='button'
             onClick={onCancel}
-            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+            className={settingsDangerButtonClassName}
           >
             Cancel
           </button>
           <button
             type='button'
             onClick={onConfirm}
-            className='rounded-xl border border-sky-600 bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700'
+            className={settingsAccentButtonClassName}
           >
             Confirm import
           </button>
@@ -2538,9 +2552,9 @@ function ImportSummaryCard({
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className='rounded-2xl border border-white/70 bg-white px-4 py-3'>
+    <div className='ap-card px-4 py-3'>
       <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>{label}</p>
-      <p className='mt-1 text-sm font-semibold text-ink'>{value}</p>
+      <p className='mt-1 text-sm font-semibold text-text-primary'>{value}</p>
     </div>
   )
 }
@@ -2586,7 +2600,7 @@ function ReferenceImagesSection({
 }) {
   return (
     <FormSection title='Reference images' description='Manage reusable background images used only for Preview16x9 calibration.'>
-      <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+      <div className={`space-y-3 ${settingsSubsectionClassName}`}>
         <div className='grid gap-3'>
           <label className='space-y-2'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image name</span>
@@ -2614,7 +2628,7 @@ function ReferenceImagesSection({
             type='button'
             onClick={onPickReferenceImage}
             disabled={isPickingReferenceImage}
-            className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-accent disabled:cursor-not-allowed disabled:opacity-50'
+            className={settingsSecondaryButtonClassName}
           >
             {isPickingReferenceImage ? 'Choosing file...' : 'Choose image'}
           </button>
@@ -2622,7 +2636,7 @@ function ReferenceImagesSection({
             type='button'
             onClick={onAddReferenceImage}
             disabled={draftName.trim().length === 0 || draftPath.trim().length === 0}
-            className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+            className={settingsAccentButtonClassName}
           >
             Add image
           </button>
@@ -2632,18 +2646,18 @@ function ReferenceImagesSection({
       <div className='space-y-3'>
         <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Available reference images</p>
         {referenceImages.length > 0 ? (
-          <div className='space-y-3'>
+          <div className={settingsCompactFieldGroupClassName}>
             {referenceImages.map((image) => (
-              <div key={image.id} className='flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border bg-white p-4'>
+              <div key={image.id} className='ap-card flex flex-wrap items-start justify-between gap-3 p-4'>
                 <div className='min-w-0 flex-1'>
-                  <p className='text-sm font-semibold text-ink'>{image.name}</p>
+                  <p className='text-sm font-semibold text-text-primary'>{image.name}</p>
                   <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{image.id}</p>
                   <p className='mt-2 break-all text-sm text-muted'>{image.filePath}</p>
                 </div>
                 <button
                   type='button'
                   onClick={() => onRemoveReferenceImage(image.id)}
-                  className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                  className={settingsDangerButtonClassName}
                 >
                   Delete
                 </button>
@@ -2717,13 +2731,12 @@ function GraphicBindingSection({
             onChange={(event) => updateGraphic((current) => ({ ...current, name: event.target.value }))}
             required
             placeholder='Example: Main title'
-            className={`w-full rounded-xl bg-white px-3 py-2 text-sm text-ink ${
-              displayNameError
-                ? 'border border-rose-300 focus:border-rose-400'
-                : 'border border-border'
-            }`}
+            className={[
+              settingsFieldClassName,
+              displayNameError ? 'border-state-danger bg-state-danger/10 text-text-primary' : '',
+            ].filter(Boolean).join(' ')}
           />
-          <p className={`text-xs ${displayNameError ? 'text-rose-600' : 'text-muted'}`}>
+          <p className={`text-xs ${displayNameError ? 'text-red-300' : 'text-muted'}`}>
             {displayNameError ?? 'Human-readable label used everywhere in the UI.'}
           </p>
         </label>
@@ -2745,8 +2758,8 @@ function GraphicBindingSection({
           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Config kind</span>
           <div className={`flex h-[42px] items-center rounded-xl border px-3 py-2 text-sm font-semibold ${
             isStaticGraphic
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-sky-200 bg-sky-50 text-sky-700'
+              ? 'border-state-active/40 bg-state-active/10 text-emerald-300'
+              : 'border-state-multi/40 bg-state-multi/10 text-cyan-300'
           }`}>
             {isStaticGraphic ? 'Static graphic config' : 'Dynamic graphic config'}
           </div>
@@ -2777,7 +2790,7 @@ function GraphicBindingSection({
         <label className='space-y-2 md:col-span-2'>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview z-index</span>
-            <span className='rounded-full border border-border bg-surface px-3 py-1 text-[11px] font-medium text-muted'>
+            <span className={getStateBadgeClassName(zIndexError ? 'invalid' : 'selected')}>
               Resolved layer in APlay preview: {zIndexError ? 'invalid' : parsedZIndex}
             </span>
           </div>
@@ -2805,30 +2818,29 @@ function GraphicBindingSection({
               updateGraphic((current) => ({ ...current, zIndex: nextValue }))
             }}
             placeholder='0'
-            className={`w-full rounded-xl bg-white px-3 py-2 text-sm text-ink ${
-              zIndexError
-                ? 'border border-rose-300 focus:border-rose-400'
-                : 'border border-border'
-            }`}
+            className={[
+              settingsFieldClassName,
+              zIndexError ? 'border-state-danger bg-state-danger/10 text-text-primary' : '',
+            ].filter(Boolean).join(' ')}
           />
-          <p className={`text-xs ${zIndexError ? 'text-rose-600' : 'text-muted'}`}>
+          <p className={`text-xs ${zIndexError ? 'text-red-300' : 'text-muted'}`}>
             {zIndexError ?? 'Controls preview stacking only inside APlay. Leave empty to use the safe default layer 0.'}
           </p>
         </label>
       </div>
 
       {isStaticGraphic ? (
-        <div className='space-y-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4'>
+        <div className={`space-y-4 ${settingsSubsectionClassName}`}>
           <div>
-            <p className='text-sm font-semibold text-emerald-800'>Static asset</p>
-            <p className='mt-1 text-sm text-emerald-700'>
+            <p className='text-sm font-semibold text-emerald-300'>Static asset</p>
+            <p className='mt-1 text-sm text-text-secondary'>
               Static graphic configs render directly from an image asset and do not use datasource JSON or source bindings.
             </p>
           </div>
 
           <div className='grid gap-3 md:grid-cols-[minmax(0,1fr),auto] md:items-end'>
             <label className='space-y-2'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700'>Asset file path</span>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300'>Asset file path</span>
               <input
                 value={graphic.staticAsset?.assetPath ?? ''}
                 onChange={(event) => updateGraphic((current) => ({
@@ -2840,45 +2852,45 @@ function GraphicBindingSection({
                   },
                 }))}
                 placeholder='C:\\APlay\\assets\\logo.png'
-                className='w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-ink'
+                className={settingsFieldClassName}
               />
             </label>
             <button
               type='button'
               onClick={() => void onPickStaticAssetFile()}
               disabled={isPickingStaticAsset}
-              className='rounded-xl border border-emerald-300 bg-white px-3 py-2 text-sm font-medium text-emerald-800 transition enabled:hover:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-50'
+              className={settingsSuccessButtonClassName}
             >
               {isPickingStaticAsset ? 'Choosing...' : 'Choose image'}
             </button>
           </div>
 
-          <div className='rounded-2xl border border-emerald-200 bg-white/80 px-4 py-3 text-sm text-emerald-800'>
+          <div className={getSettingsStatusClassName('success')}>
             Preview, play, and stop actions remain available for static graphics. Only datasource-specific controls are hidden.
           </div>
         </div>
       ) : (
-        <div className='space-y-4 rounded-3xl border border-sky-200 bg-sky-50/60 p-4'>
+        <div className={`space-y-4 ${settingsSubsectionClassName}`}>
           <div>
-            <p className='text-sm font-semibold text-sky-800'>Dynamic datasource</p>
-            <p className='mt-1 text-sm text-sky-700'>
+            <p className='text-sm font-semibold text-cyan-300'>Dynamic datasource</p>
+            <p className='mt-1 text-sm text-text-secondary'>
               Dynamic graphic configs use datasource JSON and source-field bindings to publish values at runtime.
             </p>
           </div>
 
           <label className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-sky-700'>Datasource JSON path</span>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300'>Datasource JSON path</span>
             <div className='flex gap-2'>
               <input
                 value={graphic.datasourcePath ?? ''}
                 onChange={(event) => updateGraphic((current) => ({ ...current, datasourcePath: event.target.value }))}
-                className='w-full rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm text-ink'
+                className={settingsFieldClassName}
               />
               <button
                 type='button'
                 onClick={() => void onPickDatasourceJsonFile()}
                 disabled={isPickingDatasourceJson}
-                className='shrink-0 rounded-xl border border-sky-300 bg-white px-3 py-2 text-sm font-medium text-sky-800 transition enabled:hover:border-sky-400 disabled:cursor-not-allowed disabled:opacity-50'
+                className={`shrink-0 ${settingsSecondaryButtonClassName}`}
               >
                 {isPickingDatasourceJson ? 'Choosing...' : 'Choose JSON'}
               </button>
@@ -2887,20 +2899,20 @@ function GraphicBindingSection({
         </div>
       )}
 
-      <div className='space-y-4 rounded-3xl border border-border bg-surface/30 p-4'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
+      <div className={`space-y-4 ${settingsInsetSectionClassName}`}>
+        <div className={settingsSplitActionRowClassName}>
           <div>
-            <p className='text-sm font-semibold text-ink'>Graphic debug actions</p>
+            <p className='text-sm font-semibold text-text-primary'>Graphic debug actions</p>
             <p className='mt-1 text-sm text-muted'>
               Trigger the global OSC commands using the selected graphic and its configured LiveBoard template name.
             </p>
           </div>
-          <span className='rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-muted'>
+          <span className={getStateBadgeClassName('selected')}>
             Goes through GraphicsAdapter
           </span>
         </div>
 
-        <div className='flex flex-wrap gap-2'>
+        <div className={settingsActionRowClassName}>
           {([
             { actionType: 'playGraphic', label: 'Test play' },
             { actionType: 'stopGraphic', label: 'Test stop' },
@@ -2914,7 +2926,7 @@ function GraphicBindingSection({
                 type='button'
                 onClick={() => onTestOscCommand(graphic, action.actionType)}
                 disabled={isTesting}
-                className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+                className={settingsAccentButtonClassName}
               >
                 {isTesting ? 'Sending...' : action.label}
               </button>
@@ -2923,7 +2935,7 @@ function GraphicBindingSection({
         </div>
 
         {graphic.control.templateName?.trim() ? (
-          <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+          <div className={getSettingsStatusClassName('success')}>
             Template argument is ready: <span className='font-semibold'>{graphic.control.templateName}</span>
           </div>
         ) : (
@@ -2935,19 +2947,19 @@ function GraphicBindingSection({
 
       {!isStaticGraphic ? (
         <div className='space-y-3'>
-          <div className='flex items-center justify-between gap-3'>
+          <div className='flex flex-wrap items-center justify-between gap-3'>
             <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Required source field bindings</p>
             <button
               type='button'
               onClick={() => updateGraphic((current) => ({ ...current, bindings: [...(current.bindings ?? []), createBindingDraft(current)] }))}
-              className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+              className={settingsSecondaryButtonClassName}
             >
               Add binding
             </button>
           </div>
 
             {(graphic.bindings ?? []).map((binding, bindingIndex) => (
-              <div key={bindingIndex} className='grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end'>
+              <div key={bindingIndex} className={`${settingsNestedEditorRowClassName} md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto,auto] md:items-end`}>
               <FieldOptionSelect
                 label='Source field'
                 value={binding.sourceField}
@@ -2962,7 +2974,7 @@ function GraphicBindingSection({
                 emptyLabel='Select target field'
                 onChange={(value) => updateBinding(bindingIndex, (current) => ({ ...current, targetField: value }))}
               />
-              <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
+              <label className={settingsCheckboxRowClassName}>
                 <input
                   type='checkbox'
                   checked={binding.required ?? false}
@@ -2974,7 +2986,7 @@ function GraphicBindingSection({
               <button
                 type='button'
                 onClick={() => updateGraphic((current) => ({ ...current, bindings: (current.bindings ?? []).filter((_, index) => index !== bindingIndex) }))}
-                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                className={settingsDangerButtonClassName}
               >
                 Remove
               </button>
@@ -2982,7 +2994,7 @@ function GraphicBindingSection({
           ))}
         </div>
       ) : (
-        <div className='rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-800'>
+        <div className='ap-empty-state border-state-active/30 bg-state-active/10 text-emerald-300'>
           Source bindings are hidden for static graphic configs because they render directly from the selected asset.
         </div>
       )}
@@ -3069,11 +3081,11 @@ function GlobalOscSettingsSection({
         </div>
 
         {targetValidationMessages.length > 0 ? (
-          <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+          <div className={getSettingsStatusClassName('error')}>
             {targetValidationMessages.map((message) => <p key={message}>{message}</p>)}
           </div>
         ) : (
-          <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+          <div className={getSettingsStatusClassName('success')}>
             OSC target general este configurat si gata de salvare.
           </div>
         )}
@@ -3166,10 +3178,10 @@ function OscCommandEditor({
   }
 
   return (
-    <section className='space-y-4 rounded-3xl border border-border bg-white p-5 shadow-sm'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
+    <section className='ap-form-section'>
+      <div className={settingsSplitActionRowClassName}>
         <div>
-          <p className='text-sm font-semibold text-ink'>{label}</p>
+          <p className='text-sm font-semibold text-text-primary'>{label}</p>
           <p className='mt-1 text-sm text-muted'>
             Configure the OSC address and typed arguments that APlay should send for this command.
           </p>
@@ -3180,7 +3192,7 @@ function OscCommandEditor({
             ...normalizedCommand,
             args: [...normalizedCommand.args, createDefaultOscArg()],
           })}
-          className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+          className={settingsSecondaryButtonClassName}
         >
           Add arg
         </button>
@@ -3188,7 +3200,7 @@ function OscCommandEditor({
           type='button'
           onClick={() => onTestOscCommand(graphic, actionType)}
           disabled={isTesting}
-          className='rounded-xl border border-accent bg-accent px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50'
+          className={settingsAccentButtonClassName}
         >
           {isTesting ? 'Sending...' : 'Test send'}
         </button>
@@ -3209,14 +3221,14 @@ function OscCommandEditor({
           No args configured. That is valid for commands that only need an OSC address.
         </div>
       ) : (
-        <div className='space-y-3'>
+        <div className={settingsCompactFieldGroupClassName}>
           {normalizedCommand.args.map((arg, argIndex) => {
             const draftKey = getOscArgDraftKey(graphic.id, commandKey, argIndex)
             const draftValue = oscArgDrafts[draftKey] ?? String(arg.value)
             const argError = getOscArgInputError(arg, draftValue)
 
             return (
-              <div key={draftKey} className='grid gap-3 rounded-2xl border border-border bg-surface/30 p-4 md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start'>
+              <div key={draftKey} className={`${settingsNestedEditorRowClassName} md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start`}>
                 <label className='space-y-2'>
                   <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Type</span>
                   <select
@@ -3284,7 +3296,7 @@ function OscCommandEditor({
                     className={getOscInputClass(argError !== null)}
                   />
                   {argError ? (
-                    <p className='text-xs font-medium text-rose-600'>{argError}</p>
+                    <p className='text-xs font-medium text-red-300'>{argError}</p>
                   ) : (
                     <p className='text-xs text-muted'>
                       {arg.type === 's' ? 'String value' : arg.type === 'i' ? 'Integer value' : 'Float value'}
@@ -3295,7 +3307,7 @@ function OscCommandEditor({
                 <button
                   type='button'
                   onClick={() => updateCommand(updateGraphicControlArgs(command, normalizedCommand.args.filter((_, currentIndex) => currentIndex !== argIndex)))}
-                  className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                  className={settingsDangerButtonClassName}
                 >
                   Remove
                 </button>
@@ -3306,11 +3318,11 @@ function OscCommandEditor({
       )}
 
       {validationMessages.length > 0 ? (
-        <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+        <div className={getSettingsStatusClassName('error')}>
           {validationMessages.map((message) => <p key={message}>{message}</p>)}
         </div>
       ) : (
-        <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+        <div className={getSettingsStatusClassName('success')}>
           Command config is valid and ready to save.
         </div>
       )}
@@ -3337,10 +3349,10 @@ function GlobalOscCommandEditor({
   const commandHasAddressError = validationMessages.some((message) => message.includes('start with "/"'))
 
   return (
-    <section className='space-y-4 rounded-3xl border border-border bg-white p-5 shadow-sm'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
+    <section className='ap-form-section'>
+      <div className={settingsSplitActionRowClassName}>
         <div>
-          <p className='text-sm font-semibold text-ink'>{label}</p>
+          <p className='text-sm font-semibold text-text-primary'>{label}</p>
           <p className='mt-1 text-sm text-muted'>
             Comanda generala LiveBoard. Foloseste <code>{'{{templateName}}'}</code> ca placeholder pentru numele template-ului setat pe graphic.
           </p>
@@ -3351,7 +3363,7 @@ function GlobalOscCommandEditor({
             ...command,
             args: [...command.args, createDefaultOscArg()],
           })}
-          className='rounded-xl border border-border bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+          className={settingsSecondaryButtonClassName}
         >
           Add arg
         </button>
@@ -3370,14 +3382,14 @@ function GlobalOscCommandEditor({
         />
       </label>
 
-      <div className='space-y-3'>
+      <div className={settingsCompactFieldGroupClassName}>
         {command.args.map((arg, argIndex) => {
           const draftKey = getOscArgDraftKey(`global-${commandKey}`, commandKey, argIndex)
           const draftValue = oscArgDrafts[draftKey] ?? String(arg.value)
           const argError = getOscArgInputError(arg, draftValue)
 
           return (
-            <div key={draftKey} className='grid gap-3 rounded-2xl border border-border bg-surface/30 p-4 md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start'>
+            <div key={draftKey} className={`${settingsNestedEditorRowClassName} md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start`}>
               <label className='space-y-2'>
                 <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Type</span>
                 <select
@@ -3440,7 +3452,7 @@ function GlobalOscCommandEditor({
                   className={getOscInputClass(argError !== null)}
                 />
                 {argError ? (
-                  <p className='text-xs font-medium text-rose-600'>{argError}</p>
+                  <p className='text-xs font-medium text-red-300'>{argError}</p>
                 ) : null}
               </label>
 
@@ -3450,7 +3462,7 @@ function GlobalOscCommandEditor({
                   ...command,
                   args: command.args.filter((_, currentIndex) => currentIndex !== argIndex),
                 })}
-                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-rose-400'
+                className={settingsDangerButtonClassName}
               >
                 Remove
               </button>
@@ -3460,11 +3472,11 @@ function GlobalOscCommandEditor({
       </div>
 
       {validationMessages.length > 0 ? (
-        <div className='rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700'>
+        <div className={getSettingsStatusClassName('error')}>
           {validationMessages.map((message) => <p key={message}>{message}</p>)}
         </div>
       ) : (
-        <div className='rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700'>
+        <div className={getSettingsStatusClassName('success')}>
           Global OSC command config is valid and ready to save.
         </div>
       )}
@@ -3512,7 +3524,7 @@ function PreviewTemplateSection({
             <NumberField label='Design height' value={graphic.preview.designHeight} min={180} max={2160} step={10} onChange={(value) => updateGraphic((current) => ({ ...current, preview: { ...current.preview, designHeight: value } }))} />
           </div>
 
-          <div className='space-y-3 rounded-2xl border border-border bg-white p-4'>
+          <div className={`space-y-3 ${settingsSubsectionClassName}`}>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview background</p>
               <p className='mt-1 text-sm text-muted'>
@@ -3604,7 +3616,7 @@ function PreviewTemplateSection({
               </label>
             </div>
 
-            <div className='flex flex-wrap gap-2'>
+            <div className={settingsActionRowClassName}>
               <button
                 type='button'
                 onClick={() => updateGraphic((current) => ({
@@ -3618,7 +3630,7 @@ function PreviewTemplateSection({
                     },
                   },
                 }))}
-                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                className={settingsSecondaryButtonClassName}
               >
                 Clear selection
               </button>
@@ -3631,13 +3643,13 @@ function PreviewTemplateSection({
             ) : null}
           </div>
 
-          <div className='space-y-3'>
-            <div className='flex items-center justify-between gap-3'>
+          <div className={settingsCompactFieldGroupClassName}>
+            <div className='flex flex-wrap items-center justify-between gap-3'>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview elements</p>
               <button
                 type='button'
                 onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: [...current.preview.elements, createDefaultPreviewElement(current.preview.elements.length + 1)] } }))}
-                className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition hover:border-accent'
+                className={settingsSecondaryButtonClassName}
               >
                 Add element
               </button>
@@ -3647,14 +3659,14 @@ function PreviewTemplateSection({
               const textBehavior = getElementBehavior(element)
 
               return (
-                <div key={`${elementIndex}`} className='space-y-4 rounded-2xl border border-border bg-white p-4'>
+                <div key={`${elementIndex}`} className={`space-y-4 ${settingsSubsectionClassName}`}>
                 <div className='flex items-center justify-between gap-3'>
-                  <p className='text-sm font-semibold text-ink'>{element.id}</p>
+                  <p className='text-sm font-semibold text-text-primary'>{element.id}</p>
                   <button
                     type='button'
                     onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
                     disabled={graphic.preview.elements.length === 1}
-                    className='rounded-xl border border-border bg-white px-3 py-2 text-sm font-medium text-ink transition enabled:hover:border-rose-400 disabled:cursor-not-allowed disabled:opacity-50'
+                    className={settingsDangerButtonClassName}
                   >
                     Remove
                   </button>
@@ -3702,7 +3714,7 @@ function PreviewTemplateSection({
                       />
                     </label>
                   ) : null}
-                  <label className='flex items-center gap-2 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-ink'>
+                  <label className={settingsCheckboxRowClassName}>
                     <input
                       type='checkbox'
                       checked={element.visible ?? true}
@@ -3748,7 +3760,7 @@ function PreviewTemplateSection({
                 </div>
 
                 {element.kind === 'text' ? (
-                  <div className='grid gap-3 rounded-2xl border border-border bg-surface/40 p-4 md:grid-cols-3'>
+                  <div className={`grid gap-3 ${settingsInsetSectionClassName} md:grid-cols-3`}>
                     <label className={settingsCheckboxRowClassName}>
                       <input
                         type='checkbox'
@@ -3807,27 +3819,7 @@ function PreviewTemplateSection({
           </div>
         </div>
 
-        <aside className='space-y-4 self-start rounded-3xl border border-border bg-slate-950 p-5 text-white shadow-panel xl:sticky xl:top-6'>
-          <div className='flex items-center justify-between gap-3'>
-            <div>
-              <p className='text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300'>Preview</p>
-              <h4 className='mt-1 text-lg font-semibold'>Preview16x9</h4>
-            </div>
-            <span className='rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300'>
-              {activeGraphic?.name ?? graphic.name}
-            </span>
-          </div>
-          <div className='rounded-3xl border border-white/10 bg-white/5 p-4'>
-            <PreviewCanvas
-              template={graphic.preview}
-              content={resolvedPreviewContent}
-              backgroundImagePath={previewBackground.resolvedFilePath}
-            />
-          </div>
-          <p className='text-sm text-slate-300'>
-            Preview-ul se actualizează live pe baza configurării curente și a conținutului entității selectate.
-          </p>
-        </aside>
+        <PreviewCanvasSidebar settings={settings} graphic={graphic} activeGraphic={activeGraphic} previewContent={resolvedPreviewContent} />
       </div>
     </FormSection>
   )

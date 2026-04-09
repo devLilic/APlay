@@ -40,7 +40,7 @@ export function SettingsHeaderActions({
   onSave: () => void
 }) {
   return (
-    <div className='flex flex-wrap gap-2'>
+    <div className='flex flex-wrap items-center gap-2'>
       <button
         type='button'
         onClick={onImportProfile}
@@ -193,7 +193,7 @@ export function PreviewCanvasSidebar({
   const previewBackground = resolveActivePreviewBackground(settings, graphic)
 
   return (
-    <aside className='ap-panel space-y-4 self-start bg-surface-panel p-5 xl:sticky xl:top-6'>
+    <aside className='ap-panel space-y-5 self-start bg-surface-panel p-5 xl:sticky xl:top-6'>
       <div className='flex items-center justify-between gap-3'>
         <div>
           <p className='ap-section-eyebrow text-state-active'>Preview</p>
@@ -203,7 +203,7 @@ export function PreviewCanvasSidebar({
           {activeGraphic?.name ?? graphic.name}
         </span>
       </div>
-      <div className='ap-card bg-surface-app p-4'>
+      <div className='rounded-2xl border border-border-strong bg-surface-app p-4'>
         <PreviewCanvas
           template={graphic.preview}
           content={previewContent}

@@ -65,8 +65,8 @@ export type ControlButtonVariant = 'solid' | 'outline' | 'ghost'
 const buttonToneClassNames: Record<ControlButtonTone, Record<ControlButtonVariant, string>> = {
   neutral: {
     solid: 'border-border-strong bg-card text-text-primary hover:border-border-focus hover:bg-surface-raised',
-    outline: 'border-border bg-transparent text-text-primary hover:border-border-focus hover:bg-white/5',
-    ghost: 'border-transparent bg-transparent text-text-secondary hover:text-text-primary hover:bg-white/5',
+    outline: 'border-border bg-transparent text-text-primary hover:border-border-focus hover:bg-surface-raised',
+    ghost: 'border-transparent bg-transparent text-text-secondary hover:text-text-primary hover:bg-surface-raised',
   },
   accent: {
     solid: 'border-accent bg-accent text-slate-950 hover:bg-cyan-300',
@@ -105,7 +105,7 @@ export function getControlButtonClassName(options?: {
   const width = options?.fullWidth ? 'w-full justify-center' : ''
 
   return [
-    'ap-control-button inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:border-border-muted disabled:bg-transparent disabled:text-text-disabled disabled:hover:bg-transparent',
+    'ap-control-button inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors duration-150 disabled:cursor-not-allowed disabled:border-border-muted disabled:bg-surface-muted disabled:text-text-disabled disabled:hover:bg-surface-muted',
     controlClassNames.focusRing,
     width,
     buttonToneClassNames[tone][variant],
