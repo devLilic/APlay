@@ -52,7 +52,7 @@ const dynamicGraphicConfig = {
 const staticGraphicConfig = {
   id: 'static-logo',
   name: 'Static logo',
-  entityType: 'staticImage',
+  entityType: 'image',
   kind: 'static',
   dataFileName: 'static-logo.json',
   staticAsset: {

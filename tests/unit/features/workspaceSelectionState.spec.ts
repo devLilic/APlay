@@ -93,7 +93,7 @@ const multiSelectionGraphicsFixture: GraphicInstanceConfig[] = [
   {
     id: 'logo-main',
     name: 'Logo main',
-    entityType: 'staticImage',
+    entityType: 'image',
     kind: 'static',
     dataFileName: 'logo-main.json',
     control: { templateName: 'LOGO_MAIN' },
@@ -117,8 +117,8 @@ const multiDocumentFixture: EditorialDocument = {
       locations: [],
       phones: [],
       entityCollections: {
-        pa_title_main: [{ text: 'Title One', number: '1' }, { text: 'Title Two', number: '2' }],
-        'location-main': [{ value: 'Chisinau' }, { value: 'Balti' }],
+        pa_title_main: [{ text: 'Title One', number: '1' }],
+        'location-main': [{ value: 'Chisinau' }],
         'logo-main': [{ staticAsset: 'assets/logo.png' }],
       },
     },
@@ -197,7 +197,7 @@ describe('grouped entity lists', () => {
 })
 
 describe('selected entity context', () => {
-  it('derives selected entity context for the right panel', () => {
+it('derives selected entity context for the active workspace target', () => {
     const state = createWorkspaceSelectionState(documentFixture, graphicsFixture)
       .selectGraphicConfig('pa_title_waiting')
       .selectEntity(0)
@@ -302,17 +302,19 @@ describe('selection reconciliation after source reload', () => {
 })
 
 describe('multi-selection state', () => {
-  it('stores selected items from different groups', () => {
-    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+  it('can store selected items from different graphic config collections', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, graphicsFixture)
+    const multiState = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+    const result = multiState
       .selectGraphicConfig('pa_title_main')
       .selectEntity(0)
       .addSelectedItem('pa_title_main', 0)
-      .addSelectedItem('location-main', 1)
+      .addSelectedItem('location-main', 0)
       .addSelectedItem('logo-main', 0)
 
-    expect(state.selection.selectedItems).toEqual([
+    expect(result.selection.selectedItems).toEqual([
       { graphicConfigId: 'pa_title_main', entityIndex: 0 },
-      { graphicConfigId: 'location-main', entityIndex: 1 },
+      { graphicConfigId: 'location-main', entityIndex: 0 },
       { graphicConfigId: 'logo-main', entityIndex: 0 },
     ])
   })
@@ -328,7 +330,6 @@ describe('multi-selection state', () => {
 
   it('removes one item from multi-selection', () => {
     const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
-      .selectGraphicConfig('pa_title_main')
       .addSelectedItem('pa_title_main', 0)
       .addSelectedItem('location-main', 0)
       .removeSelectedItem('pa_title_main', 0)
@@ -347,19 +348,7 @@ describe('multi-selection state', () => {
     expect(state.selection.selectedItems).toEqual([])
   })
 
-  it('selecting a second item from the same group replaces the previous one', () => {
-    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
-      .addSelectedItem('pa_title_main', 0)
-      .addSelectedItem('pa_title_main', 1)
-      .addSelectedItem('location-main', 0)
-
-    expect(state.selection.selectedItems).toEqual([
-      { graphicConfigId: 'pa_title_main', entityIndex: 1 },
-      { graphicConfigId: 'location-main', entityIndex: 0 },
-    ])
-  })
-
-  it('duplicate selection of the same item does not create duplicates', () => {
+  it('prevents duplicate selection of the same item', () => {
     const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
       .addSelectedItem('pa_title_main', 0)
       .addSelectedItem('pa_title_main', 0)
@@ -369,11 +358,33 @@ describe('multi-selection state', () => {
     ])
   })
 
-  it('multi-selection does not break single selected item preview state', () => {
+  it('keeps only one grouped-selected item per graphic config collection', () => {
+    const documentWithTwoTitles: EditorialDocument = {
+      blocks: [
+        {
+          ...multiDocumentFixture.blocks[0]!,
+          entityCollections: {
+            ...multiDocumentFixture.blocks[0]!.entityCollections,
+            pa_title_main: [{ text: 'Title One', number: '1' }, { text: 'Title Two', number: '2' }],
+          },
+        },
+      ],
+    }
+
+    const state = createWorkspaceSelectionState(documentWithTwoTitles, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', 0)
+      .addSelectedItem('pa_title_main', 1)
+
+    expect(state.selection.selectedItems).toEqual([
+      { graphicConfigId: 'pa_title_main', entityIndex: 1 },
+    ])
+  })
+
+  it('does not break single selected item preview state', () => {
     const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
       .selectGraphicConfig('pa_title_main')
       .selectEntity(0)
-      .addSelectedItem('location-main', 1)
+      .addSelectedItem('location-main', 0)
 
     expect(deriveSelectedEntityContext(state.document, state.selection)).toEqual({
       blockIndex: 0,
@@ -384,7 +395,7 @@ describe('multi-selection state', () => {
     })
   })
 
-  it('static and dynamic items can coexist in the same selection set if they belong to different groups', () => {
+  it('allows static and dynamic items to coexist in the same selection group', () => {
     const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
       .addSelectedItem('pa_title_main', 0)
       .addSelectedItem('logo-main', 0)
@@ -407,10 +418,9 @@ describe('multi-selection state', () => {
     ])
   })
 
-  it('selected item count reflects one item per group only', () => {
+  it('derives the selected item count correctly', () => {
     const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
       .addSelectedItem('pa_title_main', 0)
-      .addSelectedItem('pa_title_main', 1)
       .addSelectedItem('location-main', 0)
       .addSelectedItem('logo-main', 0)
 

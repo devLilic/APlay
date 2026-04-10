@@ -3,7 +3,7 @@ import titleGraphicConfig from './graphics/title.json'
 import personGraphicConfig from './graphics/person.json'
 import locationGraphicConfig from './graphics/location.json'
 import phoneGraphicConfig from './graphics/phone.json'
-import staticImageGraphicConfig from './graphics/staticImage.json'
+import imageGraphicConfig from './graphics/image.json'
 import type { GraphicConfigManifest, ShowProfileManifest } from './contracts'
 
 export const showProfiles = [defaultShowProfile] as ShowProfileManifest[]
@@ -13,5 +13,5 @@ export const graphicConfigManifests = [
   personGraphicConfig,
   locationGraphicConfig,
   phoneGraphicConfig,
-  staticImageGraphicConfig,
+  imageGraphicConfig,
 ] as GraphicConfigManifest[]

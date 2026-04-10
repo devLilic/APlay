@@ -728,7 +728,7 @@ describe('preview element calculations', () => {
     expect(layout).not.toHaveProperty('datasourceFile')
   })
 
-  it('renders a staticImage asset in preview', () => {
+  it('renders an image asset in preview', () => {
     const layout = calculatePreviewTemplateLayout(
       {
         id: 'static-image-preview',

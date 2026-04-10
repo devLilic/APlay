@@ -13,10 +13,10 @@ import {
   showProfileConfigSchema,
 } from '@/settings/schemas/appConfigSchemas'
 
-const staticImageGraphicConfig = {
+const imageGraphicConfig = {
   id: 'channel-static-image',
   name: 'Channel static image',
-  entityType: 'staticImage',
+  entityType: 'image',
   dataFileName: 'channel-static-image.json',
   staticAsset: {
     assetPath: 'C:\\APlay\\assets\\branding\\channel-static-image.png',
@@ -928,19 +928,19 @@ describe('GraphicInstanceConfig schema', () => {
   })
 
   it('allows static entity types without sourceBinding config', () => {
-    const parsed = graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown)
+    const parsed = graphicInstanceConfigSchema.parse(imageGraphicConfig as unknown)
 
     expect(parsed).not.toHaveProperty('bindings')
   })
 
   it('allows static entity types without datasource config', () => {
-    const parsed = graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown)
+    const parsed = graphicInstanceConfigSchema.parse(imageGraphicConfig as unknown)
 
     expect(parsed).not.toHaveProperty('datasourcePath')
   })
 
   it('supports staticAsset config for static graphic entity types', () => {
-    const parsed = graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown) as unknown as Record<string, unknown>
+    const parsed = graphicInstanceConfigSchema.parse(imageGraphicConfig as unknown) as unknown as Record<string, unknown>
 
     expect(parsed).toHaveProperty('staticAsset')
     expect(parsed.staticAsset).toEqual({
@@ -951,17 +951,29 @@ describe('GraphicInstanceConfig schema', () => {
 
   it('allows static graphic configs without datasource when staticAsset is present', () => {
     expect(
-      graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown),
+      graphicInstanceConfigSchema.parse(imageGraphicConfig as unknown),
     ).toMatchObject({
       id: 'channel-static-image',
-      entityType: 'staticImage',
+      entityType: 'image',
+    })
+  })
+
+  it('normalizes legacy staticImage entity types to image', () => {
+    expect(
+      graphicInstanceConfigSchema.parse({
+        ...imageGraphicConfig,
+        entityType: 'staticImage',
+      } as unknown),
+    ).toMatchObject({
+      id: 'channel-static-image',
+      entityType: 'image',
     })
   })
 
   it('rejects static graphic configs when staticAsset is missing', () => {
     expect(() =>
       graphicInstanceConfigSchema.parse({
-        ...staticImageGraphicConfig,
+        ...imageGraphicConfig,
         staticAsset: undefined,
       } as unknown),
     ).toThrow('staticAsset')
@@ -970,7 +982,7 @@ describe('GraphicInstanceConfig schema', () => {
   it('rejects static graphic configs when staticAsset path is invalid', () => {
     expect(() =>
       graphicInstanceConfigSchema.parse({
-        ...staticImageGraphicConfig,
+        ...imageGraphicConfig,
         staticAsset: {
           assetPath: '',
           assetType: 'image',
@@ -981,7 +993,7 @@ describe('GraphicInstanceConfig schema', () => {
 
   it('keeps OSC config optional-but-valid for static graphic configs when present', () => {
     expect(
-      graphicInstanceConfigSchema.parse(staticImageGraphicConfig as unknown),
+      graphicInstanceConfigSchema.parse(imageGraphicConfig as unknown),
     ).toMatchObject({
       control: {
         play: '/graphics/static-image/play',

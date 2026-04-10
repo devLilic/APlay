@@ -344,7 +344,7 @@ export function resolveGraphicsActionCommand(
 }
 
 export function isStaticGraphic(graphic: GraphicInstanceConfig): boolean {
-  return graphic.kind === 'static' || graphic.entityType === 'staticImage'
+  return graphic.kind === 'static' || graphic.entityType === 'image'
 }
 
 export function publishGraphicsDatasource(

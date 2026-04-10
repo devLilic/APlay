@@ -6,13 +6,13 @@
     "person",
     "location",
     "phone",
-    "staticImage"
+    "image"
   ],
   "graphicConfigIds": [
     "title",
     "person",
     "location",
     "phone",
-    "staticImage"
+    "image"
   ]
 }

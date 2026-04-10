@@ -47,7 +47,7 @@ describe('graphics adapter architecture boundaries', () => {
 
     expect(settingsPanelSource).toContain('{graphic.name} | {graphic.entityType}')
     expect(settingsPanelSource).not.toContain('{graphic.name} | {graphic.entityType} | {graphic.id}')
-    expect(workspaceShellSource).toContain('<span>{selectedGraphic.name}</span>')
+    expect(workspaceShellSource).toContain('{selectedGraphic?.name ?? `${previewGraphic.name} composite`}')
     expect(workspaceShellSource).not.toContain('<span>{selectedGraphic.id}</span>')
   })
 

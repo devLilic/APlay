@@ -8,11 +8,11 @@ describe('supportedEntityTypes', () => {
       'person',
       'location',
       'phone',
-      'staticImage',
+      'image',
     ])
   })
 
-  it('supports the static "staticImage" entity type', () => {
-    expect(supportedEntityTypes).toContain('staticImage')
+  it('supports the static "image" entity type', () => {
+    expect(supportedEntityTypes).toContain('image')
   })
 })

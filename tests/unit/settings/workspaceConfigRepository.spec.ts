@@ -70,7 +70,7 @@ const dynamicGraphicConfig: GraphicInstanceConfig = {
 const staticGraphicConfig: GraphicInstanceConfig = {
   id: 'static-bug',
   name: 'Static bug',
-  entityType: 'staticImage',
+  entityType: 'image',
   kind: 'static',
   dataFileName: 'static-bug.json',
   staticAsset: {
@@ -327,7 +327,7 @@ describe('workspaceConfigRepository', () => {
       exportType: graphicConfigExportType,
       payload: {
         id: 'static-bug',
-        entityType: 'staticImage',
+        entityType: 'image',
         dataFileName: 'static-bug.json',
         control: {
           play: '/graphics/bug/play',

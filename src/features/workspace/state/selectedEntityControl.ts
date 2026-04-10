@@ -61,15 +61,27 @@ export function resolveGraphicControlForSelectedEntity(
 
 export function createSelectedEntityPreviewData(
   selectedEntity: SelectedEntityContext | undefined,
+  graphic?: GraphicInstanceConfig,
 ): Record<string, string | undefined> {
   if (!selectedEntity) {
-    return {}
+    return graphic?.staticAsset?.assetPath
+      ? { staticAsset: graphic.staticAsset.assetPath }
+      : {}
   }
 
   const entity = selectedEntity.entity as unknown as Record<string, unknown>
-  return Object.fromEntries(
+  const previewData = Object.fromEntries(
     Object.entries(entity).map(([key, value]) => [key, typeof value === 'string' ? value : undefined]),
   )
+
+  if (graphic?.staticAsset?.assetPath) {
+    return {
+      ...previewData,
+      staticAsset: graphic.staticAsset.assetPath,
+    }
+  }
+
+  return previewData
 }
 
 function runAction(
