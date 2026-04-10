@@ -116,10 +116,12 @@ describe('SettingsPanel dark theme regressions', () => {
     expect(stopCommandSection).not.toMatch(lightSurfacePattern)
   })
 
-  it('does not define light-surface utility classes inside preview template and preview editor cards', () => {
+  it('does not define light-surface utility classes inside graphic config library, preview template, and preview editor cards', () => {
     const source = readSettingsSource()
+    const graphicConfigLibrarySection = getSectionWindow(source, "title='Graphic config library'")
     const previewTemplateSection = getSectionWindow(source, "title='Preview template'")
 
+    expect(graphicConfigLibrarySection).not.toMatch(lightSurfacePattern)
     expect(previewTemplateSection).not.toMatch(lightSurfacePattern)
   })
 })

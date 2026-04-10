@@ -128,12 +128,15 @@ const settingsEyebrowClassName = 'text-[11px] font-semibold uppercase tracking-[
 const settingsHelperTextClassName = 'text-sm leading-6 text-text-secondary'
 const settingsMetaTextClassName = 'text-xs uppercase tracking-[0.16em] text-text-secondary'
 const settingsCheckboxRowClassName = 'ap-focus flex items-center gap-2 rounded-xl border border-border-muted bg-surface-app/60 px-3 py-2.5 text-sm text-text-primary'
+const settingsCompactCheckboxRowClassName = 'ap-focus inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-muted bg-surface-app/60 px-3 py-2.5 text-sm text-text-primary'
 const settingsSubsectionClassName = 'rounded-2xl border border-border bg-card p-4 sm:p-5'
 const settingsInsetSectionClassName = 'rounded-2xl border border-border-muted bg-surface-muted p-4'
 const settingsActionRowClassName = 'flex flex-wrap items-center gap-2'
 const settingsActionRowEndClassName = 'flex flex-wrap items-center justify-end gap-2'
 const settingsSplitActionRowClassName = 'flex flex-wrap items-start justify-between gap-3'
 const settingsCompactFieldGroupClassName = 'space-y-3'
+const settingsCompactEditorStackClassName = 'space-y-4 max-w-[56rem]'
+const settingsCompactScrollAreaClassName = 'space-y-3 xl:max-h-[34rem] xl:overflow-y-auto xl:pr-1'
 const settingsNestedEditorRowClassName = 'grid gap-3 rounded-xl border border-border-muted bg-surface-app/40 p-4'
 const settingsSecondaryButtonClassName = getControlButtonClassName()
 const settingsDangerButtonClassName = getControlButtonClassName({ tone: 'danger', variant: 'outline' })
@@ -724,61 +727,57 @@ export function SettingsPanel({
         ) : null}
 
         {activeTab === 'graphics' ? (
-          <section className='grid gap-6 xl:grid-cols-[22rem,minmax(0,1fr)]'>
-            <div className='space-y-4'>
-              <GraphicSelectionSection
-                settings={settings}
-                selectedProfile={selectedProfile}
-                selectedGraphicId={selectedGraphicId}
-                onSelectedGraphicIdChange={setSelectedGraphicId}
-                draftGraphicEntityType={draftGraphicEntityType}
-                draftGraphicId={draftGraphicId}
-                pendingGraphicDelete={pendingGraphicDelete}
-                onDraftGraphicEntityTypeChange={setDraftGraphicEntityType}
-                onDraftGraphicIdChange={setDraftGraphicId}
-                onCreateGraphicConfig={handleCreateGraphicConfig}
-                onDuplicateGraphicConfig={handleDuplicateGraphicConfig}
-                onRequestDeleteGraphicConfig={handleDeleteGraphicRequest}
-                onConfirmDeleteGraphicConfig={handleConfirmDeleteGraphic}
-                onCancelDeleteGraphicConfig={() => setPendingGraphicDelete(null)}
-                onAttachGraphicConfig={handleAttachGraphicToProfile}
-                onDetachGraphicConfig={handleDetachGraphicFromProfile}
-              />
-            </div>
+          <section className='space-y-4 max-w-[72rem]'>
+            <GraphicSelectionSection
+              settings={settings}
+              selectedProfile={selectedProfile}
+              selectedGraphicId={selectedGraphicId}
+              onSelectedGraphicIdChange={setSelectedGraphicId}
+              draftGraphicEntityType={draftGraphicEntityType}
+              draftGraphicId={draftGraphicId}
+              pendingGraphicDelete={pendingGraphicDelete}
+              onDraftGraphicEntityTypeChange={setDraftGraphicEntityType}
+              onDraftGraphicIdChange={setDraftGraphicId}
+              onCreateGraphicConfig={handleCreateGraphicConfig}
+              onDuplicateGraphicConfig={handleDuplicateGraphicConfig}
+              onRequestDeleteGraphicConfig={handleDeleteGraphicRequest}
+              onConfirmDeleteGraphicConfig={handleConfirmDeleteGraphic}
+              onCancelDeleteGraphicConfig={() => setPendingGraphicDelete(null)}
+              onAttachGraphicConfig={handleAttachGraphicToProfile}
+              onDetachGraphicConfig={handleDetachGraphicFromProfile}
+            />
 
-            <div className='space-y-4'>
-              {selectedGraphic ? (
-                <GraphicBindingSection
-                  graphic={selectedGraphic}
-                  updateGraphic={updateGraphic}
-                  updateBinding={updateBinding}
-                  isPickingDatasourceJson={isPickingDatasourceJson}
-                  isPickingStaticAsset={isPickingStaticAsset}
-                  onPickDatasourceJsonFile={handlePickDatasourceJsonFile}
-                  onPickStaticAssetFile={handlePickStaticAssetFile}
-                  testingOscActionKey={testingOscActionKey}
-                  onTestOscCommand={async (graphic, actionType) => {
-                    const actionKey = `${graphic.id}:${actionType}`
-                    setTestingOscActionKey(actionKey)
-                    try {
-                      await onTestOscCommand(graphic, actionType)
-                    } finally {
-                      setTestingOscActionKey(null)
-                    }
-                  }}
-                />
-              ) : (
-                <SettingsPlaceholderCard>
-                  Select a profile-loaded graphic config to edit datasource and LiveBoard template settings.
-                </SettingsPlaceholderCard>
-              )}
-            </div>
+            {selectedGraphic ? (
+              <GraphicBindingSection
+                graphic={selectedGraphic}
+                updateGraphic={updateGraphic}
+                updateBinding={updateBinding}
+                isPickingDatasourceJson={isPickingDatasourceJson}
+                isPickingStaticAsset={isPickingStaticAsset}
+                onPickDatasourceJsonFile={handlePickDatasourceJsonFile}
+                onPickStaticAssetFile={handlePickStaticAssetFile}
+                testingOscActionKey={testingOscActionKey}
+                onTestOscCommand={async (graphic, actionType) => {
+                  const actionKey = `${graphic.id}:${actionType}`
+                  setTestingOscActionKey(actionKey)
+                  try {
+                    await onTestOscCommand(graphic, actionType)
+                  } finally {
+                    setTestingOscActionKey(null)
+                  }
+                }}
+              />
+            ) : (
+              <SettingsPlaceholderCard>
+                Select a profile-loaded graphic config to edit datasource and LiveBoard template settings.
+              </SettingsPlaceholderCard>
+            )}
           </section>
         ) : null}
 
         {activeTab === 'preview' ? (
-          <section className='space-y-4'>
-            <div className='max-w-[26rem]'>
+          <section className='space-y-4 max-w-[72rem]'>
+            <div className='max-w-[32rem]'>
               <GraphicSelectionSection
                 settings={settings}
                 selectedProfile={selectedProfile}
@@ -857,6 +856,7 @@ function NumberField({
   max,
   step = 1,
   showSlider = true,
+  compact = false,
 }: {
   label: string
   value: number
@@ -865,9 +865,10 @@ function NumberField({
   max?: number
   step?: number
   showSlider?: boolean
+  compact?: boolean
 }) {
   return (
-    <label className='space-y-2'>
+    <label className={`space-y-2 ${compact ? 'max-w-[9rem]' : ''}`}>
       <span className={settingsLabelClassName}>{label}</span>
       <div className='space-y-2'>
         <input
@@ -884,10 +885,10 @@ function NumberField({
 
             onChange(nextValue)
           }}
-          className={settingsFieldClassName}
+          className={`${settingsFieldClassName} ${compact ? 'max-w-[9rem]' : ''}`}
         />
         {showSlider && min !== undefined && max !== undefined ? (
-          <div className='flex items-center gap-3'>
+          <div className={`flex items-center gap-3 ${compact ? 'max-w-[9rem]' : ''}`}>
             <input
               type='range'
               min={min}
@@ -895,9 +896,9 @@ function NumberField({
               step={step}
               value={Math.min(max, Math.max(min, value))}
               onChange={(event) => onChange(Number(event.target.value))}
-              className='w-full accent-accent'
+              className='w-full min-w-0 accent-accent'
             />
-            <span className='min-w-14 text-right text-xs font-medium text-text-secondary'>{value}</span>
+            <span className={`${compact ? 'min-w-10' : 'min-w-14'} text-right text-xs font-medium text-text-secondary`}>{value}</span>
           </div>
         ) : null}
       </div>
@@ -909,28 +910,30 @@ function ColorField({
   label,
   value,
   onChange,
+  compact = false,
 }: {
   label: string
   value: string | undefined
   onChange: (value: string | undefined) => void
+  compact?: boolean
 }) {
   const normalizedValue = normalizeHexColor(value)
 
   return (
-    <label className='space-y-2'>
+    <label className={`space-y-2 ${compact ? 'max-w-[12rem]' : ''}`}>
       <span className={settingsLabelClassName}>{label}</span>
-      <div className='flex items-center gap-3 rounded-xl border border-border-muted bg-surface-app px-3 py-2.5'>
+      <div className={`flex items-center gap-3 rounded-xl border border-border-muted bg-surface-app px-3 py-2.5 ${compact ? 'max-w-[12rem]' : ''}`}>
         <input
           type='color'
           value={normalizedValue}
           onChange={(event) => onChange(event.target.value)}
-          className='h-10 w-12 cursor-pointer rounded border-0 bg-transparent p-0'
+          className='h-10 w-10 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0'
         />
         <input
           value={value ?? ''}
           placeholder='#ffffff'
           onChange={(event) => onChange(normalizeOptionalInput(event.target.value))}
-          className='w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-disabled'
+          className='min-w-0 flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-disabled'
         />
       </div>
     </label>
@@ -2320,178 +2323,190 @@ function GraphicSelectionSection({
   onDetachGraphicConfig: (graphicId: string) => void
 }) {
   return (
-    <FormSection title='Graphic config library' description='Create, select, duplicate, and delete reusable graphic configs. Editing happens in the panel on the right.'>
-      <div className={`grid gap-3 ${settingsInsetSectionClassName}`}>
-        <div>
-          <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Create new graphic config</p>
-          <p className='mt-1 text-sm text-muted'>
-            Start from a practical default, then fine-tune bindings, OSC, and preview settings after creation.
-          </p>
-        </div>
-
-        <div className='grid gap-3 md:grid-cols-[9rem,minmax(0,1fr)]'>
-          <label className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
-            <select
-              value={draftGraphicEntityType}
-              onChange={(event) => onDraftGraphicEntityTypeChange(event.target.value as GraphicInstanceConfig['entityType'])}
-              className={settingsFieldClassName}
-            >
-              {supportedEntityTypes.map((entityType) => (
-                <option key={entityType} value={entityType}>
-                  {entityType}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preferred id</span>
-            <input
-              value={draftGraphicId}
-              onChange={(event) => onDraftGraphicIdChange(event.target.value)}
-              placeholder={`${draftGraphicEntityType}-main`}
-              className={settingsFieldClassName}
-            />
-          </label>
-        </div>
-        <div className={settingsActionRowEndClassName}>
-          <button
-            type='button'
-            onClick={onCreateGraphicConfig}
-            className='rounded-xl border border-accent bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90'
-          >
-            Create config
-          </button>
-        </div>
-      </div>
-
-      <label className='space-y-2'>
-        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Editing target</span>
-        <select
-          value={selectedGraphicId ?? ''}
-          onChange={(event) => onSelectedGraphicIdChange(event.target.value || null)}
-          className={settingsFieldClassName}
-        >
-          <option value=''>Select a graphic config</option>
-          {settings.graphics.map((graphic) => {
-            const isAssigned = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
-
-            return (
-              <option key={graphic.id} value={graphic.id}>
-                  {graphic.name} | {graphic.entityType} | {isAssigned ? 'Assigned to active profile' : 'Library only'}
-              </option>
-            )
-          })}
-        </select>
-      </label>
-
-      {!selectedGraphicId ? (
-        <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
-          Select any library graphic config to edit it, even if it is not assigned to the active profile.
-        </div>
-      ) : null}
-
-      <div className='space-y-3'>
-        <div className='flex flex-wrap items-start justify-between gap-3'>
+    <FormSection title='Graphic config library' description='Create, select, duplicate, and delete reusable graphic configs in one compact library flow.'>
+      <div className={settingsCompactEditorStackClassName}>
+        <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
           <div>
-            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config library</p>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Create new graphic config</p>
             <p className='mt-1 text-sm text-muted'>
-              Remove from profile only detaches from the active show. Delete from library removes the config globally.
+              Start from a practical default, then fine-tune bindings, OSC, and preview settings after creation.
             </p>
           </div>
-          <span className={getStateBadgeClassName('invalid')}>
-            Delete from library is global
-          </span>
+
+          <div className='grid gap-3 sm:grid-cols-[9rem,minmax(0,14rem),auto] sm:items-end'>
+            <label className='space-y-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
+              <select
+                value={draftGraphicEntityType}
+                onChange={(event) => onDraftGraphicEntityTypeChange(event.target.value as GraphicInstanceConfig['entityType'])}
+                className={settingsFieldClassName}
+              >
+                {supportedEntityTypes.map((entityType) => (
+                  <option key={entityType} value={entityType}>
+                    {entityType}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className='space-y-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preferred id</span>
+              <input
+                value={draftGraphicId}
+                onChange={(event) => onDraftGraphicIdChange(event.target.value)}
+                placeholder={`${draftGraphicEntityType}-main`}
+                className={settingsFieldClassName}
+              />
+            </label>
+            <button
+              type='button'
+              onClick={onCreateGraphicConfig}
+              className='rounded-xl border border-accent bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90'
+            >
+              Create config
+            </button>
+          </div>
         </div>
 
-        <div className='space-y-2'>
-          {settings.graphics.map((graphic) => {
-            const isLoadedByProfile = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
-            const isSelected = selectedGraphicId === graphic.id
-            const deleteIsPending = pendingGraphicDelete?.graphicId === graphic.id
+        <div className={`space-y-3 ${settingsSubsectionClassName}`}>
+          <div>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Editing target</p>
+            <p className='mt-1 text-sm text-muted'>
+              Select any library graphic config to continue editing, even if it is not assigned to the active profile.
+            </p>
+          </div>
 
-            return (
-              <div
-                key={graphic.id}
-                className={`rounded-2xl border px-4 py-3 text-left transition ${
-                  isSelected
-                    ? 'border-accent bg-accent/5'
-                    : 'border-border bg-card hover:border-accent/40'
-                }`}
+          <div className='max-w-[36rem]'>
+            <label className='space-y-2'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Editing target</span>
+              <select
+                value={selectedGraphicId ?? ''}
+                onChange={(event) => onSelectedGraphicIdChange(event.target.value || null)}
+                className={settingsFieldClassName}
               >
-                <div className='flex items-start justify-between gap-3'>
-                  <div className='min-w-0 flex-1'>
-                    <button
-                      type='button'
-                      onClick={() => onSelectedGraphicIdChange(graphic.id)}
-                      className='w-full text-left'
-                    >
-                      <p className='truncate text-sm font-semibold text-text-primary'>{graphic.name}</p>
-                      <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
-                    </button>
-                  </div>
-                  <span className={getStateBadgeClassName(isLoadedByProfile ? 'active' : 'warning')}>
-                    {isLoadedByProfile ? 'Assigned to profile' : 'Library only'}
-                  </span>
-                </div>
+                <option value=''>Select a graphic config</option>
+                {settings.graphics.map((graphic) => {
+                  const isAssigned = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
 
-                <div className='mt-3 flex items-center justify-end gap-2'>
-                  <IconActionButton
-                    label={isLoadedByProfile ? 'Remove from profile' : 'Add to profile'}
-                    onClick={() => isLoadedByProfile ? onDetachGraphicConfig(graphic.id) : onAttachGraphicConfig(graphic.id)}
-                    tone={isLoadedByProfile ? 'amber' : 'emerald'}
-                    icon={isLoadedByProfile ? <RemoveLinkIcon /> : <AddLinkIcon />}
-                  />
-                  <IconActionButton
-                    label='Duplicate'
-                    onClick={() => onDuplicateGraphicConfig(graphic.id)}
-                    tone='neutral'
-                    icon={<DuplicateIcon />}
-                  />
-                  <IconActionButton
-                    label='Delete from library'
-                    onClick={() => onRequestDeleteGraphicConfig(graphic.id)}
-                    tone='rose'
-                    icon={<DeleteIcon />}
-                  />
-                </div>
-                {deleteIsPending ? (
-                  <div className='basis-full ap-banner ap-banner-danger p-4'>
-                    <p className='font-semibold'>Delete "{graphic.name}" from the library?</p>
-                    {pendingGraphicDelete.references.length > 0 ? (
-                      <div className='mt-2 space-y-2'>
-                        <p>
-                          This config is still used by: {pendingGraphicDelete.references.map((reference) => reference.profileLabel).join(', ')}.
-                        </p>
-                        <p>Remove it from those profiles first. Library deletion is blocked while references exist.</p>
-                      </div>
-                    ) : (
-                      <p className='mt-2'>
-                        This permanently removes the config from the reusable library for all profiles.
-                      </p>
-                    )}
-                <div className={`mt-3 ${settingsActionRowClassName}`}>
+                  return (
+                    <option key={graphic.id} value={graphic.id}>
+                      {graphic.name} | {graphic.entityType} | {isAssigned ? 'Assigned to active profile' : 'Library only'}
+                    </option>
+                  )
+                })}
+              </select>
+            </label>
+          </div>
+
+          {!selectedGraphicId ? (
+            <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
+              Select any library graphic config to edit it, even if it is not assigned to the active profile.
+            </div>
+          ) : null}
+        </div>
+
+        <div className='space-y-3'>
+          <div className='flex flex-wrap items-start justify-between gap-3'>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config library</p>
+              <p className='mt-1 text-sm text-muted'>
+                Remove from profile only detaches from the active show. Delete from library removes the config globally.
+              </p>
+            </div>
+            <span className={getStateBadgeClassName('invalid')}>
+              Delete from library is global
+            </span>
+          </div>
+
+          <div className={settingsCompactScrollAreaClassName}>
+            <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+              {settings.graphics.map((graphic) => {
+                const isLoadedByProfile = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
+                const isSelected = selectedGraphicId === graphic.id
+                const deleteIsPending = pendingGraphicDelete?.graphicId === graphic.id
+
+                return (
+                  <div
+                    key={graphic.id}
+                    className={`rounded-2xl border px-4 py-3 text-left transition ${
+                      isSelected
+                        ? 'border-accent bg-accent/5'
+                        : 'border-border bg-card hover:border-accent/40'
+                    }`}
+                  >
+                    <div className='flex items-start justify-between gap-3'>
                       <button
                         type='button'
-                        onClick={onCancelDeleteGraphicConfig}
-                        className={settingsSecondaryButtonClassName}
+                        onClick={() => onSelectedGraphicIdChange(graphic.id)}
+                        className='min-w-0 flex-1 text-left'
                       >
-                        Cancel
+                        <p className='truncate text-sm font-semibold text-text-primary'>{graphic.name}</p>
+                        <p className='mt-1 text-xs uppercase tracking-[0.16em] text-muted'>{graphic.entityType}</p>
+                        <p className='mt-2 text-xs text-text-secondary'>{graphic.id}</p>
                       </button>
-                      <button
-                        type='button'
-                        onClick={onConfirmDeleteGraphicConfig}
-                        disabled={pendingGraphicDelete.references.length > 0}
-                        className='rounded-xl border border-rose-500 bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50'
-                      >
-                        Confirm delete
-                      </button>
+                      <span className={getStateBadgeClassName(isLoadedByProfile ? 'active' : 'warning')}>
+                        {isLoadedByProfile ? 'Assigned' : 'Library only'}
+                      </span>
                     </div>
+
+                    <div className='mt-3 flex flex-wrap items-center gap-2'>
+                      <IconActionButton
+                        label={isLoadedByProfile ? 'Remove from profile' : 'Add to profile'}
+                        onClick={() => isLoadedByProfile ? onDetachGraphicConfig(graphic.id) : onAttachGraphicConfig(graphic.id)}
+                        tone={isLoadedByProfile ? 'amber' : 'emerald'}
+                        icon={isLoadedByProfile ? <RemoveLinkIcon /> : <AddLinkIcon />}
+                      />
+                      <IconActionButton
+                        label='Duplicate'
+                        onClick={() => onDuplicateGraphicConfig(graphic.id)}
+                        tone='neutral'
+                        icon={<DuplicateIcon />}
+                      />
+                      <IconActionButton
+                        label='Delete from library'
+                        onClick={() => onRequestDeleteGraphicConfig(graphic.id)}
+                        tone='rose'
+                        icon={<DeleteIcon />}
+                      />
+                    </div>
+                    {deleteIsPending ? (
+                      <div className='mt-3 ap-banner ap-banner-danger p-4'>
+                        <p className='font-semibold'>Delete "{graphic.name}" from the library?</p>
+                        {pendingGraphicDelete.references.length > 0 ? (
+                          <div className='mt-2 space-y-2'>
+                            <p>
+                              This config is still used by: {pendingGraphicDelete.references.map((reference) => reference.profileLabel).join(', ')}.
+                            </p>
+                            <p>Remove it from those profiles first. Library deletion is blocked while references exist.</p>
+                          </div>
+                        ) : (
+                          <p className='mt-2'>
+                            This permanently removes the config from the reusable library for all profiles.
+                          </p>
+                        )}
+                        <div className={`mt-3 ${settingsActionRowClassName}`}>
+                          <button
+                            type='button'
+                            onClick={onCancelDeleteGraphicConfig}
+                            className={settingsSecondaryButtonClassName}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type='button'
+                            onClick={onConfirmDeleteGraphicConfig}
+                            disabled={pendingGraphicDelete.references.length > 0}
+                            className='rounded-xl border border-rose-500 bg-rose-600 px-3 py-2 text-sm font-semibold text-white transition enabled:hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50'
+                          >
+                            Confirm delete
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </FormSection>
@@ -3586,9 +3601,9 @@ function PreviewTemplateSection({
 
   return (
     <FormSection title='Preview template' description='Edit the APlay-side preview approximation for the selected graphic.'>
-      <div className='grid gap-6 xl:grid-cols-2'>
+      <div className='grid gap-4 xl:grid-cols-[minmax(0,44rem),minmax(20rem,28rem)]'>
         <div className='space-y-4'>
-          <div className='grid gap-3 md:grid-cols-3'>
+          <div className='grid gap-3 md:grid-cols-[minmax(0,1fr),9rem,9rem]'>
             <label className='space-y-2'>
               <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Template id</span>
               <input
@@ -3732,167 +3747,213 @@ function PreviewTemplateSection({
               </button>
             </div>
 
-            {graphic.preview.elements.map((element, elementIndex) => {
-              const textBehavior = getElementBehavior(element)
+            <div className={settingsCompactScrollAreaClassName}>
+              {graphic.preview.elements.map((element, elementIndex) => {
+                const textBehavior = getElementBehavior(element)
 
-              return (
-                <div key={`${elementIndex}`} className={`space-y-4 ${settingsSubsectionClassName}`}>
-                <div className='flex items-center justify-between gap-3'>
-                  <p className='text-sm font-semibold text-text-primary'>{element.id}</p>
-                  <button
-                    type='button'
-                    onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
-                    disabled={graphic.preview.elements.length === 1}
-                    className={settingsDangerButtonClassName}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                <div className='grid gap-3 md:grid-cols-3'>
-                  <label className='space-y-2'>
-                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element id</span>
-                    <input
-                      value={element.id}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
-                      className={settingsFieldClassName}
-                    />
-                  </label>
-                  <label className='space-y-2'>
-                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
-                    <select
-                      value={element.kind}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
-                      className={settingsFieldClassName}
+                return (
+                  <div key={`${elementIndex}`} className={`space-y-4 ${settingsSubsectionClassName}`}>
+                  <div className='flex items-center justify-between gap-3'>
+                    <p className='text-sm font-semibold text-text-primary'>{element.id}</p>
+                    <button
+                      type='button'
+                      onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
+                      disabled={graphic.preview.elements.length === 1}
+                      className={settingsDangerButtonClassName}
                     >
-                      {previewElementKinds.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {kind}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className='space-y-2'>
-                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
-                    <input
-                      value={element.sourceField}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                      className={settingsFieldClassName}
-                    />
-                  </label>
-                  {element.kind === 'text' ? (
-                    <label className='space-y-2 md:col-span-2'>
-                      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
-                      <input
-                        value={element.previewText ?? ''}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
-                        placeholder='Write the exact text you want to arrange in preview'
-                        className={settingsFieldClassName}
-                      />
-                    </label>
-                  ) : null}
-                  <label className={settingsCheckboxRowClassName}>
-                    <input
-                      type='checkbox'
-                      checked={element.visible ?? true}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, visible: event.target.checked }))}
-                      className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
-                    />
-                    {element.visible ?? true ? 'VIEW' : 'HIDE'}
-                  </label>
-                  <NumberField label='X' value={element.box.x} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
-                  <NumberField label='Y' value={element.box.y} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
-                  <NumberField label='Width' value={element.box.width} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
-                  <NumberField label='Height' value={element.box.height} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
-                  <NumberField label='Border radius' value={element.borderRadius ?? 0} min={0} max={200} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
-                  <label className='space-y-2'>
-                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
-                    <select
-                      value={element.transformOrigin ?? 'top-left'}
-                      onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
-                      className={settingsFieldClassName}
-                    >
-                      {transformOrigins.map((origin) => (
-                        <option key={origin} value={origin}>
-                          {origin}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <ColorField
-                    label='Text color'
-                    value={element.textColor}
-                    onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, textColor: value }))}
-                  />
-                  <ColorField
-                    label='Background color'
-                    value={element.backgroundColor}
-                    onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, backgroundColor: value }))}
-                  />
-                  <ColorField
-                    label='Border color'
-                    value={element.borderColor}
-                    onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderColor: value }))}
-                  />
-                </div>
-
-                {element.kind === 'text' ? (
-                  <div className={`grid gap-3 ${settingsInsetSectionClassName} md:grid-cols-3`}>
-                    <label className={settingsCheckboxRowClassName}>
-                      <input
-                        type='checkbox'
-                        checked={textBehavior?.allCaps ?? false}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
-                          updateElementBehavior(current, (behavior) => ({ ...behavior, allCaps: event.target.checked })))}
-                        className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
-                      />
-                      ALL CAPS
-                    </label>
-                    <label className={settingsCheckboxRowClassName}>
-                      <input
-                        type='checkbox'
-                        checked={textBehavior?.fitInBox ?? false}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
-                          updateElementBehavior(current, (behavior) => ({ ...behavior, fitInBox: event.target.checked })))}
-                        className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
-                      />
-                      Fit in box
-                    </label>
-                    <NumberField label='Min scaleX' value={textBehavior?.minScaleX ?? 0} min={0} max={1} step={0.01} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
-                      updateElementBehavior(current, (behavior) => ({ ...behavior, minScaleX: value })))} />
-                    <NumberField label='Font size' value={textBehavior?.fontSize ?? 64} min={0} max={300} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
-                      updateElementBehavior(current, (behavior) => ({ ...behavior, fontSize: value })))} />
-                    <NumberField label='Padding left' value={textBehavior?.paddingLeft ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
-                      updateElementBehavior(current, (behavior) => ({ ...behavior, paddingLeft: value })))} />
-                    <NumberField label='Padding right' value={textBehavior?.paddingRight ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
-                      updateElementBehavior(current, (behavior) => ({ ...behavior, paddingRight: value })))} />
-                    <label className='space-y-2 md:col-span-2'>
-                      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
-                      <input
-                        value={textBehavior?.fontFamily ?? 'Arial'}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
-                          updateElementBehavior(current, (behavior) => ({ ...behavior, fontFamily: normalizeOptionalInput(event.target.value) })))}
-                        placeholder='Arial, Helvetica, "My Local Font"'
-                        className={settingsFieldClassName}
-                      />
-                    </label>
-                    <label className='space-y-2'>
-                      <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Text align</span>
-                      <select
-                        value={textBehavior?.textAlign ?? 'left'}
-                        onChange={(event) => updatePreviewElement(elementIndex, (current) =>
-                          updateElementBehavior(current, (behavior) => ({ ...behavior, textAlign: event.target.value as 'left' | 'center' })))}
-                        className={settingsFieldClassName}
-                      >
-                        <option value='left'>Left</option>
-                        <option value='center'>Center</option>
-                      </select>
-                    </label>
+                      Remove
+                    </button>
                   </div>
-                ) : null}
-                </div>
-              )
-            })}
+
+                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
+                    <div>
+                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element identity</p>
+                    </div>
+                    <div className='grid gap-3 md:grid-cols-[minmax(0,1fr),10rem,10rem]'>
+                      <label className='space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element id</span>
+                        <input
+                          value={element.id}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
+                          className={settingsFieldClassName}
+                        />
+                      </label>
+                      <label className='space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
+                        <select
+                          value={element.kind}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
+                          className={settingsFieldClassName}
+                        >
+                          {previewElementKinds.map((kind) => (
+                            <option key={kind} value={kind}>
+                              {kind}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className='space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
+                        <input
+                          value={element.sourceField}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
+                          className={settingsFieldClassName}
+                        />
+                      </label>
+                    </div>
+                    {element.kind === 'text' ? (
+                      <div className='max-w-[30rem]'>
+                        <label className='space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
+                          <input
+                            value={element.previewText ?? ''}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
+                            placeholder='Write the exact text you want to arrange in preview'
+                            className={settingsFieldClassName}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
+                    <div>
+                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Visibility / behavior</p>
+                    </div>
+                    <div className='flex flex-wrap gap-2'>
+                      <label className={settingsCompactCheckboxRowClassName}>
+                        <input
+                          type='checkbox'
+                          checked={element.visible ?? true}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, visible: event.target.checked }))}
+                          className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                        />
+                        {element.visible ?? true ? 'VIEW' : 'HIDE'}
+                      </label>
+                      {element.kind === 'text' ? (
+                        <label className={settingsCompactCheckboxRowClassName}>
+                          <input
+                            type='checkbox'
+                            checked={textBehavior?.allCaps ?? false}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                              updateElementBehavior(current, (behavior) => ({ ...behavior, allCaps: event.target.checked })))}
+                            className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                          />
+                          ALL CAPS
+                        </label>
+                      ) : null}
+                      {element.kind === 'text' ? (
+                        <label className={settingsCompactCheckboxRowClassName}>
+                          <input
+                            type='checkbox'
+                            checked={textBehavior?.fitInBox ?? false}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                              updateElementBehavior(current, (behavior) => ({ ...behavior, fitInBox: event.target.checked })))}
+                            className='h-4 w-4 rounded border-border text-accent focus:ring-accent'
+                          />
+                          Fit in box
+                        </label>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
+                    <div>
+                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Position / size</p>
+                    </div>
+                    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+                      <NumberField compact label='X' value={element.box.x} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
+                      <NumberField compact label='Y' value={element.box.y} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
+                      <NumberField compact label='Width' value={element.box.width} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
+                      <NumberField compact label='Height' value={element.box.height} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
+                      <NumberField compact label='Border radius' value={element.borderRadius ?? 0} min={0} max={200} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
+                      <label className='max-w-[10rem] space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
+                        <select
+                          value={element.transformOrigin ?? 'top-left'}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
+                          className={`${settingsFieldClassName} max-w-[10rem]`}
+                        >
+                          {transformOrigins.map((origin) => (
+                            <option key={origin} value={origin}>
+                              {origin}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
+                    <div>
+                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Colors / appearance</p>
+                    </div>
+                    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+                      <ColorField
+                        compact
+                        label='Text color'
+                        value={element.textColor}
+                        onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, textColor: value }))}
+                      />
+                      <ColorField
+                        compact
+                        label='Background color'
+                        value={element.backgroundColor}
+                        onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, backgroundColor: value }))}
+                      />
+                      <ColorField
+                        compact
+                        label='Border color'
+                        value={element.borderColor}
+                        onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderColor: value }))}
+                      />
+                    </div>
+                  </div>
+                  {element.kind === 'text' ? (
+                    <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
+                      <div>
+                        <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Typography / spacing</p>
+                      </div>
+                      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+                        <NumberField compact label='Font size' value={textBehavior?.fontSize ?? 64} min={0} max={300} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, fontSize: value })))} />
+                        <NumberField compact label='Min scaleX' value={textBehavior?.minScaleX ?? 0} min={0} max={1} step={0.01} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, minScaleX: value })))} />
+                        <label className='max-w-[10rem] space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Text align</span>
+                          <select
+                            value={textBehavior?.textAlign ?? 'left'}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                              updateElementBehavior(current, (behavior) => ({ ...behavior, textAlign: event.target.value as 'left' | 'center' })))}
+                            className={`${settingsFieldClassName} max-w-[10rem]`}
+                          >
+                            <option value='left'>Left</option>
+                            <option value='center'>Center</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div className='grid gap-3 md:grid-cols-[9rem,9rem,minmax(0,14rem)]'>
+                        <NumberField compact label='Padding left' value={textBehavior?.paddingLeft ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, paddingLeft: value })))} />
+                        <NumberField compact label='Padding right' value={textBehavior?.paddingRight ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
+                          updateElementBehavior(current, (behavior) => ({ ...behavior, paddingRight: value })))} />
+                        <label className='max-w-[14rem] space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
+                          <input
+                            value={textBehavior?.fontFamily ?? 'Arial'}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) =>
+                              updateElementBehavior(current, (behavior) => ({ ...behavior, fontFamily: normalizeOptionalInput(event.target.value) })))}
+                            placeholder='Arial, Helvetica, "My Local Font"'
+                            className={`${settingsFieldClassName} max-w-[14rem]`}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : null}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
 
