@@ -119,7 +119,6 @@ const multiDocumentFixture: EditorialDocument = {
       entityCollections: {
         pa_title_main: [{ text: 'Title One', number: '1' }],
         'location-main': [{ value: 'Chisinau' }],
-        'logo-main': [{ staticAsset: 'assets/logo.png' }],
       },
     },
   ],
@@ -194,6 +193,17 @@ describe('grouped entity lists', () => {
     expect(groupedLists.map((group) => group.graphicConfigId)).toEqual(['pa_title_main', 'pa_title_waiting'])
     expect(groupedLists.every((group) => group.graphic.entityType === 'title')).toBe(true)
   })
+
+  it('includes static image graphics in graphic collections even when the source block has no mapped collection for them', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+    const groupedLists = resolveGraphicConfigEntityLists(state.document, state.selection, multiSelectionGraphicsFixture)
+
+    expect(groupedLists).toContainEqual({
+      graphicConfigId: 'logo-main',
+      graphic: multiSelectionGraphicsFixture[3],
+      items: [{ staticAsset: 'assets/logo.png', staticPlayableGraphicName: 'Logo main' }],
+    })
+  })
 })
 
 describe('selected entity context', () => {
@@ -202,12 +212,26 @@ it('derives selected entity context for the active workspace target', () => {
       .selectGraphicConfig('pa_title_waiting')
       .selectEntity(0)
 
-    expect(deriveSelectedEntityContext(state.document, state.selection)).toEqual({
+    expect(deriveSelectedEntityContext(state.document, state.selection, graphicsFixture)).toEqual({
       blockIndex: 0,
       blockName: 'Opening',
       graphicConfigId: 'pa_title_waiting',
       entityIndex: 0,
       entity: { text: 'Waiting title', location: 'Chisinau' },
+    })
+  })
+
+  it('derives a selected entity context for a static image graphic even without CSV-backed block items', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .selectGraphicConfig('logo-main')
+      .selectEntity(0)
+
+    expect(deriveSelectedEntityContext(state.document, state.selection, multiSelectionGraphicsFixture)).toEqual({
+      blockIndex: 0,
+      blockName: 'Opening',
+      graphicConfigId: 'logo-main',
+      entityIndex: 0,
+      entity: { staticAsset: 'assets/logo.png', staticPlayableGraphicName: 'Logo main' },
     })
   })
 })
@@ -218,7 +242,34 @@ describe('empty and sparse documents', () => {
 
     expect(state.selection.selectedBlockIndex).toBeUndefined()
     expect(resolveGraphicConfigEntityLists(state.document, state.selection, graphicsFixture)).toEqual([])
-    expect(deriveSelectedEntityContext(state.document, state.selection)).toBeUndefined()
+    expect(deriveSelectedEntityContext(state.document, state.selection, graphicsFixture)).toBeUndefined()
+  })
+
+  it('keeps static image graphics accessible as operational collections even when no source blocks exist', () => {
+    const state = createWorkspaceSelectionState({ blocks: [] }, multiSelectionGraphicsFixture)
+
+    expect(state.selection.selectedBlockIndex).toBe(0)
+    expect(resolveGraphicConfigEntityLists(state.document, state.selection, multiSelectionGraphicsFixture)).toContainEqual({
+      graphicConfigId: 'logo-main',
+      graphic: multiSelectionGraphicsFixture[3],
+      items: [{ staticAsset: 'assets/logo.png', staticPlayableGraphicName: 'Logo main' }],
+    })
+
+    const selectedStaticState = state
+      .selectGraphicConfig('logo-main')
+      .selectEntity(0)
+
+    expect(deriveSelectedEntityContext(
+      selectedStaticState.document,
+      selectedStaticState.selection,
+      multiSelectionGraphicsFixture,
+    )).toEqual({
+      blockIndex: 0,
+      blockName: 'Static graphics',
+      graphicConfigId: 'logo-main',
+      entityIndex: 0,
+      entity: { staticAsset: 'assets/logo.png', staticPlayableGraphicName: 'Logo main' },
+    })
   })
 
   it('handles blocks with empty collections safely', () => {
@@ -319,6 +370,15 @@ describe('multi-selection state', () => {
     ])
   })
 
+  it('allows adding a static image graphic to grouped selection even when no source collection entry exists for it', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('logo-main', 0)
+
+    expect(state.selection.selectedItems).toEqual([
+      { graphicConfigId: 'logo-main', entityIndex: 0 },
+    ])
+  })
+
   it('adds one item to multi-selection', () => {
     const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
       .addSelectedItem('pa_title_main', 0)
@@ -386,7 +446,7 @@ describe('multi-selection state', () => {
       .selectEntity(0)
       .addSelectedItem('location-main', 0)
 
-    expect(deriveSelectedEntityContext(state.document, state.selection)).toEqual({
+    expect(deriveSelectedEntityContext(state.document, state.selection, multiSelectionGraphicsFixture)).toEqual({
       blockIndex: 0,
       blockName: 'Opening',
       graphicConfigId: 'pa_title_main',
@@ -400,7 +460,7 @@ describe('multi-selection state', () => {
       .addSelectedItem('pa_title_main', 0)
       .addSelectedItem('logo-main', 0)
 
-    expect(deriveSelectedMultiEntityContexts(state.document, state.selection)).toEqual([
+    expect(deriveSelectedMultiEntityContexts(state.document, state.selection, multiSelectionGraphicsFixture)).toEqual([
       {
         blockIndex: 0,
         blockName: 'Opening',
@@ -413,7 +473,7 @@ describe('multi-selection state', () => {
         blockName: 'Opening',
         graphicConfigId: 'logo-main',
         entityIndex: 0,
-        entity: { staticAsset: 'assets/logo.png' },
+        entity: { staticAsset: 'assets/logo.png', staticPlayableGraphicName: 'Logo main' },
       },
     ])
   })

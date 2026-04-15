@@ -1,5 +1,8 @@
 import type { ActionType } from '@/core/actions/actionTypes'
-import type { SelectedEntityContext } from '@/features/workspace/state/workspaceSelectionState'
+import {
+  isStaticPlayableGraphic,
+  type SelectedEntityContext,
+} from '@/features/workspace/state/workspaceSelectionState'
 import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import type {
   EntityPublishInput,
@@ -110,8 +113,9 @@ function runAction(
 
   const bindings = graphic.bindings ?? dependencies.bindingsByGraphicId[graphic.id] ?? []
   const targetFile = resolveDatasourceTargetPath(graphic)
+  const requiresDatasource = actionType === 'playGraphic' && !isStaticPlayableGraphic(graphic)
 
-  if (actionType === 'playGraphic') {
+  if (requiresDatasource) {
     if (bindings.length === 0) {
       return {
         kind: 'error',
@@ -153,7 +157,7 @@ function runAction(
     kind: 'success',
     title: `${actionType} completed`,
     details: [
-      ...(actionType === 'playGraphic'
+      ...(requiresDatasource
         ? [`Datasource updated: ${targetFile}`]
         : []),
       `OSC sent: ${outputResult.command.address}`,

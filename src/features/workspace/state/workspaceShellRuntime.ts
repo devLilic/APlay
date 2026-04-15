@@ -1,5 +1,9 @@
 import type { EditorialDocument } from '@/core/models/editorial'
-import type { SelectedEntityContext, SelectedMultiEntityContext } from '@/features/workspace/state/workspaceSelectionState'
+import {
+  isStaticPlayableGraphic,
+  type SelectedEntityContext,
+  type SelectedMultiEntityContext,
+} from '@/features/workspace/state/workspaceSelectionState'
 import { createCsvEditorialSourceAdapter } from '@/adapters/content-source/csvEditorialSource'
 import { createJsonEditorialSourceAdapter } from '@/adapters/content-source/jsonEditorialSource'
 import { createProfileContentSourceLoader } from '@/adapters/content-source/profileContentSourceLoader'
@@ -638,7 +642,7 @@ function doesGraphicRequireDatasource(
   actionType: ActionType,
   graphic: GraphicInstanceConfig,
 ): boolean {
-  return actionType === 'playGraphic' && graphic.kind !== 'static' && graphic.entityType !== 'image'
+  return actionType === 'playGraphic' && !isStaticPlayableGraphic(graphic)
 }
 
 function resolveGroupedDatasourceTargetFile(graphic: GraphicInstanceConfig): string {

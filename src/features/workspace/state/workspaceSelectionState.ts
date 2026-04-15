@@ -29,6 +29,11 @@ export interface SelectedEntityContext {
 
 export interface SelectedMultiEntityContext extends SelectedEntityContext {}
 
+export type StaticPlayableGraphicItem = GraphicConfigEntityItem & {
+  staticPlayableGraphicName: string
+  staticAsset?: string
+}
+
 export interface WorkspaceSelectionStateController {
   document: EditorialDocument
   selection: WorkspaceSelection
@@ -54,14 +59,14 @@ export function createWorkspaceSelectionState(
   graphics: GraphicInstanceConfig[],
   selection: WorkspaceSelection = createInitialSelection(document, graphics),
 ): WorkspaceSelectionStateController {
-  const reconciledSelection = reconcileWorkspaceSelection(document, selection)
+  const reconciledSelection = reconcileWorkspaceSelection(document, selection, graphics)
 
   return {
     document,
     selection: reconciledSelection,
     selectBlock(blockIndex: number) {
       return createWorkspaceSelectionState(document, graphics, {
-        selectedBlockIndex: isValidBlockIndex(document, blockIndex) ? blockIndex : undefined,
+        selectedBlockIndex: isValidBlockIndex(document, graphics, blockIndex) ? blockIndex : undefined,
         selectedItems: [],
       })
     },
@@ -86,6 +91,7 @@ export function createWorkspaceSelectionState(
 
       const groupedItems = getGraphicConfigItems(
         document,
+        graphics,
         reconciledSelection.selectedBlockIndex,
         reconciledSelection.selectedGraphicConfigId,
       )
@@ -104,6 +110,7 @@ export function createWorkspaceSelectionState(
 
       const nextSelection = addSelectedItemToSelection(
         document,
+        graphics,
         reconciledSelection,
         graphicConfigId,
         entityIndex,
@@ -132,13 +139,13 @@ export function createWorkspaceSelectionState(
       return deriveSelectedItemCount(reconciledSelection)
     },
     getSelectedItems() {
-      return deriveSelectedMultiEntityContexts(document, reconciledSelection)
+      return deriveSelectedMultiEntityContexts(document, reconciledSelection, graphics)
     },
     getSelectedItemForGroup(graphicConfigId: string) {
-      return getSelectedItemForGroup(document, reconciledSelection, graphicConfigId)
+      return getSelectedItemForGroup(document, reconciledSelection, graphics, graphicConfigId)
     },
     getSelectedBlock() {
-      return getSelectedBlock(document, reconciledSelection)
+      return getSelectedBlock(document, reconciledSelection, graphics)
     },
   }
 }
@@ -148,27 +155,26 @@ export function resolveGraphicConfigEntityLists(
   selection: WorkspaceSelection,
   graphics: GraphicInstanceConfig[],
 ): GraphicConfigEntityList[] {
-  const block = getSelectedBlock(document, selection)
+  const block = getSelectedBlock(document, selection, graphics)
   if (!block) {
     return []
   }
 
-  const collections = block.entityCollections ?? {}
-
   return graphics
-    .filter((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'image')
+    .filter((graphic) => !isNonCollectionGraphic(graphic))
     .map((graphic) => ({
       graphicConfigId: graphic.id,
       graphic,
-      items: collections[graphic.id] ?? [],
+      items: resolveGraphicCollectionItems(block, graphic),
     }))
 }
 
 export function deriveSelectedEntityContext(
   document: EditorialDocument,
   selection: WorkspaceSelection,
+  graphics: GraphicInstanceConfig[] = [],
 ): SelectedEntityContext | undefined {
-  const block = getSelectedBlock(document, selection)
+  const block = getSelectedBlock(document, selection, graphics)
   const selectedBlockIndex = selection.selectedBlockIndex
   const selectedGraphicConfigId = selection.selectedGraphicConfigId
   const selectedEntityIndex = selection.selectedEntityIndex
@@ -182,7 +188,8 @@ export function deriveSelectedEntityContext(
     return undefined
   }
 
-  const entity = block.entityCollections?.[selectedGraphicConfigId]?.[selectedEntityIndex]
+  const graphic = graphics.find((item) => item.id === selectedGraphicConfigId)
+  const entity = resolveGraphicCollectionItems(block, graphic)?.[selectedEntityIndex]
   if (entity === undefined) {
     return undefined
   }
@@ -199,8 +206,9 @@ export function deriveSelectedEntityContext(
 export function deriveSelectedMultiEntityContexts(
   document: EditorialDocument,
   selection: WorkspaceSelection,
+  graphics: GraphicInstanceConfig[] = [],
 ): SelectedMultiEntityContext[] {
-  const block = getSelectedBlock(document, selection)
+  const block = getSelectedBlock(document, selection, graphics)
   const selectedBlockIndex = selection.selectedBlockIndex
   const selectedItems = selection.selectedItems ?? []
 
@@ -209,7 +217,8 @@ export function deriveSelectedMultiEntityContexts(
   }
 
   return selectedItems.flatMap((item) => {
-    const entity = block.entityCollections?.[item.graphicConfigId]?.[item.entityIndex]
+    const graphic = graphics.find((currentGraphic) => currentGraphic.id === item.graphicConfigId)
+    const entity = resolveGraphicCollectionItems(block, graphic)?.[item.entityIndex]
     if (entity === undefined) {
       return []
     }
@@ -231,9 +240,10 @@ export function deriveSelectedItemCount(selection: WorkspaceSelection): number {
 export function deriveSelectedItemForGroup(
   document: EditorialDocument,
   selection: WorkspaceSelection,
+  graphics: GraphicInstanceConfig[],
   graphicConfigId: string,
 ): SelectedMultiEntityContext | undefined {
-  return getSelectedItemForGroup(document, selection, graphicConfigId)
+  return getSelectedItemForGroup(document, selection, graphics, graphicConfigId)
 }
 
 export function isSelected(
@@ -249,20 +259,21 @@ export function isSelected(
 export function reconcileWorkspaceSelection(
   document: EditorialDocument,
   selection: WorkspaceSelection,
+  graphics: GraphicInstanceConfig[] = [],
 ): WorkspaceSelection {
-  const selectedBlockIndex = reconcileSelectedBlockIndex(document, selection.selectedBlockIndex)
+  const selectedBlockIndex = reconcileSelectedBlockIndex(document, graphics, selection.selectedBlockIndex)
   if (selectedBlockIndex === undefined) {
     return {}
   }
 
-  const selectedItems = reconcileSelectedItems(document, selectedBlockIndex, selection.selectedItems)
+  const selectedItems = reconcileSelectedItems(document, graphics, selectedBlockIndex, selection.selectedItems)
 
   const selectedGraphicConfigId = selection.selectedGraphicConfigId
   if (!selectedGraphicConfigId) {
     return { selectedBlockIndex, selectedItems }
   }
 
-  const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, selectedGraphicConfigId)
+  const groupedItems = getGraphicConfigItems(document, graphics, selectedBlockIndex, selectedGraphicConfigId)
   if (!groupedItems) {
     return { selectedBlockIndex, selectedItems }
   }
@@ -296,11 +307,12 @@ function createInitialSelection(
   document: EditorialDocument,
   graphics: GraphicInstanceConfig[],
 ): WorkspaceSelection {
-  if (document.blocks.length === 0) {
+  const workspaceBlocks = resolveWorkspaceBlocks(document, graphics)
+  if (workspaceBlocks.length === 0) {
     return {}
   }
 
-  const firstGraphicConfigId = graphics.find((graphic) => graphic.kind !== 'static' && graphic.entityType !== 'image')?.id
+  const firstGraphicConfigId = graphics.find((graphic) => !isNonCollectionGraphic(graphic))?.id
 
   return {
     selectedBlockIndex: 0,
@@ -312,27 +324,29 @@ function createInitialSelection(
 function getSelectedBlock(
   document: EditorialDocument,
   selection: WorkspaceSelection,
+  graphics: GraphicInstanceConfig[] = [],
 ): EditorialBlock | undefined {
   if (selection.selectedBlockIndex === undefined) {
     return undefined
   }
 
-  return document.blocks[selection.selectedBlockIndex]
+  return resolveWorkspaceBlocks(document, graphics)[selection.selectedBlockIndex]
 }
 
 function reconcileSelectedBlockIndex(
   document: EditorialDocument,
+  graphics: GraphicInstanceConfig[],
   selectedBlockIndex: number | undefined,
 ): number | undefined {
-  if (selectedBlockIndex !== undefined && isValidBlockIndex(document, selectedBlockIndex)) {
+  if (selectedBlockIndex !== undefined && isValidBlockIndex(document, graphics, selectedBlockIndex)) {
     return selectedBlockIndex
   }
 
-  return document.blocks.length > 0 ? 0 : undefined
+  return resolveWorkspaceBlocks(document, graphics).length > 0 ? 0 : undefined
 }
 
-function isValidBlockIndex(document: EditorialDocument, blockIndex: number): boolean {
-  return Number.isInteger(blockIndex) && blockIndex >= 0 && blockIndex < document.blocks.length
+function isValidBlockIndex(document: EditorialDocument, graphics: GraphicInstanceConfig[], blockIndex: number): boolean {
+  return Number.isInteger(blockIndex) && blockIndex >= 0 && blockIndex < resolveWorkspaceBlocks(document, graphics).length
 }
 
 function isKnownGraphicConfig(graphics: GraphicInstanceConfig[], graphicConfigId: string): boolean {
@@ -341,15 +355,20 @@ function isKnownGraphicConfig(graphics: GraphicInstanceConfig[], graphicConfigId
 
 function getGraphicConfigItems(
   document: EditorialDocument,
+  graphics: GraphicInstanceConfig[],
   blockIndex: number,
   graphicConfigId: string,
 ): GraphicConfigEntityItem[] | undefined {
-  const block = document.blocks[blockIndex]
-  return block?.entityCollections?.[graphicConfigId]
+  const block = resolveWorkspaceBlocks(document, graphics)[blockIndex]
+  const graphic = graphics.find((item) => item.id === graphicConfigId)
+  return block && graphic
+    ? resolveGraphicCollectionItems(block, graphic)
+    : block?.entityCollections?.[graphicConfigId]
 }
 
 function addSelectedItemToSelection(
   document: EditorialDocument,
+  graphics: GraphicInstanceConfig[],
   selection: WorkspaceSelection,
   graphicConfigId: string,
   entityIndex: number,
@@ -359,7 +378,7 @@ function addSelectedItemToSelection(
     return selection
   }
 
-  const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, graphicConfigId)
+  const groupedItems = getGraphicConfigItems(document, graphics, selectedBlockIndex, graphicConfigId)
   if (!isValidEntityIndex(groupedItems, entityIndex)) {
     return selection
   }
@@ -379,6 +398,7 @@ function addSelectedItemToSelection(
 
 function reconcileSelectedItems(
   document: EditorialDocument,
+  graphics: GraphicInstanceConfig[],
   selectedBlockIndex: number,
   selectedItems: MultiSelectionItem[] | undefined,
 ): MultiSelectionItem[] {
@@ -389,7 +409,7 @@ function reconcileSelectedItems(
   const nextItems: MultiSelectionItem[] = []
 
   for (const item of selectedItems) {
-    const groupedItems = getGraphicConfigItems(document, selectedBlockIndex, item.graphicConfigId)
+    const groupedItems = getGraphicConfigItems(document, graphics, selectedBlockIndex, item.graphicConfigId)
     if (!isValidEntityIndex(groupedItems, item.entityIndex)) {
       continue
     }
@@ -409,9 +429,10 @@ function reconcileSelectedItems(
 function getSelectedItemForGroup(
   document: EditorialDocument,
   selection: WorkspaceSelection,
+  graphics: GraphicInstanceConfig[],
   graphicConfigId: string,
 ): SelectedMultiEntityContext | undefined {
-  const block = getSelectedBlock(document, selection)
+  const block = getSelectedBlock(document, selection, graphics)
   const selectedBlockIndex = selection.selectedBlockIndex
   const selectedItem = (selection.selectedItems ?? []).find((item) => item.graphicConfigId === graphicConfigId)
 
@@ -419,7 +440,8 @@ function getSelectedItemForGroup(
     return undefined
   }
 
-  const entity = block.entityCollections?.[graphicConfigId]?.[selectedItem.entityIndex]
+  const graphic = graphics.find((item) => item.id === graphicConfigId)
+  const entity = resolveGraphicCollectionItems(block, graphic)?.[selectedItem.entityIndex]
   if (entity === undefined) {
     return undefined
   }
@@ -433,9 +455,77 @@ function getSelectedItemForGroup(
   }
 }
 
+function resolveGraphicCollectionItems(
+  block: EditorialBlock,
+  graphic: GraphicInstanceConfig | undefined,
+): GraphicConfigEntityItem[] {
+  if (!graphic) {
+    return []
+  }
+
+  const dynamicItems = block.entityCollections?.[graphic.id]
+  if (Array.isArray(dynamicItems)) {
+    return dynamicItems
+  }
+
+  if (!isStaticPlayableGraphic(graphic)) {
+    return []
+  }
+
+  return [createStaticPlayableGraphicItem(graphic)]
+}
+
+function isNonCollectionGraphic(graphic: GraphicInstanceConfig): boolean {
+  return !isStaticPlayableGraphic(graphic) && graphic.entityType === 'image'
+}
+
+export function isStaticPlayableGraphic(graphic: Pick<GraphicInstanceConfig, 'kind' | 'entityType' | 'staticAsset'>): boolean {
+  return graphic.kind === 'static' || graphic.entityType === 'image' || graphic.staticAsset !== undefined
+}
+
+export function createStaticPlayableGraphicItem(
+  graphic: Pick<GraphicInstanceConfig, 'name' | 'staticAsset'>,
+): StaticPlayableGraphicItem {
+  return {
+    staticPlayableGraphicName: graphic.name,
+    ...(graphic.staticAsset?.assetPath ? { staticAsset: graphic.staticAsset.assetPath } : {}),
+  }
+}
+
 function isValidEntityIndex(
   items: unknown[] | undefined,
   entityIndex: number,
 ): boolean {
   return Array.isArray(items) && Number.isInteger(entityIndex) && entityIndex >= 0 && entityIndex < items.length
+}
+
+function resolveWorkspaceBlocks(
+  document: EditorialDocument,
+  graphics: GraphicInstanceConfig[],
+): EditorialBlock[] {
+  if (document.blocks.length > 0) {
+    return document.blocks
+  }
+
+  const staticGraphics = graphics.filter(isStaticPlayableGraphic)
+  if (staticGraphics.length === 0) {
+    return []
+  }
+
+  return [createStaticWorkspaceBlock(staticGraphics)]
+}
+
+function createStaticWorkspaceBlock(
+  graphics: GraphicInstanceConfig[],
+): EditorialBlock {
+  return {
+    name: 'Static graphics',
+    titles: [],
+    persons: [],
+    locations: [],
+    phones: [],
+    entityCollections: Object.fromEntries(
+      graphics.map((graphic) => [graphic.id, [createStaticPlayableGraphicItem(graphic)]]),
+    ),
+  }
 }

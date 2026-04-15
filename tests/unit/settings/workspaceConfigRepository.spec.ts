@@ -66,6 +66,7 @@ const dynamicGraphicConfig: GraphicInstanceConfig = {
     { actionType: 'resumeGraphic', label: 'Resume' },
   ],
 }
+const canonicalDynamicGraphicConfig = parseGraphicConfigImport(dynamicGraphicConfig)
 
 const staticGraphicConfig: GraphicInstanceConfig = {
   id: 'static-bug',
@@ -400,7 +401,7 @@ describe('workspaceConfigRepository', () => {
     const secondExport = exportGraphicConfig(dynamicGraphicConfig, firstExport.storage)
 
     expect(firstExport.rawContent).toBe(secondExport.rawContent)
-    expect(parseGraphicConfigImport(JSON.parse(firstExport.rawContent))).toEqual(dynamicGraphicConfig)
+    expect(parseGraphicConfigImport(JSON.parse(firstExport.rawContent))).toEqual(canonicalDynamicGraphicConfig)
   })
 
   it('handles invalid or incomplete graphic config export safely', () => {
@@ -431,8 +432,8 @@ describe('workspaceConfigRepository', () => {
 
     const reloaded = repository.load()
 
-    expect(reloaded.settings.graphics).toEqual([dynamicGraphicConfig])
-    expect(parseGraphicConfigImport(JSON.parse(reloaded.graphicFiles['dynamic-title.json'] as string))).toEqual(dynamicGraphicConfig)
+    expect(reloaded.settings.graphics).toEqual([canonicalDynamicGraphicConfig])
+    expect(parseGraphicConfigImport(JSON.parse(reloaded.graphicFiles['dynamic-title.json'] as string))).toEqual(canonicalDynamicGraphicConfig)
     expect(reloaded.graphicFiles).not.toHaveProperty('broken-graphic.json')
   })
 })

@@ -284,4 +284,32 @@ describe('composite entity collection labels', () => {
       primary: 'Moderator',
     })
   })
+
+  it('falls back to the static graphic config name for image items in the collection list', () => {
+    const resolveGraphicCollectionItemDisplay = (
+      entityCollectionLabels as Record<string, unknown>
+    ).resolveGraphicCollectionItemDisplay as undefined | ((
+      entity: unknown,
+      graphic: unknown,
+    ) => { primary: string; secondary?: string })
+
+    expect(resolveGraphicCollectionItemDisplay).toBeTypeOf('function')
+    if (!resolveGraphicCollectionItemDisplay) {
+      return
+    }
+
+    expect(resolveGraphicCollectionItemDisplay(
+      {
+        staticAsset: 'assets/logo.png',
+      },
+      {
+        id: 'logo-main',
+        name: 'Logo main',
+        entityType: 'image',
+        kind: 'static',
+      },
+    )).toEqual({
+      primary: 'Logo main',
+    })
+  })
 })

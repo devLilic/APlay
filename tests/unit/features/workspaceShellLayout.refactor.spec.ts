@@ -86,4 +86,22 @@ describe('WorkspaceShell dual-preview layout refactor', () => {
     expect(source).toContain('text-[11px] leading-4 break-words text-text-secondary')
     expect(source).toContain("display.secondary ? 'mt-1.5 text-xs text-text-secondary' : 'mt-0.5 text-xs text-text-secondary'")
   })
+
+  it('renders collection cards from the resolved display helper so static playable items can surface with a fallback label', () => {
+    const source = readWorkspaceShellSource()
+
+    expect(source).toContain('const display = resolveGraphicCollectionItemDisplay(item, group.graphic)')
+    expect(source).toContain('{display.primary}')
+    expect(source).toContain('Click to preview')
+    expect(source).toContain('Available for grouped play')
+  })
+
+  it('marks static playable collection items with a lightweight operational indicator instead of treating them like empty data', () => {
+    const source = readWorkspaceShellSource()
+
+    expect(source).toContain('const isStaticItem = isStaticPlayableGraphic(group.graphic)')
+    expect(source).toContain('>Static<')
+    expect(source).toContain('No datasource')
+    expect(source).toContain('Operates directly from this graphic config')
+  })
 })

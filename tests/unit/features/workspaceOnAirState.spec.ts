@@ -38,6 +38,22 @@ const phoneGraphic: GraphicInstanceConfig = {
   actions: [],
 }
 
+const staticLogoGraphic: GraphicInstanceConfig = {
+  id: 'logo-main',
+  name: 'Logo main',
+  entityType: 'image',
+  kind: 'static',
+  dataFileName: 'logo-main.json',
+  control: { templateName: 'LOGO_MAIN' },
+  preview: {
+    id: 'logo-main-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [],
+  },
+  actions: [],
+}
+
 afterEach(() => {
   vi.useRealTimers()
 })
@@ -118,6 +134,17 @@ describe('workspaceOnAirState', () => {
     expect(snapshot.compositeItems).toHaveLength(1)
   })
 
+  it('supports static image graphics in preview and ONAIR snapshots without entity datasource fields', () => {
+    const snapshot = createSingleOnAirSnapshot({
+      graphic: staticLogoGraphic,
+      content: { staticAsset: 'assets/logo.png' },
+    })
+
+    expect(snapshot.title).toBe('Logo main')
+    expect(snapshot.description).toBe('Logo main is on air.')
+    expect(snapshot.content).toEqual({ staticAsset: 'assets/logo.png' })
+  })
+
   it('supports per-graphic auto-hide timers for single-item ONAIR playback', () => {
     vi.useFakeTimers()
 
@@ -146,6 +173,52 @@ describe('workspaceOnAirState', () => {
 
     vi.advanceTimersByTime(1)
     expect(controller.getState().current).toBeNull()
+  })
+
+  it('keeps timed and manual on-air behavior working for static image graphics', () => {
+    vi.useFakeTimers()
+
+    const controller = workspaceOnAirModule.createWorkspaceOnAirController({
+      now: () => Date.now(),
+      setTimeout,
+      clearTimeout,
+    })
+
+    controller.playSingle({
+      graphic: {
+        ...staticLogoGraphic,
+        onAir: {
+          mode: 'autoHide',
+          durationSeconds: 3,
+        },
+      },
+      content: { staticAsset: 'assets/logo.png' },
+    })
+
+    expect(controller.getState().current?.title).toBe('Logo main')
+    expect(controller.getState().current?.statusBadge).toBe('Timed on-air')
+
+    vi.advanceTimersByTime(3000)
+    expect(controller.getState().current).toBeNull()
+
+    controller.playSingle({
+      graphic: {
+        ...staticLogoGraphic,
+        onAir: {
+          mode: 'manual',
+        },
+      },
+      content: { staticAsset: 'assets/logo.png' },
+    })
+
+    vi.advanceTimersByTime(3000)
+    expect(controller.getState().current?.title).toBe('Logo main')
+
+    controller.stopGraphic(staticLogoGraphic.id)
+    expect(controller.getState().current).toBeNull()
+
+    controller.resume()
+    expect(controller.getState().current?.title).toBe('Logo main')
   })
 
   it('keeps manual ONAIR items active until Stop and cancels auto-hide on manual stop', () => {

@@ -8,6 +8,7 @@ import {
   createWorkspaceSelectionState,
   deriveBlockList,
   deriveSelectedEntityContext,
+  isStaticPlayableGraphic,
   resolveGraphicConfigEntityLists,
   type WorkspaceSelection,
 } from '@/features/workspace/state/workspaceSelectionState'
@@ -252,7 +253,7 @@ export function WorkspaceShell() {
   const blockList = deriveBlockList(workspaceData.document)
   const selectedBlock = workspace.getSelectedBlock()
   const graphicCollections = resolveGraphicConfigEntityLists(workspace.document, workspace.selection, workspaceData.graphics)
-  const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection)
+  const selectedEntity = deriveSelectedEntityContext(workspace.document, workspace.selection, workspaceData.graphics)
   const selectedGraphic = resolveGraphicForSelection(workspaceData.graphicsById, selectedEntity)
   const selectedMultiItems = workspace.getSelectedItems()
   const multiSelectionCount = workspace.selectedCount()
@@ -1286,6 +1287,7 @@ function GraphicCollectionCard({
             const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
             const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
             const display = resolveGraphicCollectionItemDisplay(item, group.graphic)
+            const isStaticItem = isStaticPlayableGraphic(group.graphic) && 'staticPlayableGraphicName' in item
             const groupedSelectionForGroup = workspace.selection.selectedItems?.find(
               (selectedItem) => selectedItem.graphicConfigId === group.graphicConfigId,
             )
@@ -1340,9 +1342,17 @@ function GraphicCollectionCard({
                             {display.secondary}
                           </p>
                         ) : null}
-                        <p className={display.secondary ? 'mt-1.5 text-xs text-text-secondary' : 'mt-0.5 text-xs text-text-secondary'}>
-                          Item {index + 1} in this collection
-                        </p>
+                        <div className={display.secondary ? 'mt-1.5 flex flex-wrap items-center gap-2' : 'mt-0.5 flex flex-wrap items-center gap-2'}>
+                          {isStaticItem ? (
+                            <>
+                              <span className={getStateBadgeClassName('disabled')}>Static</span>
+                              <span className='text-xs text-text-secondary'>No datasource</span>
+                            </>
+                          ) : null}
+                          <p className='text-xs text-text-secondary'>
+                            {isStaticItem ? 'Operates directly from this graphic config' : `Item ${index + 1} in this collection`}
+                          </p>
+                        </div>
                       </div>
                       <div className='flex flex-wrap gap-2'>
                         {isSelectedItem ? <span className={getStateBadgeClassName('selected')}>Preview</span> : null}

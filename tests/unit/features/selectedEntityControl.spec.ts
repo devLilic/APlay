@@ -68,6 +68,52 @@ const personSelection: SelectedEntityContext = {
   entity: { name: 'Ana Rusu', role: 'Anchor' },
 }
 
+const staticLogoGraphic: GraphicInstanceConfig = {
+  id: 'logo-main',
+  name: 'Logo main',
+  entityType: 'image',
+  kind: 'static',
+  dataFileName: 'logo-main.json',
+  control: {
+    play: '/aplay/logo/play',
+    stop: '/aplay/logo/stop',
+    resume: '/aplay/logo/resume',
+  },
+  staticAsset: {
+    assetPath: 'assets/logo.png',
+    assetType: 'image',
+  },
+  preview: {
+    id: 'logo-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      {
+        id: 'logo-image',
+        kind: 'image',
+        sourceField: 'staticAsset',
+        box: { x: 0, y: 0, width: 100, height: 20 },
+      },
+    ],
+  },
+  actions: [
+    { actionType: 'playGraphic', label: 'Play' },
+    { actionType: 'stopGraphic', label: 'Stop' },
+    { actionType: 'resumeGraphic', label: 'Resume' },
+  ],
+}
+
+const staticLogoSelection: SelectedEntityContext = {
+  blockIndex: 0,
+  blockName: 'Static graphics',
+  graphicConfigId: 'logo-main',
+  entityIndex: 0,
+  entity: {
+    staticAsset: 'assets/logo.png',
+    staticPlayableGraphicName: 'Logo main',
+  },
+}
+
 describe('selected entity control resolution', () => {
   it('resolves the selected graphic by graphicConfigId', () => {
     const graphic = resolveGraphicControlForSelectedEntity(
@@ -190,6 +236,52 @@ describe('selected entity publish and command orchestration', () => {
     orchestrator.resume(titleSelection)
 
     expect(calls).toEqual(['stopGraphic', 'resumeGraphic'])
+  })
+
+  it('treats static image graphics as directly playable without datasource publish requirements', () => {
+    const calls: string[] = []
+    const orchestrator = createSelectedEntityControlOrchestrator({
+      graphicsById: { 'logo-main': staticLogoGraphic },
+      bindingsByGraphicId: {},
+      publishTarget: {
+        publishEntity() {
+          calls.push('publish')
+          return {
+            success: true,
+            targetFile: 'datasources/logo-main.json',
+            payload: {},
+            diagnostics: [],
+          }
+        },
+      },
+      graphicOutput: {
+        sendForGraphic(input) {
+          calls.push(input.actionType)
+          return {
+            success: true,
+            command: { actionType: input.actionType, address: `/aplay/logo/${input.actionType}`, args: [] },
+            diagnostics: [],
+          }
+        },
+      },
+    })
+
+    expect(orchestrator.play(staticLogoSelection)).toEqual({
+      kind: 'success',
+      title: 'playGraphic completed',
+      details: ['OSC sent: /aplay/logo/playGraphic'],
+    })
+    expect(orchestrator.stop(staticLogoSelection)).toEqual({
+      kind: 'success',
+      title: 'stopGraphic completed',
+      details: ['OSC sent: /aplay/logo/stopGraphic'],
+    })
+    expect(orchestrator.resume(staticLogoSelection)).toEqual({
+      kind: 'success',
+      title: 'resumeGraphic completed',
+      details: ['OSC sent: /aplay/logo/resumeGraphic'],
+    })
+    expect(calls).toEqual(['playGraphic', 'stopGraphic', 'resumeGraphic'])
   })
 
   it('returns a safe error when the selected graphic config is unavailable', () => {

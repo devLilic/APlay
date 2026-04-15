@@ -52,14 +52,14 @@ export function formatEntityCollectionLabel(entity: unknown): string {
 
 export function resolveGraphicCollectionItemDisplay(
   entity: unknown,
-  graphic: Pick<GraphicInstanceConfig, 'entityType' | 'bindings' | 'collectionDisplay'>,
+  graphic: Pick<GraphicInstanceConfig, 'name' | 'entityType' | 'kind' | 'bindings' | 'collectionDisplay' | 'staticAsset'>,
 ): { primary: string; secondary?: string } {
   const configuredDisplay = resolveConfiguredGraphicCollectionItemDisplay(entity, graphic)
   if (configuredDisplay) {
     return configuredDisplay
   }
 
-  return resolveFallbackGraphicCollectionItemDisplay(entity)
+  return resolveFallbackGraphicCollectionItemDisplay(entity, graphic)
 }
 
 function readStringField(entity: unknown, field: string): string {
@@ -113,9 +113,14 @@ function resolveConfiguredGraphicCollectionItemDisplay(
 
 function resolveFallbackGraphicCollectionItemDisplay(
   entity: unknown,
+  graphic?: Pick<GraphicInstanceConfig, 'name' | 'kind' | 'entityType' | 'staticAsset'>,
 ): { primary: string; secondary?: string } {
   if (!entity || typeof entity !== 'object') {
-    return { primary: '' }
+    return {
+      primary: isStaticPlayableGraphic(graphic)
+        ? graphic?.name ?? ''
+        : '',
+    }
   }
 
   if ('number' in entity && 'text' in entity) {
@@ -173,6 +178,14 @@ function resolveFallbackGraphicCollectionItemDisplay(
     }
   }
 
+  if (isStaticPlayableGraphic(graphic)) {
+    const staticLabel = readStringField(entity, 'staticPlayableGraphicName') || graphic?.name || ''
+
+    return {
+      primary: staticLabel,
+    }
+  }
+
   return {
     primary: formatEntityCollectionLabel(entity),
   }
@@ -183,4 +196,16 @@ function isBoundSourceField(
   sourceField: string,
 ): boolean {
   return (graphic.bindings ?? []).some((binding) => binding.sourceField === sourceField)
+}
+
+function isStaticPlayableGraphic(
+  graphic: Pick<GraphicInstanceConfig, 'kind' | 'entityType' | 'staticAsset'> | undefined,
+): boolean {
+  return Boolean(
+    graphic && (
+      graphic.kind === 'static' ||
+      graphic.entityType === 'image' ||
+      graphic.staticAsset !== undefined
+    ),
+  )
 }

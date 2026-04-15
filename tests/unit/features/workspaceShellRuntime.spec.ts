@@ -1,8 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { GraphicInstanceConfig, OscSettingsConfig } from '@/settings/models/appConfig'
+import type { AppSettings, GraphicInstanceConfig, OscSettingsConfig } from '@/settings/models/appConfig'
 import type { SelectedEntityContext, SelectedMultiEntityContext } from '@/features/workspace/state/workspaceSelectionState'
 import {
+  createDefaultWorkspaceConfigSnapshot,
   createEntityPreviewContent,
+  createWorkspaceSnapshotFromSettings,
+  loadWorkspaceShellData,
   resolveGraphicForSelection,
   runWorkspaceGraphicAction,
   runWorkspaceMultiGraphicAction,
@@ -146,6 +149,16 @@ const selectedWindowBoxItem: SelectedEntityContext = {
   },
 }
 
+const selectedStaticLogoItem: SelectedEntityContext = {
+  blockIndex: 0,
+  blockName: 'INVITATI',
+  graphicConfigId: 'logo-main',
+  entityIndex: 0,
+  entity: {
+    staticAsset: 'assets/logo.png',
+  },
+}
+
 const selectedTitleItem: SelectedMultiEntityContext = {
   blockIndex: 0,
   blockName: 'INVITATI',
@@ -219,6 +232,79 @@ afterEach(() => {
 })
 
 describe('workspace shell runtime with graphicConfig-based collections', () => {
+  it('keeps static graphics operable when a profile has no source file selected', () => {
+    const staticOnlySettings: AppSettings = {
+      selectedProfileId: 'static-only',
+      osc: oscSettings,
+      referenceImages: [],
+      sourceSchemas: [],
+      profiles: [
+        {
+          id: 'static-only',
+          label: 'Static Only',
+          source: {
+            type: 'csv',
+          },
+          graphicConfigIds: ['logo-main'],
+        },
+      ],
+      graphics: [staticLogoGraphic],
+    }
+
+    const workspaceData = loadWorkspaceShellData(createWorkspaceSnapshotFromSettings(staticOnlySettings))
+
+    expect(workspaceData.activeProfileLabel).toBe('Static Only')
+    expect(workspaceData.activeSourceFilePath).toBeUndefined()
+    expect(workspaceData.document).toEqual({ blocks: [] })
+    expect(workspaceData.graphics.map((graphic) => graphic.id)).toEqual(['logo-main'])
+    expect(workspaceData.graphics[0]?.id).toBe('logo-main')
+    expect(workspaceData.graphics[0]).not.toHaveProperty('bindings')
+    expect(workspaceData.diagnostics).toContain('Show profile "static-only" has no source file selected.')
+  })
+
+  it('switching profiles keeps mixed static and dynamic graphics isolated to the active profile set', () => {
+    const snapshot = createDefaultWorkspaceConfigSnapshot()
+    const switchedSettings: AppSettings = {
+      ...snapshot.settings,
+      selectedProfileId: 'static-only',
+      profiles: [
+        ...snapshot.settings.profiles,
+        {
+          id: 'static-only',
+          label: 'Static Only',
+          source: {
+            type: 'csv',
+          },
+          graphicConfigIds: ['static-image-main'],
+        },
+        {
+          id: 'mixed-static-dynamic',
+          label: 'Mixed Static Dynamic',
+          source: {
+            type: 'csv',
+            filePath: 'C:\\APlay\\sources\\default-news.csv',
+            schemaId: 'csv-default-news',
+          },
+          graphicConfigIds: ['title-main', 'static-image-main'],
+        },
+      ],
+    }
+
+    const staticOnlyWorkspace = loadWorkspaceShellData(createWorkspaceSnapshotFromSettings(switchedSettings))
+    const mixedWorkspace = loadWorkspaceShellData(createWorkspaceSnapshotFromSettings({
+      ...switchedSettings,
+      selectedProfileId: 'mixed-static-dynamic',
+    }))
+
+    expect(staticOnlyWorkspace.activeProfileLabel).toBe('Static Only')
+    expect(staticOnlyWorkspace.graphics.map((graphic) => graphic.id)).toEqual(['static-image-main'])
+    expect(staticOnlyWorkspace.document).toEqual({ blocks: [] })
+
+    expect(mixedWorkspace.activeProfileLabel).toBe('Mixed Static Dynamic')
+    expect(mixedWorkspace.graphics.map((graphic) => graphic.id)).toEqual(['title-main', 'static-image-main'])
+    expect(mixedWorkspace.document.blocks.length).toBeGreaterThan(0)
+  })
+
   it('selecting an item passes its fields to preview content', () => {
     expect(createEntityPreviewContent(selectedWaitingItem)).toEqual({
       text: 'DECLARATII IMPORTANTE',
@@ -328,6 +414,66 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
     })).toEqual({
       staticAsset: 'assets/logo.png',
     })
+  })
+
+  it('allows a static image collection item to be previewed and controlled without datasource payload writes', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    expect(createEntityPreviewContent(selectedStaticLogoItem, staticLogoGraphic)).toEqual({
+      staticAsset: 'assets/logo.png',
+    })
+
+    const playResult = await runWorkspaceGraphicAction(
+      'playGraphic',
+      selectedStaticLogoItem,
+      { 'logo-main': staticLogoGraphic },
+      oscSettings,
+    )
+    const stopResult = await runWorkspaceGraphicAction(
+      'stopGraphic',
+      selectedStaticLogoItem,
+      { 'logo-main': staticLogoGraphic },
+      oscSettings,
+    )
+    const resumeResult = await runWorkspaceGraphicAction(
+      'resumeGraphic',
+      selectedStaticLogoItem,
+      { 'logo-main': staticLogoGraphic },
+      oscSettings,
+    )
+
+    expect(playResult.kind).toBe('success')
+    expect(stopResult.kind).toBe('success')
+    expect(resumeResult.kind).toBe('success')
+    expect(writeDatasourceFileSync).not.toHaveBeenCalled()
+    expect(sendOscMessage).toHaveBeenNthCalledWith(
+      1,
+      '127.0.0.1',
+      53000,
+      '/global/play',
+      [{ type: 's', value: 'LOGO_MAIN' }],
+    )
+    expect(sendOscMessage).toHaveBeenNthCalledWith(
+      2,
+      '127.0.0.1',
+      53000,
+      '/global/stop',
+      [{ type: 's', value: 'LOGO_MAIN' }],
+    )
+    expect(sendOscMessage).toHaveBeenNthCalledWith(
+      3,
+      '127.0.0.1',
+      53000,
+      '/global/resume',
+      [{ type: 's', value: 'LOGO_MAIN' }],
+    )
   })
 
   it('resolves preview/play graphic by graphicConfigId even when multiple graphics share the same entityType', () => {
