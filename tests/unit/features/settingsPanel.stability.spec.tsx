@@ -127,6 +127,17 @@ describe('SettingsPanel stability', () => {
     expect(html).toContain('CSV schema')
   })
 
+  it('shows dedicated collection list display controls in profile graphic config mapping', () => {
+    const html = renderSettingsPanel()
+
+    expect(html).toContain('Collection list display')
+    expect(html).toContain('Primary line')
+    expect(html).toContain('Secondary line')
+    expect(html).toContain('Shown only in APlay collection list')
+    expect(html).toContain('This does not change datasource output, preview, or graphic bindings')
+    expect(html).toContain('None')
+  })
+
   it('defines per-graphic ONAIR behavior controls in the graphic configuration editor', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/features/settings/components/SettingsPanel.tsx'),

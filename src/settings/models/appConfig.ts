@@ -49,6 +49,13 @@ export interface GraphicFieldBinding {
   required?: boolean
 }
 
+// Application-side list display settings for Graphic collection items only.
+// They do not affect datasource publishing, preview rendering, or LiveBoard bindings.
+export interface GraphicCollectionDisplayConfig {
+  primarySourceField?: string
+  secondarySourceField?: string
+}
+
 export interface StaticGraphicAssetConfig {
   assetPath: string
   assetType: StaticGraphicAssetType
@@ -138,6 +145,7 @@ export interface GraphicInstanceConfig {
   control: GraphicControlConfig
   onAir?: GraphicOnAirConfig
   bindings?: GraphicFieldBinding[]
+  collectionDisplay?: GraphicCollectionDisplayConfig
   staticAsset?: StaticGraphicAssetConfig
   preview: PreviewTemplateDefinition
   actions: ActionButtonConfig[]

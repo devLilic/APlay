@@ -655,6 +655,103 @@ describe('GraphicInstanceConfig schema', () => {
     })
   })
 
+  it('persists configurable graphic collection display fields independently from required bindings', () => {
+    expect(
+      graphicInstanceConfigSchema.parse({
+        id: 'person-main',
+        name: 'Person lower third',
+        entityType: 'person',
+        dataFileName: 'person-main.json',
+        control: {
+          templateName: 'PERSON_MAIN',
+        },
+        bindings: [
+          { sourceField: 'Nr', targetField: 'number', required: true },
+          { sourceField: 'Nume', targetField: 'name', required: true },
+          { sourceField: 'Functie', targetField: 'role' },
+          { sourceField: 'Locatie', targetField: 'location' },
+        ],
+        collectionDisplay: {
+          primarySourceField: 'Nume',
+          secondarySourceField: 'Functie',
+        },
+        preview: {
+          id: 'person-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'person-name',
+              kind: 'text',
+              sourceField: 'name',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      } as unknown),
+    ).toMatchObject({
+      bindings: [
+        { sourceField: 'Nr', targetField: 'number', required: true },
+        { sourceField: 'Nume', targetField: 'name', required: true },
+        { sourceField: 'Functie', targetField: 'role' },
+        { sourceField: 'Locatie', targetField: 'location' },
+      ],
+      collectionDisplay: {
+        primarySourceField: 'Nume',
+        secondarySourceField: 'Functie',
+      },
+    })
+  })
+
+  it('rejects graphic collection display fields that are not available in that graphic mapping', () => {
+    expect(() =>
+      graphicInstanceConfigSchema.parse({
+        id: 'person-main',
+        name: 'Person lower third',
+        entityType: 'person',
+        dataFileName: 'person-main.json',
+        control: {
+          templateName: 'PERSON_MAIN',
+        },
+        bindings: [
+          { sourceField: 'Nr', targetField: 'number', required: true },
+          { sourceField: 'Nume', targetField: 'name', required: true },
+          { sourceField: 'Functie', targetField: 'role' },
+          { sourceField: 'Locatie', targetField: 'location' },
+        ],
+        collectionDisplay: {
+          primarySourceField: 'Nume',
+          secondarySourceField: 'Camp inexistent',
+        },
+        preview: {
+          id: 'person-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'person-name',
+              kind: 'text',
+              sourceField: 'name',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      } as unknown),
+    ).toThrow('collectionDisplay')
+  })
+
   it('rejects invalid entity type values', () => {
     expect(() =>
       graphicInstanceConfigSchema.parse({

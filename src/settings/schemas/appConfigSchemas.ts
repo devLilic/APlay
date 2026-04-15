@@ -7,6 +7,7 @@ import type {
   CsvBlockDetectionConfig,
   CsvEntityMappingConfig,
   CsvSourceSchemaConfig,
+  GraphicCollectionDisplayConfig,
   GraphicFieldBinding,
   GraphicControlConfig,
   GraphicConfigKind,
@@ -355,6 +356,23 @@ export const graphicFieldBindingSchema = createSchema<GraphicFieldBinding>((inpu
   }
 })
 
+export const graphicCollectionDisplayConfigSchema = createSchema<GraphicCollectionDisplayConfig>((input) => {
+  const value = assertRecord(input, 'graphicInstanceConfig.collectionDisplay')
+  const primarySourceField = parseOptionalString(value, 'primarySourceField', 'graphicInstanceConfig.collectionDisplay')
+  const secondarySourceField = parseOptionalString(value, 'secondarySourceField', 'graphicInstanceConfig.collectionDisplay')
+
+  if (!primarySourceField && !secondarySourceField) {
+    throw new SchemaValidationError(
+      'graphicInstanceConfig.collectionDisplay must define at least one display field when provided',
+    )
+  }
+
+  return {
+    ...(primarySourceField ? { primarySourceField } : {}),
+    ...(secondarySourceField ? { secondarySourceField } : {}),
+  }
+})
+
 export const staticGraphicAssetConfigSchema = createSchema<StaticGraphicAssetConfig>((input) => {
   const value = assertRecord(input, 'graphicInstanceConfig.staticAsset')
   const assetPath = parseRequiredString(value, 'assetPath', 'graphicInstanceConfig.staticAsset')
@@ -480,6 +498,9 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
     : parseRequiredArray(value, 'bindings', 'graphicInstanceConfig').map((binding) =>
       graphicFieldBindingSchema.parse(binding),
     )
+  const collectionDisplay = value.collectionDisplay === undefined
+    ? undefined
+    : graphicCollectionDisplayConfigSchema.parse(value.collectionDisplay)
   const staticAsset = value.staticAsset === undefined
     ? undefined
     : staticGraphicAssetConfigSchema.parse(value.staticAsset)
@@ -491,6 +512,33 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
 
   if (kind === 'static' && !staticAsset) {
     throw new SchemaValidationError('graphicInstanceConfig.staticAsset is required for static graphic configs')
+  }
+
+  if (collectionDisplay) {
+    const availableSourceFields = new Set((bindings ?? []).map((binding) => binding.sourceField))
+    if (availableSourceFields.size === 0) {
+      throw new SchemaValidationError(
+        'graphicInstanceConfig.collectionDisplay requires bindings so display fields can be resolved from the graphic mapping',
+      )
+    }
+
+    if (
+      collectionDisplay.primarySourceField &&
+      !availableSourceFields.has(collectionDisplay.primarySourceField)
+    ) {
+      throw new SchemaValidationError(
+        `graphicInstanceConfig.collectionDisplay.primarySourceField must reference an existing binding sourceField: ${collectionDisplay.primarySourceField}`,
+      )
+    }
+
+    if (
+      collectionDisplay.secondarySourceField &&
+      !availableSourceFields.has(collectionDisplay.secondarySourceField)
+    ) {
+      throw new SchemaValidationError(
+        `graphicInstanceConfig.collectionDisplay.secondarySourceField must reference an existing binding sourceField: ${collectionDisplay.secondarySourceField}`,
+      )
+    }
   }
 
   return {
@@ -508,6 +556,7 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
     control: graphicControlConfigSchema.parse(value.control),
     onAir: graphicOnAirConfigSchema.parse(value.onAir),
     ...(bindings ? { bindings } : {}),
+    ...(collectionDisplay ? { collectionDisplay } : {}),
     ...(staticAsset ? { staticAsset } : {}),
     preview: previewTemplateDefinitionSchema.parse(value.preview),
     actions,

@@ -254,6 +254,75 @@ describe('profile-based graphic config loading', () => {
     expect(result.diagnostics).toEqual([])
   })
 
+  it('keeps persisted graphic collection display fields when loading profile graphic mappings', () => {
+    const loader = createProfileGraphicConfigLoader(
+      createInMemoryGraphicConfigStorage({
+        'person-main.json': JSON.stringify({
+          id: 'person-main',
+          name: 'Person main',
+          entityType: 'person',
+          dataFileName: 'person-main.json',
+          control: {
+            play: '/graphics/person/play',
+            stop: '/graphics/person/stop',
+            resume: '/graphics/person/resume',
+          },
+          bindings: [
+            { sourceField: 'Nr', targetField: 'number', required: true },
+            { sourceField: 'Nume', targetField: 'name', required: true },
+            { sourceField: 'Functie', targetField: 'role' },
+            { sourceField: 'Locatie', targetField: 'location' },
+          ],
+          collectionDisplay: {
+            primarySourceField: 'Nume',
+            secondarySourceField: 'Functie',
+          },
+          preview: {
+            id: 'person-preview',
+            designWidth: 1920,
+            designHeight: 1080,
+            elements: [
+              {
+                id: 'person-name',
+                kind: 'text',
+                sourceField: 'name',
+                box: {
+                  x: 100,
+                  y: 800,
+                  width: 700,
+                  height: 120,
+                },
+              },
+            ],
+          },
+          actions: [
+            { actionType: 'playGraphic', label: 'Play' },
+          ],
+        }),
+      }),
+    )
+
+    const result = loader.loadForProfile({
+      ...settings,
+      profiles: [
+        {
+          id: 'morning',
+          label: 'Morning Show',
+          graphicConfigIds: ['person-main'],
+        },
+      ],
+    }, 'morning')
+
+    expect(result.graphics).toHaveLength(1)
+    expect(result.graphics[0]).toMatchObject({
+      id: 'person-main',
+      collectionDisplay: {
+        primarySourceField: 'Nume',
+        secondarySourceField: 'Functie',
+      },
+    })
+  })
+
   it('selecting a different profile changes the loaded graphic config set', () => {
     const loader = createProfileGraphicConfigLoader(
       createInMemoryGraphicConfigStorage(graphicFiles),

@@ -29,8 +29,8 @@ import {
 } from '@/features/workspace/state/workspaceOnAirState'
 import type { SelectedEntityControlFeedback as WorkspaceActionFeedback } from '@/features/workspace/state/selectedEntityControl'
 import {
-  formatEntityCollectionLabel,
   formatEntityLabel,
+  resolveGraphicCollectionItemDisplay,
 } from '@/features/workspace/state/entityCollectionLabels'
 import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
@@ -1111,6 +1111,7 @@ export function WorkspaceShell() {
                           {group.items.map((item, index) => {
                             const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
                             const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
+                            const display = resolveGraphicCollectionItemDisplay(item, group.graphic)
                             const groupedSelectionForGroup = workspace.selection.selectedItems?.find(
                               (selectedItem) => selectedItem.graphicConfigId === group.graphicConfigId,
                             )
@@ -1154,10 +1155,18 @@ export function WorkspaceShell() {
                                   >
                                     <div className='flex flex-wrap items-center justify-between gap-3'>
                                       <div className='min-w-0'>
-                                        <p className={`text-sm leading-5 break-words ${isSelectedItem ? 'font-semibold text-text-primary' : 'text-text-primary'}`}>
-                                          {formatEntityCollectionLabel(item)}
+                                        <p className={[
+                                          'max-w-full text-sm leading-5 break-words',
+                                          isSelectedItem ? 'font-semibold text-text-primary' : 'font-medium text-text-primary',
+                                        ].join(' ')}>
+                                          {display.primary}
                                         </p>
-                                        <p className='mt-1 text-xs text-text-secondary'>
+                                        {display.secondary ? (
+                                          <p className='mt-1 max-w-full text-[11px] leading-4 break-words text-text-secondary'>
+                                            {display.secondary}
+                                          </p>
+                                        ) : null}
+                                        <p className={display.secondary ? 'mt-1.5 text-xs text-text-secondary' : 'mt-0.5 text-xs text-text-secondary'}>
                                           Item {index + 1} in this collection
                                         </p>
                                       </div>
@@ -1276,6 +1285,7 @@ function GraphicCollectionCard({
           {group.items.map((item, index) => {
             const isSelectedItem = isSelectedGroup && workspace.selection.selectedEntityIndex === index
             const isMultiSelected = workspace.isSelected(group.graphicConfigId, index)
+            const display = resolveGraphicCollectionItemDisplay(item, group.graphic)
             const groupedSelectionForGroup = workspace.selection.selectedItems?.find(
               (selectedItem) => selectedItem.graphicConfigId === group.graphicConfigId,
             )
@@ -1319,10 +1329,18 @@ function GraphicCollectionCard({
                   >
                     <div className='flex flex-wrap items-center justify-between gap-3'>
                       <div className='min-w-0'>
-                        <p className={`text-sm leading-5 break-words ${isSelectedItem ? 'font-semibold text-text-primary' : 'text-text-primary'}`}>
-                          {formatEntityCollectionLabel(item)}
+                        <p className={[
+                          'max-w-full text-sm leading-5 break-words',
+                          isSelectedItem ? 'font-semibold text-text-primary' : 'font-medium text-text-primary',
+                        ].join(' ')}>
+                          {display.primary}
                         </p>
-                        <p className='mt-1 text-xs text-text-secondary'>
+                        {display.secondary ? (
+                          <p className='mt-1 max-w-full text-[11px] leading-4 break-words text-text-secondary'>
+                            {display.secondary}
+                          </p>
+                        ) : null}
+                        <p className={display.secondary ? 'mt-1.5 text-xs text-text-secondary' : 'mt-0.5 text-xs text-text-secondary'}>
                           Item {index + 1} in this collection
                         </p>
                       </div>

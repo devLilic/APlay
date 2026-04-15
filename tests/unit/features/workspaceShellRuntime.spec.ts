@@ -233,6 +233,79 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
     })
   })
 
+  it('graphic collection display settings do not change datasource and preview payload fields', async () => {
+    const writeDatasourceFileSync = vi.fn()
+    const sendOscMessage = vi.fn(async () => ['opened', 'ready', 'sent'])
+    vi.stubGlobal('window', {
+      settingsApi: {
+        writeDatasourceFileSync,
+        sendOscMessage,
+      },
+    })
+
+    const configuredPersonGraphic = {
+      ...titleWaitingGraphic,
+      id: 'person-raw',
+      name: 'Person raw',
+      entityType: 'person',
+      dataFileName: 'person-raw.json',
+      datasourcePath: 'datasources/person-raw.json',
+      bindings: [
+        { sourceField: 'Nr', targetField: 'number', required: true },
+        { sourceField: 'Nume', targetField: 'name', required: true },
+        { sourceField: 'Functie', targetField: 'role' },
+        { sourceField: 'Locatie', targetField: 'location' },
+      ],
+      collectionDisplay: {
+        primarySourceField: 'Nume',
+        secondarySourceField: 'Functie',
+      },
+      preview: {
+        id: 'person-raw-preview',
+        designWidth: 1920,
+        designHeight: 1080,
+        elements: [
+          { id: 'person-name', kind: 'text', sourceField: 'name', box: { x: 0, y: 0, width: 100, height: 20 } },
+          { id: 'person-role', kind: 'text', sourceField: 'role', box: { x: 0, y: 20, width: 100, height: 20 } },
+          { id: 'person-location', kind: 'text', sourceField: 'location', box: { x: 0, y: 40, width: 100, height: 20 } },
+        ],
+      },
+    } as unknown as GraphicInstanceConfig
+
+    const selectedRawPersonItem: SelectedEntityContext = {
+      blockIndex: 0,
+      blockName: 'INVITATI',
+      graphicConfigId: 'person-raw',
+      entityIndex: 0,
+      entity: {
+        Nr: '12',
+        Nume: 'ANA RUSU',
+        Functie: 'MODERATOR',
+        Locatie: 'CHISINAU',
+      },
+    }
+
+    expect(createEntityPreviewContent(selectedRawPersonItem, configuredPersonGraphic)).toEqual({
+      Nr: '12',
+      Nume: 'ANA RUSU',
+      Functie: 'MODERATOR',
+      Locatie: 'CHISINAU',
+    })
+
+    const result = await runWorkspaceGraphicAction(
+      'playGraphic',
+      selectedRawPersonItem,
+      { 'person-raw': configuredPersonGraphic },
+      oscSettings,
+    )
+
+    expect(result.kind).toBe('success')
+    expect(writeDatasourceFileSync).toHaveBeenCalledWith(
+      'datasources/person-raw.json',
+      '{\n  "number": "12",\n  "name": "ANA RUSU",\n  "role": "MODERATOR",\n  "location": "CHISINAU"\n}',
+    )
+  })
+
   it('includes static asset paths in preview content for image graphics', () => {
     expect(createEntityPreviewContent(undefined, {
       id: 'logo-main',

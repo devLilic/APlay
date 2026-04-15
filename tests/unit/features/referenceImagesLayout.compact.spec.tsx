@@ -35,7 +35,7 @@ describe('Reference images compact layout', () => {
   it('renders preview items as compact cards with image thumbnail, caption, and delete action', () => {
     const section = getReferenceImagesSectionWindow()
 
-    expect(section).toContain('grid gap-3 sm:grid-cols-2 xl:grid-cols-3')
+    expect(section).toContain('grid gap-3 sm:grid-cols-2 xl:grid-cols-5')
     expect(section).toContain('<img')
     expect(section).toContain('Delete image')
     expect(section).not.toContain("Available reference images")

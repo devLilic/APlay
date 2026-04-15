@@ -274,6 +274,29 @@ describe('graphicConfigExport', () => {
     expect(imported.bindings).toEqual(dynamicGraphicConfig.bindings)
   })
 
+  it('preserves graphic collection display field configuration across export and import', () => {
+    const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport({
+      ...dynamicGraphicConfig,
+      bindings: [
+        { sourceField: 'Nr', targetField: 'number', required: true },
+        { sourceField: 'Nume', targetField: 'name', required: true },
+        { sourceField: 'Functie', targetField: 'role' },
+        { sourceField: 'Locatie', targetField: 'location' },
+      ],
+      collectionDisplay: {
+        primarySourceField: 'Nume',
+        secondarySourceField: 'Functie',
+      },
+    } as unknown)))
+
+    expect(imported).toMatchObject({
+      collectionDisplay: {
+        primarySourceField: 'Nume',
+        secondarySourceField: 'Functie',
+      },
+    })
+  })
+
   it('restores static asset config from import when applicable', () => {
     const imported = parseGraphicConfigImport(JSON.parse(serializeGraphicConfigExport(staticGraphicConfig)))
 

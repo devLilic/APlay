@@ -69,4 +69,21 @@ describe('WorkspaceShell dual-preview layout refactor', () => {
     expect(source).not.toContain('xl:grid-cols-[minmax(18rem,22rem),minmax(26rem,1fr),minmax(30rem,42rem)]')
     expect(source).toContain('xl:grid-cols-[minmax(18rem,22rem),minmax(26rem,1fr)]')
   })
+
+  it('renders graphic collection items with explicit primary and optional secondary display fields instead of one derived label', () => {
+    const source = readWorkspaceShellSource()
+
+    expect(source).toContain('resolveGraphicCollectionItemDisplay')
+    expect(source).not.toContain('formatEntityCollectionLabel(item)')
+    expect(source).toContain('display.secondary')
+  })
+
+  it('styles primary and secondary collection lines for fast scanning without inflating card height', () => {
+    const source = readWorkspaceShellSource()
+
+    expect(source).toContain('font-medium text-text-primary')
+    expect(source).toContain('font-semibold text-text-primary')
+    expect(source).toContain('text-[11px] leading-4 break-words text-text-secondary')
+    expect(source).toContain("display.secondary ? 'mt-1.5 text-xs text-text-secondary' : 'mt-0.5 text-xs text-text-secondary'")
+  })
 })

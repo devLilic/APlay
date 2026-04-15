@@ -1005,6 +1005,19 @@ function getGraphicBindingTargetOptions(graphic: GraphicInstanceConfig): string[
   return [...options]
 }
 
+function getCollectionDisplaySourceOptions(graphic: GraphicInstanceConfig): string[] {
+  const options = new Set<string>()
+
+  for (const binding of graphic.bindings ?? []) {
+    const value = binding.sourceField.trim()
+    if (value) {
+      options.add(value)
+    }
+  }
+
+  return [...options]
+}
+
 function createBindingDraft(graphic: GraphicInstanceConfig): GraphicFieldBinding {
   const sourceField = getGraphicBindingSourceOptions(graphic.entityType)[0] ?? 'text'
   const targetField = getGraphicBindingTargetOptions(graphic)[0] ?? sourceField
@@ -2045,6 +2058,7 @@ function CsvSchemaSection({
                 {profileGraphics.map((graphic) => {
                   const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'image'
                   const targetOptions = getGraphicBindingTargetOptions(graphic)
+                  const collectionDisplayOptions = getCollectionDisplaySourceOptions(graphic)
 
                   return (
                     <div key={graphic.id} className='ap-card px-4 py-3'>
@@ -2146,6 +2160,74 @@ function CsvSchemaSection({
                               No bindings configured yet for this graphic config.
                             </div>
                           )}
+
+                          <div className={settingsInsetSectionClassName}>
+                            <div className='space-y-1'>
+                              <p className='text-[11px] font-semibold uppercase tracking-[0.16em] text-muted'>Collection list display</p>
+                              <p className='text-sm text-muted'>
+                                Shown only in APlay collection list. This does not change datasource output, preview, or graphic bindings.
+                              </p>
+                            </div>
+
+                            {collectionDisplayOptions.length > 0 ? (
+                              <div className='mt-3 grid gap-3 md:grid-cols-2'>
+                                <FieldOptionSelect
+                                  label='Primary line'
+                                  value={graphic.collectionDisplay?.primarySourceField ?? ''}
+                                  options={collectionDisplayOptions}
+                                  emptyLabel='Select primary display field'
+                                  onChange={(value) => updateProfileGraphic(
+                                    graphic.id,
+                                    (current) => {
+                                      const primarySourceField = normalizeOptionalInput(value)
+                                      const secondarySourceField = current.collectionDisplay?.secondarySourceField
+
+                                      return {
+                                        ...current,
+                                        ...(primarySourceField || secondarySourceField
+                                          ? {
+                                            collectionDisplay: {
+                                              ...(primarySourceField ? { primarySourceField } : {}),
+                                              ...(secondarySourceField ? { secondarySourceField } : {}),
+                                            },
+                                          }
+                                          : { collectionDisplay: undefined }),
+                                      }
+                                    },
+                                  )}
+                                />
+                                <FieldOptionSelect
+                                  label='Secondary line'
+                                  value={graphic.collectionDisplay?.secondarySourceField ?? ''}
+                                  options={collectionDisplayOptions}
+                                  emptyLabel='None'
+                                  onChange={(value) => updateProfileGraphic(
+                                    graphic.id,
+                                    (current) => {
+                                      const primarySourceField = current.collectionDisplay?.primarySourceField
+                                      const secondarySourceField = normalizeOptionalInput(value)
+
+                                      return {
+                                        ...current,
+                                        ...(primarySourceField || secondarySourceField
+                                          ? {
+                                            collectionDisplay: {
+                                              ...(primarySourceField ? { primarySourceField } : {}),
+                                              ...(secondarySourceField ? { secondarySourceField } : {}),
+                                            },
+                                          }
+                                          : { collectionDisplay: undefined }),
+                                      }
+                                    },
+                                  )}
+                                />
+                              </div>
+                            ) : (
+                              <p className='mt-3 text-sm text-muted'>
+                                Add at least one source binding above before choosing what APlay should show in the Graphic collection list.
+                              </p>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -2615,42 +2697,46 @@ function ReferenceImagesSection({
     <FormSection title='Reference images' description='Manage reusable background images used only for Preview16x9 calibration.'>
       <div className='grid gap-4 xl:grid-cols-[minmax(0,22rem),minmax(0,1fr)]'>
         <div className={`space-y-2 ${settingsSubsectionClassName}`}>
-          <label className='space-y-1.5'>
-            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image name</span>
-            <input
-              value={draftName}
-              onChange={(event) => onDraftNameChange(event.target.value)}
-              placeholder='Title reference'
-              className={settingsFieldClassName}
-            />
-          </label>
-
-          <div className='grid gap-2.5 sm:grid-cols-[minmax(0,1fr),auto,auto] sm:items-end'>
-            <label className='space-y-1.5 sm:col-span-3'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image file path</span>
+          <div className='rounded-xl border border-border-muted bg-surface-app/40 p-3'>
+            <label className='space-y-1.5'>
+              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image name</span>
               <input
-                value={draftPath}
-                onChange={(event) => onDraftPathChange(event.target.value)}
-                placeholder='C:\\APlay\\references\\title.png'
+                value={draftName}
+                onChange={(event) => onDraftNameChange(event.target.value)}
+                placeholder='Title reference'
                 className={settingsFieldClassName}
               />
             </label>
-            <button
-              type='button'
-              onClick={onPickReferenceImage}
-              disabled={isPickingReferenceImage}
-              className={settingsSecondaryButtonClassName}
-            >
-              {isPickingReferenceImage ? 'Choosing file...' : 'Choose image'}
-            </button>
-            <button
-              type='button'
-              onClick={onAddReferenceImage}
-              disabled={draftName.trim().length === 0 || draftPath.trim().length === 0}
-              className={settingsAccentButtonClassName}
-            >
-              Add image
-            </button>
+          </div>
+
+          <div className='rounded-xl border border-border-muted bg-surface-app/40 p-3'>
+            <div className='grid gap-2.5 sm:grid-cols-[minmax(0,1fr),auto,auto] sm:items-end'>
+              <label className='space-y-1.5 sm:col-span-3'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image file path</span>
+                <input
+                  value={draftPath}
+                  onChange={(event) => onDraftPathChange(event.target.value)}
+                  placeholder='C:\\APlay\\references\\title.png'
+                  className={settingsFieldClassName}
+                />
+              </label>
+              <button
+                type='button'
+                onClick={onPickReferenceImage}
+                disabled={isPickingReferenceImage}
+                className={settingsSecondaryButtonClassName}
+              >
+                {isPickingReferenceImage ? 'Choosing file...' : 'Choose image'}
+              </button>
+              <button
+                type='button'
+                onClick={onAddReferenceImage}
+                disabled={draftName.trim().length === 0 || draftPath.trim().length === 0}
+                className={settingsAccentButtonClassName}
+              >
+                Add image
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2663,7 +2749,7 @@ function ReferenceImagesSection({
           </div>
           <div className='max-h-[28rem] overflow-y-auto pr-1'>
             {referenceImages.length > 0 ? (
-              <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+              <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-5'>
                 {referenceImages.map((image) => (
                   <ReferenceImagePreviewTile
                     key={image.id}
@@ -2693,12 +2779,43 @@ function ReferenceImagePreviewTile({
   onRemove: () => void
 }) {
   const [hasLoadError, setHasLoadError] = useState(false)
+  const [resolvedPreviewSrc, setResolvedPreviewSrc] = useState<string | undefined>()
+
+  useEffect(() => {
+    let cancelled = false
+
+    const resolveImage = async () => {
+      if (!image.filePath) {
+        setResolvedPreviewSrc(undefined)
+        setHasLoadError(true)
+        return
+      }
+
+      if (isDirectPreviewImageSource(image.filePath)) {
+        setResolvedPreviewSrc(image.filePath)
+        setHasLoadError(false)
+        return
+      }
+
+      const dataUrl = await window.settingsApi?.readReferenceImage?.(image.filePath)
+      if (!cancelled) {
+        setResolvedPreviewSrc(dataUrl ?? undefined)
+        setHasLoadError(!dataUrl)
+      }
+    }
+
+    void resolveImage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [image.filePath])
 
   return (
     <article className='ap-card group overflow-hidden p-2 transition-colors hover:border-border-focus'>
       <div className='relative'>
         <div className='aspect-video overflow-hidden rounded-lg border border-border bg-surface-app transition-colors group-hover:border-border-focus'>
-          {hasLoadError ? (
+          {hasLoadError || !resolvedPreviewSrc ? (
             <div className='flex h-full w-full items-center justify-center bg-surface-muted px-3 text-center'>
               <div>
                 <p className='text-sm font-semibold text-text-primary'>Preview unavailable</p>
@@ -2707,11 +2824,11 @@ function ReferenceImagePreviewTile({
             </div>
           ) : (
             <img
-              src={image.filePath}
+              src={resolvedPreviewSrc}
               alt={image.name}
               loading='lazy'
               onError={() => setHasLoadError(true)}
-              className='h-full w-full object-cover'
+              className='h-full w-full object-contain bg-surface-app'
             />
           )}
         </div>
@@ -2719,9 +2836,15 @@ function ReferenceImagePreviewTile({
           type='button'
           onClick={onRemove}
           aria-label={`Delete image ${image.name}`}
-          className={`absolute right-2 top-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 ${settingsDangerButtonClassName}`}
+          className='ap-focus absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-state-danger/80 bg-surface-panel text-red-300 opacity-100 transition-colors transition-opacity hover:border-state-danger hover:bg-surface-panel hover:text-red-200 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100'
         >
-          Delete image
+          <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+            <path d='M5.5 6.5V14.5C5.5 15.0523 5.94772 15.5 6.5 15.5H13.5C14.0523 15.5 14.5 15.0523 14.5 14.5V6.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+            <path d='M4 5.5H16' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+            <path d='M8 5.5V4.5C8 3.94772 8.44772 3.5 9 3.5H11C11.5523 3.5 12 3.94772 12 4.5V5.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+            <path d='M8 8.5V12.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+            <path d='M12 8.5V12.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
+          </svg>
         </button>
       </div>
       <p
@@ -2732,6 +2855,10 @@ function ReferenceImagePreviewTile({
       </p>
     </article>
   )
+}
+
+function isDirectPreviewImageSource(imagePath: string): boolean {
+  return imagePath.startsWith('data:') || imagePath.startsWith('http://') || imagePath.startsWith('https://')
 }
 
 function GraphicBindingSection({
