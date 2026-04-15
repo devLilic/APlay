@@ -128,14 +128,14 @@ const settingsEyebrowClassName = 'text-[11px] font-semibold uppercase tracking-[
 const settingsHelperTextClassName = 'text-sm leading-6 text-text-secondary'
 const settingsMetaTextClassName = 'text-xs uppercase tracking-[0.16em] text-text-secondary'
 const settingsCheckboxRowClassName = 'ap-focus flex items-center gap-2 rounded-xl border border-border-muted bg-surface-app/60 px-3 py-2.5 text-sm text-text-primary'
-const settingsCompactCheckboxRowClassName = 'ap-focus inline-flex min-h-11 items-center gap-2 rounded-xl border border-border-muted bg-surface-app/60 px-3 py-2.5 text-sm text-text-primary'
+const settingsCompactCheckboxRowClassName = 'ap-focus inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-muted bg-surface-app/60 px-2 py-1.5 text-xs text-text-primary'
 const settingsSubsectionClassName = 'rounded-2xl border border-border bg-card p-4 sm:p-5'
 const settingsInsetSectionClassName = 'rounded-2xl border border-border-muted bg-surface-muted p-4'
 const settingsActionRowClassName = 'flex flex-wrap items-center gap-2'
 const settingsActionRowEndClassName = 'flex flex-wrap items-center justify-end gap-2'
 const settingsSplitActionRowClassName = 'flex flex-wrap items-start justify-between gap-3'
 const settingsCompactFieldGroupClassName = 'space-y-3'
-const settingsCompactEditorStackClassName = 'space-y-4 max-w-[56rem]'
+const settingsCompactEditorStackClassName = 'space-y-4'
 const settingsCompactScrollAreaClassName = 'space-y-3 xl:max-h-[34rem] xl:overflow-y-auto xl:pr-1'
 const settingsNestedEditorRowClassName = 'grid gap-3 rounded-xl border border-border-muted bg-surface-app/40 p-4'
 const settingsSecondaryButtonClassName = getControlButtonClassName()
@@ -727,7 +727,7 @@ export function SettingsPanel({
         ) : null}
 
         {activeTab === 'graphics' ? (
-          <section className='space-y-4 max-w-[72rem]'>
+          <section className='space-y-4 w-full'>
             <GraphicSelectionSection
               settings={settings}
               selectedProfile={selectedProfile}
@@ -776,8 +776,8 @@ export function SettingsPanel({
         ) : null}
 
         {activeTab === 'preview' ? (
-          <section className='space-y-4 max-w-[72rem]'>
-            <div className='max-w-[32rem]'>
+          <section className='space-y-4 w-full'>
+            <div className='w-full'>
               <GraphicSelectionSection
                 settings={settings}
                 selectedProfile={selectedProfile}
@@ -839,8 +839,7 @@ function FormSection({ title, description, children }: PropsWithChildren<{ title
   return (
     <section className='ap-form-section'>
       <div className='ap-form-section-header'>
-        <p className={settingsEyebrowClassName}>Settings section</p>
-        <h3 className='ap-panel-title mt-2'>{title}</h3>
+        <h3 className='ap-panel-title'>{title}</h3>
         <p className={`mt-1 max-w-3xl ${settingsHelperTextClassName}`}>{description}</p>
       </div>
       <div className='space-y-4'>{children}</div>
@@ -868,7 +867,7 @@ function NumberField({
   compact?: boolean
 }) {
   return (
-    <label className={`space-y-2 ${compact ? 'max-w-[9rem]' : ''}`}>
+    <label className={`space-y-2 ${compact ? 'max-w-[8.5rem]' : ''}`}>
       <span className={settingsLabelClassName}>{label}</span>
       <div className='space-y-2'>
         <input
@@ -885,10 +884,10 @@ function NumberField({
 
             onChange(nextValue)
           }}
-          className={`${settingsFieldClassName} ${compact ? 'max-w-[9rem]' : ''}`}
+          className={`${settingsFieldClassName} ${compact ? 'h-8 w-[12ch] min-w-[12ch] rounded-lg px-2 py-1 text-xs' : ''}`}
         />
         {showSlider && min !== undefined && max !== undefined ? (
-          <div className={`flex items-center gap-3 ${compact ? 'max-w-[9rem]' : ''}`}>
+          <div className={`flex items-center gap-2 ${compact ? 'max-w-[8.5rem]' : ''}`}>
             <input
               type='range'
               min={min}
@@ -898,7 +897,9 @@ function NumberField({
               onChange={(event) => onChange(Number(event.target.value))}
               className='w-full min-w-0 accent-accent'
             />
-            <span className={`${compact ? 'min-w-10' : 'min-w-14'} text-right text-xs font-medium text-text-secondary`}>{value}</span>
+            {!compact ? (
+              <span className='min-w-14 text-right text-xs font-medium text-text-secondary'>{value}</span>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -922,18 +923,18 @@ function ColorField({
   return (
     <label className={`space-y-2 ${compact ? 'max-w-[12rem]' : ''}`}>
       <span className={settingsLabelClassName}>{label}</span>
-      <div className={`flex items-center gap-3 rounded-xl border border-border-muted bg-surface-app px-3 py-2.5 ${compact ? 'max-w-[12rem]' : ''}`}>
+      <div className={`flex items-center gap-2 rounded-lg border border-border-muted bg-surface-app px-2 py-1.5 ${compact ? 'max-w-[10.5rem]' : ''}`}>
         <input
           type='color'
           value={normalizedValue}
           onChange={(event) => onChange(event.target.value)}
-          className='h-10 w-10 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0'
+          className={`shrink-0 cursor-pointer rounded border-0 bg-transparent p-0 ${compact ? 'h-8 w-8' : 'h-10 w-10'}`}
         />
         <input
           value={value ?? ''}
           placeholder='#ffffff'
           onChange={(event) => onChange(normalizeOptionalInput(event.target.value))}
-          className='min-w-0 flex-1 bg-transparent text-sm text-text-primary outline-none placeholder:text-text-disabled'
+          className={`min-w-0 flex-1 bg-transparent outline-none placeholder:text-text-disabled ${compact ? 'text-xs text-text-primary' : 'text-sm text-text-primary'}`}
         />
       </div>
     </label>
@@ -1422,7 +1423,7 @@ function getOscCommandValidationMessages(command: string | OscCommandConfig): st
 
 function getOscArgDraftKey(
   graphicId: string,
-  commandKey: 'play' | 'stop' | 'resume',
+  commandKey: 'play' | 'stop' | 'resume' | 'stopall',
   argIndex: number,
 ): string {
   return `${graphicId}:${commandKey}:${argIndex}`
@@ -1740,7 +1741,7 @@ function IconActionButton({
         type='button'
         onClick={onClick}
         aria-label={label}
-        className={`h-9 w-9 !min-h-9 !px-0 !py-0 ${toneClass}`}
+        className={`inline-flex h-9 w-9 items-center justify-center !min-h-9 !px-0 !py-0 ${toneClass}`}
       >
         {icon}
       </button>
@@ -1751,30 +1752,30 @@ function IconActionButton({
   )
 }
 
-function AddLinkIcon() {
+function ProfileAddIcon() {
   return (
-    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
-      <path d='M7.5 12.5 5.8 14.2a2.4 2.4 0 0 1-3.3-3.4L4.8 8.5a2.4 2.4 0 0 1 3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
-      <path d='M12.5 7.5 14.2 5.8a2.4 2.4 0 1 1 3.4 3.4l-2.3 2.3a2.4 2.4 0 0 1-3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
-      <path d='M7 10h6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
-      <path d='M10 7v6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+    <svg viewBox='0 0 20 20' fill='none' className='block h-4 w-4 shrink-0' aria-hidden='true'>
+      <rect x='3.5' y='4.5' width='8.5' height='11' rx='2' stroke='currentColor' strokeWidth='1.7' />
+      <path d='M7 7.5h2' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+      <path d='M14.5 8.5v6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+      <path d='M11.5 11.5h6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
     </svg>
   )
 }
 
-function RemoveLinkIcon() {
+function ProfileRemoveIcon() {
   return (
-    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
-      <path d='M7.5 12.5 5.8 14.2a2.4 2.4 0 0 1-3.3-3.4L4.8 8.5a2.4 2.4 0 0 1 3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
-      <path d='M12.5 7.5 14.2 5.8a2.4 2.4 0 1 1 3.4 3.4l-2.3 2.3a2.4 2.4 0 0 1-3.4 0' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
-      <path d='M7 10h6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+    <svg viewBox='0 0 20 20' fill='none' className='block h-4 w-4 shrink-0' aria-hidden='true'>
+      <rect x='3.5' y='4.5' width='8.5' height='11' rx='2' stroke='currentColor' strokeWidth='1.7' />
+      <path d='M7 7.5h2' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
+      <path d='M11.5 11.5h6' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
     </svg>
   )
 }
 
 function DuplicateIcon() {
   return (
-    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+    <svg viewBox='0 0 20 20' fill='none' className='block h-4 w-4 shrink-0' aria-hidden='true'>
       <rect x='6.5' y='6.5' width='9' height='9' rx='2' stroke='currentColor' strokeWidth='1.7' />
       <path d='M4.5 12V6a1.5 1.5 0 0 1 1.5-1.5H12' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
     </svg>
@@ -1783,7 +1784,7 @@ function DuplicateIcon() {
 
 function DeleteIcon() {
   return (
-    <svg viewBox='0 0 20 20' fill='none' className='h-4 w-4' aria-hidden='true'>
+    <svg viewBox='0 0 20 20' fill='none' className='block h-4 w-4 shrink-0' aria-hidden='true'>
       <path d='M4.5 6h11' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
       <path d='M8 3.8h4' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' />
       <path d='M6.5 6 7 15a1.5 1.5 0 0 0 1.5 1.4h3a1.5 1.5 0 0 0 1.5-1.4l.5-9' stroke='currentColor' strokeWidth='1.7' strokeLinecap='round' strokeLinejoin='round' />
@@ -2324,93 +2325,59 @@ function GraphicSelectionSection({
 }) {
   return (
     <FormSection title='Graphic config library' description='Create, select, duplicate, and delete reusable graphic configs in one compact library flow.'>
-      <div className={settingsCompactEditorStackClassName}>
-        <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
-          <div>
-            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Create new graphic config</p>
-            <p className='mt-1 text-sm text-muted'>
-              Start from a practical default, then fine-tune bindings, OSC, and preview settings after creation.
-            </p>
-          </div>
-
-          <div className='grid gap-3 sm:grid-cols-[9rem,minmax(0,14rem),auto] sm:items-end'>
-            <label className='space-y-2'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
-              <select
-                value={draftGraphicEntityType}
-                onChange={(event) => onDraftGraphicEntityTypeChange(event.target.value as GraphicInstanceConfig['entityType'])}
-                className={settingsFieldClassName}
-              >
-                {supportedEntityTypes.map((entityType) => (
-                  <option key={entityType} value={entityType}>
-                    {entityType}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className='space-y-2'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preferred id</span>
-              <input
-                value={draftGraphicId}
-                onChange={(event) => onDraftGraphicIdChange(event.target.value)}
-                placeholder={`${draftGraphicEntityType}-main`}
-                className={settingsFieldClassName}
-              />
-            </label>
-            <button
-              type='button'
-              onClick={onCreateGraphicConfig}
-              className='rounded-xl border border-accent bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90'
-            >
-              Create config
-            </button>
-          </div>
-        </div>
-
-        <div className={`space-y-3 ${settingsSubsectionClassName}`}>
-          <div>
-            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Editing target</p>
-            <p className='mt-1 text-sm text-muted'>
-              Select any library graphic config to continue editing, even if it is not assigned to the active profile.
-            </p>
-          </div>
-
-          <div className='max-w-[36rem]'>
-            <label className='space-y-2'>
-              <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Editing target</span>
-              <select
-                value={selectedGraphicId ?? ''}
-                onChange={(event) => onSelectedGraphicIdChange(event.target.value || null)}
-                className={settingsFieldClassName}
-              >
-                <option value=''>Select a graphic config</option>
-                {settings.graphics.map((graphic) => {
-                  const isAssigned = selectedProfile?.graphicConfigIds.includes(graphic.id) ?? false
-
-                  return (
-                    <option key={graphic.id} value={graphic.id}>
-                      {graphic.name} | {graphic.entityType} | {isAssigned ? 'Assigned to active profile' : 'Library only'}
-                    </option>
-                  )
-                })}
-              </select>
-            </label>
-          </div>
-
-          {!selectedGraphicId ? (
-            <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
-              Select any library graphic config to edit it, even if it is not assigned to the active profile.
+      <div className='flex flex-col gap-4 xl:flex-row xl:items-start'>
+        <div className='xl:w-[30%] xl:min-w-[18rem]'>
+          <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
+            <div>
+              <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Create new graphic config</p>
             </div>
-          ) : null}
+
+            <div className='space-y-3'>
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Entity type</span>
+                <select
+                  value={draftGraphicEntityType}
+                  onChange={(event) => onDraftGraphicEntityTypeChange(event.target.value as GraphicInstanceConfig['entityType'])}
+                  className={settingsFieldClassName}
+                >
+                  {supportedEntityTypes.map((entityType) => (
+                    <option key={entityType} value={entityType}>
+                      {entityType}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className='space-y-2'>
+                <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preferred id</span>
+                <input
+                  value={draftGraphicId}
+                  onChange={(event) => onDraftGraphicIdChange(event.target.value)}
+                  placeholder={`${draftGraphicEntityType}-main`}
+                  className={settingsFieldClassName}
+                />
+              </label>
+              <button
+                type='button'
+                onClick={onCreateGraphicConfig}
+                className='w-full rounded-xl border border-accent bg-accent px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-accent/90'
+              >
+                Create config
+              </button>
+            </div>
+
+            {!selectedGraphicId ? (
+              <div className='rounded-2xl border border-dashed border-border bg-surface/30 p-4 text-sm text-muted'>
+                Select any library graphic config card to edit it.
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        <div className='space-y-3'>
+        <div className='min-w-0 flex-1'>
+          <div className='space-y-3'>
           <div className='flex flex-wrap items-start justify-between gap-3'>
             <div>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Graphic config library</p>
-              <p className='mt-1 text-sm text-muted'>
-                Remove from profile only detaches from the active show. Delete from library removes the config globally.
-              </p>
             </div>
             <span className={getStateBadgeClassName('invalid')}>
               Delete from library is global
@@ -2453,7 +2420,7 @@ function GraphicSelectionSection({
                         label={isLoadedByProfile ? 'Remove from profile' : 'Add to profile'}
                         onClick={() => isLoadedByProfile ? onDetachGraphicConfig(graphic.id) : onAttachGraphicConfig(graphic.id)}
                         tone={isLoadedByProfile ? 'amber' : 'emerald'}
-                        icon={isLoadedByProfile ? <RemoveLinkIcon /> : <AddLinkIcon />}
+                        icon={isLoadedByProfile ? <ProfileRemoveIcon /> : <ProfileAddIcon />}
                       />
                       <IconActionButton
                         label='Duplicate'
@@ -2507,6 +2474,7 @@ function GraphicSelectionSection({
               })}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </FormSection>
@@ -2797,16 +2765,41 @@ function GraphicBindingSection({
   const displayNameError = trimmedDisplayName.length === 0
     ? 'Display Name is required.'
     : null
+  const normalizedOnAirMode = graphic.onAir?.mode ?? 'manual'
   const [zIndexDraft, setZIndexDraft] = useState(graphic.zIndex === undefined ? '' : String(graphic.zIndex))
+  const [onAirDurationDraft, setOnAirDurationDraft] = useState(
+    graphic.onAir?.mode === 'autoHide' && graphic.onAir.durationSeconds !== undefined
+      ? String(graphic.onAir.durationSeconds)
+      : '',
+  )
 
   useEffect(() => {
     setZIndexDraft(graphic.zIndex === undefined ? '' : String(graphic.zIndex))
   }, [graphic.id, graphic.zIndex])
 
+  useEffect(() => {
+    setOnAirDurationDraft(
+      graphic.onAir?.mode === 'autoHide' && graphic.onAir.durationSeconds !== undefined
+        ? String(graphic.onAir.durationSeconds)
+        : '',
+    )
+  }, [graphic.id, graphic.onAir?.mode, graphic.onAir?.durationSeconds])
+
   const trimmedZIndexDraft = zIndexDraft.trim()
   const parsedZIndex = trimmedZIndexDraft.length === 0 ? 0 : Number(trimmedZIndexDraft)
   const zIndexError = trimmedZIndexDraft.length > 0 && !Number.isFinite(parsedZIndex)
     ? 'zIndex must be a valid number.'
+    : null
+  const trimmedOnAirDurationDraft = onAirDurationDraft.trim()
+  const parsedOnAirDuration = trimmedOnAirDurationDraft.length === 0
+    ? Number.NaN
+    : Number(trimmedOnAirDurationDraft)
+  const onAirDurationError = normalizedOnAirMode === 'autoHide' && (
+    trimmedOnAirDurationDraft.length === 0 ||
+    !Number.isFinite(parsedOnAirDuration) ||
+    parsedOnAirDuration <= 0
+  )
+    ? 'Duration must be greater than 0 seconds.'
     : null
 
   return (
@@ -2919,6 +2912,125 @@ function GraphicBindingSection({
             {zIndexError ?? 'Controls preview stacking only inside APlay. Leave empty to use the safe default layer 0.'}
           </p>
         </label>
+      </div>
+
+      <div className={`space-y-3 ${settingsSubsectionClassName}`}>
+        <div className={settingsSplitActionRowClassName}>
+          <div>
+            <p className='text-sm font-semibold text-text-primary'>ONAIR behavior</p>
+            <p className='mt-1 text-sm text-muted'>
+              Choose whether this graphic stays visible until Stop or leaves the APlay ONAIR screen automatically.
+            </p>
+          </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <span className={getStateBadgeClassName(normalizedOnAirMode === 'autoHide' ? 'selected' : 'disabled')}>
+              {normalizedOnAirMode === 'autoHide' ? 'Timed ONAIR' : 'Manual ONAIR'}
+            </span>
+            {normalizedOnAirMode === 'autoHide' && !onAirDurationError && trimmedOnAirDurationDraft.length > 0 ? (
+              <span className={getStateBadgeClassName('multiSelected')}>
+                Auto-hide after {trimmedOnAirDurationDraft}s
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className='grid gap-3 lg:grid-cols-[minmax(0,1fr),12rem] lg:items-start'>
+          <div className='grid gap-2 sm:grid-cols-2'>
+            <label className={`${settingsCompactCheckboxRowClassName} min-h-[42px] justify-between rounded-xl border border-border bg-surface-app/50 px-3 py-2`}>
+              <span className='min-w-0'>
+                <span className='block text-sm font-semibold text-text-primary'>Manual on-air</span>
+                <span className='block text-xs text-muted'>Stays on-air until Stop.</span>
+              </span>
+              <input
+                type='radio'
+                name={`onair-mode-${graphic.id}`}
+                checked={normalizedOnAirMode === 'manual'}
+                onChange={() => {
+                  setOnAirDurationDraft('')
+                  updateGraphic((current) => ({
+                    ...current,
+                    onAir: {
+                      mode: 'manual',
+                    },
+                  }))
+                }}
+                className='h-4 w-4 shrink-0 border-border text-accent focus:ring-accent'
+              />
+            </label>
+
+            <label className={`${settingsCompactCheckboxRowClassName} min-h-[42px] justify-between rounded-xl border border-border bg-surface-app/50 px-3 py-2`}>
+              <span className='min-w-0'>
+                <span className='block text-sm font-semibold text-text-primary'>Auto-hide</span>
+                <span className='block text-xs text-muted'>Timed / auto-hide after N seconds.</span>
+              </span>
+              <input
+                type='radio'
+                name={`onair-mode-${graphic.id}`}
+                checked={normalizedOnAirMode === 'autoHide'}
+                onChange={() => {
+                  const nextDuration = graphic.onAir?.mode === 'autoHide' && graphic.onAir.durationSeconds !== undefined && graphic.onAir.durationSeconds > 0
+                    ? graphic.onAir.durationSeconds
+                    : 10
+                  setOnAirDurationDraft(String(nextDuration))
+                  updateGraphic((current) => ({
+                    ...current,
+                    onAir: {
+                      mode: 'autoHide',
+                      durationSeconds: nextDuration,
+                    },
+                  }))
+                }}
+                className='h-4 w-4 shrink-0 border-border text-accent focus:ring-accent'
+              />
+            </label>
+          </div>
+
+          <label className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Duration (seconds)</span>
+            <input
+              type='number'
+              inputMode='numeric'
+              min='1'
+              step='1'
+              disabled={normalizedOnAirMode !== 'autoHide'}
+              value={normalizedOnAirMode === 'autoHide' ? onAirDurationDraft : ''}
+              onChange={(event) => {
+                const nextDraft = event.target.value
+                const trimmedNextDraft = nextDraft.trim()
+                setOnAirDurationDraft(nextDraft)
+
+                if (trimmedNextDraft.length === 0) {
+                  return
+                }
+
+                const nextDuration = Number(trimmedNextDraft)
+                if (!Number.isFinite(nextDuration) || nextDuration <= 0) {
+                  return
+                }
+
+                updateGraphic((current) => ({
+                  ...current,
+                  onAir: {
+                    mode: 'autoHide',
+                    durationSeconds: nextDuration,
+                  },
+                }))
+              }}
+              placeholder='10'
+              className={[
+                settingsFieldClassName,
+                'max-w-[12ch]',
+                normalizedOnAirMode !== 'autoHide' ? 'cursor-not-allowed opacity-60' : '',
+                onAirDurationError ? 'border-state-danger bg-state-danger/10 text-text-primary' : '',
+              ].filter(Boolean).join(' ')}
+            />
+            <p className={`text-xs ${onAirDurationError ? 'text-red-300' : 'text-muted'}`}>
+              {normalizedOnAirMode === 'autoHide'
+                ? (onAirDurationError ?? 'Auto-hide after the configured number of seconds.')
+                : 'Duration is used only for timed ONAIR mode.'}
+            </p>
+          </label>
+        </div>
       </div>
 
       {isStaticGraphic ? (
@@ -3123,9 +3235,15 @@ function GlobalOscSettingsSection({
         address: '/liveboard/resume',
         args: [{ type: 's' as const, value: '{{templateName}}' }],
       },
+      stopall: {
+        address: '/liveboard/stopall',
+        args: [],
+      },
     },
   }
   const targetValidationMessages = getOscTargetValidationMessages(oscSettings.target)
+  const notificationStore = useNotificationStore()
+  const lastOscTargetNotificationRef = useRef<string | null>(null)
 
   const updateOscSettings = (updater: (current: NonNullable<AppSettings['osc']>) => NonNullable<AppSettings['osc']>) => {
     onSettingsChange({
@@ -3134,10 +3252,30 @@ function GlobalOscSettingsSection({
     })
   }
 
+  useEffect(() => {
+    if (targetValidationMessages.length === 0) {
+      lastOscTargetNotificationRef.current = null
+      return
+    }
+
+    const nextMessage = targetValidationMessages.join(' | ')
+    if (lastOscTargetNotificationRef.current === nextMessage) {
+      return
+    }
+
+    notificationStore.publish({
+      variant: 'danger',
+      title: 'OSC target',
+      message: nextMessage,
+      timeoutMs: 8000,
+    })
+    lastOscTargetNotificationRef.current = nextMessage
+  }, [notificationStore, targetValidationMessages])
+
   return (
-    <div className='space-y-4'>
-      <FormSection title='OSC target' description='Target general pentru intreaga aplicatie. Toate graphic-urile trimit catre aceeasi destinatie LiveBoard.'>
-        <div className='grid gap-3 md:grid-cols-2'>
+    <div className='grid gap-4 xl:grid-cols-3 xl:items-start'>
+      <FormSection title='OSC target' description=''>
+        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
           <label className='space-y-2'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Host</span>
             <input
@@ -3153,7 +3291,7 @@ function GlobalOscSettingsSection({
               className={getOscInputClass(targetValidationMessages.some((message) => message.includes('host')))}
             />
           </label>
-          <label className='space-y-2'>
+          <label className='space-y-2 xl:max-w-[10rem]'>
             <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Port</span>
             <input
               type='number'
@@ -3172,15 +3310,6 @@ function GlobalOscSettingsSection({
           </label>
         </div>
 
-        {targetValidationMessages.length > 0 ? (
-          <div className={getSettingsStatusClassName('error')}>
-            {targetValidationMessages.map((message) => <p key={message}>{message}</p>)}
-          </div>
-        ) : (
-          <div className={getSettingsStatusClassName('success')}>
-            OSC target general este configurat si gata de salvare.
-          </div>
-        )}
       </FormSection>
 
       <GlobalOscCommandEditor
@@ -3220,6 +3349,20 @@ function GlobalOscSettingsSection({
           commands: {
             ...current.commands,
             resume: command,
+          },
+        }))}
+        oscArgDrafts={oscArgDrafts}
+        onOscArgDraftChange={onOscArgDraftChange}
+      />
+      <GlobalOscCommandEditor
+        label='Stopall command'
+        commandKey='stopall'
+        command={oscSettings.commands.stopall}
+        updateCommand={(command) => updateOscSettings((current) => ({
+          ...current,
+          commands: {
+            ...current.commands,
+            stopall: command,
           },
         }))}
         oscArgDrafts={oscArgDrafts}
@@ -3320,7 +3463,7 @@ function OscCommandEditor({
             const argError = getOscArgInputError(arg, draftValue)
 
             return (
-              <div key={draftKey} className={`${settingsNestedEditorRowClassName} md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start`}>
+              <div key={draftKey} className={`${settingsNestedEditorRowClassName} md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-end`}>
                 <label className='space-y-2'>
                   <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Type</span>
                   <select
@@ -3399,7 +3542,7 @@ function OscCommandEditor({
                 <button
                   type='button'
                   onClick={() => updateCommand(updateGraphicControlArgs(command, normalizedCommand.args.filter((_, currentIndex) => currentIndex !== argIndex)))}
-                  className={settingsDangerButtonClassName}
+                  className={`${settingsDangerButtonClassName} self-start md:self-end`}
                 >
                   Remove
                 </button>
@@ -3431,7 +3574,7 @@ function GlobalOscCommandEditor({
   onOscArgDraftChange,
 }: {
   label: string
-  commandKey: 'play' | 'stop' | 'resume'
+  commandKey: 'play' | 'stop' | 'resume' | 'stopall'
   command: OscCommandConfig
   updateCommand: (command: OscCommandConfig) => void
   oscArgDrafts: Record<string, string>
@@ -3439,15 +3582,34 @@ function GlobalOscCommandEditor({
 }) {
   const validationMessages = getOscCommandValidationMessages(command)
   const commandHasAddressError = validationMessages.some((message) => message.includes('start with "/"'))
+  const notificationStore = useNotificationStore()
+  const lastOscCommandNotificationRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (validationMessages.length === 0) {
+      lastOscCommandNotificationRef.current = null
+      return
+    }
+
+    const nextMessage = validationMessages.join(' | ')
+    if (lastOscCommandNotificationRef.current === nextMessage) {
+      return
+    }
+
+    notificationStore.publish({
+      variant: 'danger',
+      title: label,
+      message: nextMessage,
+      timeoutMs: 8000,
+    })
+    lastOscCommandNotificationRef.current = nextMessage
+  }, [label, notificationStore, validationMessages])
 
   return (
     <section className='ap-form-section'>
       <div className={settingsSplitActionRowClassName}>
         <div>
           <p className='text-sm font-semibold text-text-primary'>{label}</p>
-          <p className='mt-1 text-sm text-muted'>
-            Comanda generala LiveBoard. Foloseste <code>{'{{templateName}}'}</code> ca placeholder pentru numele template-ului setat pe graphic.
-          </p>
         </div>
         <button
           type='button'
@@ -3481,7 +3643,7 @@ function GlobalOscCommandEditor({
           const argError = getOscArgInputError(arg, draftValue)
 
           return (
-            <div key={draftKey} className={`${settingsNestedEditorRowClassName} md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-start`}>
+            <div key={draftKey} className={`${settingsNestedEditorRowClassName} md:grid-cols-[7rem,minmax(0,1fr),auto] md:items-end`}>
               <label className='space-y-2'>
                 <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Type</span>
                 <select
@@ -3554,7 +3716,7 @@ function GlobalOscCommandEditor({
                   ...command,
                   args: command.args.filter((_, currentIndex) => currentIndex !== argIndex),
                 })}
-                className={settingsDangerButtonClassName}
+                className={`${settingsDangerButtonClassName} self-start md:self-end`}
               >
                 Remove
               </button>
@@ -3563,15 +3725,6 @@ function GlobalOscCommandEditor({
         })}
       </div>
 
-      {validationMessages.length > 0 ? (
-        <div className={getSettingsStatusClassName('error')}>
-          {validationMessages.map((message) => <p key={message}>{message}</p>)}
-        </div>
-      ) : (
-        <div className={getSettingsStatusClassName('success')}>
-          Global OSC command config is valid and ready to save.
-        </div>
-      )}
     </section>
   )
 }
@@ -3598,10 +3751,12 @@ function PreviewTemplateSection({
   const resolvedPreviewContent = graphic.staticAsset?.assetPath
     ? { ...previewContent, staticAsset: graphic.staticAsset.assetPath }
     : previewContent
+  const previewElementCardClassName = 'space-y-2.5 rounded-xl border border-border bg-card p-2.5 sm:p-3'
+  const previewElementGroupClassName = 'space-y-2 rounded-xl border border-border-muted bg-surface-muted px-2.5 py-2'
 
   return (
     <FormSection title='Preview template' description='Edit the APlay-side preview approximation for the selected graphic.'>
-      <div className='grid gap-4 xl:grid-cols-[minmax(0,44rem),minmax(20rem,28rem)]'>
+      <div className='grid gap-4 xl:grid-cols-2 xl:items-start'>
         <div className='space-y-4'>
           <div className='grid gap-3 md:grid-cols-[minmax(0,1fr),9rem,9rem]'>
             <label className='space-y-2'>
@@ -3752,75 +3907,10 @@ function PreviewTemplateSection({
                 const textBehavior = getElementBehavior(element)
 
                 return (
-                  <div key={`${elementIndex}`} className={`space-y-4 ${settingsSubsectionClassName}`}>
-                  <div className='flex items-center justify-between gap-3'>
-                    <p className='text-sm font-semibold text-text-primary'>{element.id}</p>
-                    <button
-                      type='button'
-                      onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
-                      disabled={graphic.preview.elements.length === 1}
-                      className={settingsDangerButtonClassName}
-                    >
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
-                    <div>
-                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element identity</p>
-                    </div>
-                    <div className='grid gap-3 md:grid-cols-[minmax(0,1fr),10rem,10rem]'>
-                      <label className='space-y-2'>
-                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element id</span>
-                        <input
-                          value={element.id}
-                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
-                          className={settingsFieldClassName}
-                        />
-                      </label>
-                      <label className='space-y-2'>
-                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
-                        <select
-                          value={element.kind}
-                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
-                          className={settingsFieldClassName}
-                        >
-                          {previewElementKinds.map((kind) => (
-                            <option key={kind} value={kind}>
-                              {kind}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className='space-y-2'>
-                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
-                        <input
-                          value={element.sourceField}
-                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                          className={settingsFieldClassName}
-                        />
-                      </label>
-                    </div>
-                    {element.kind === 'text' ? (
-                      <div className='max-w-[30rem]'>
-                        <label className='space-y-2'>
-                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
-                          <input
-                            value={element.previewText ?? ''}
-                            onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
-                            placeholder='Write the exact text you want to arrange in preview'
-                            className={settingsFieldClassName}
-                          />
-                        </label>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
-                    <div>
-                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Visibility / behavior</p>
-                    </div>
-                    <div className='flex flex-wrap gap-2'>
+                  <div key={`${elementIndex}`} className={previewElementCardClassName}>
+                  <div className='flex flex-wrap items-start justify-between gap-3'>
+                    <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
+                      <p className='text-sm font-semibold text-text-primary'>{element.id}</p>
                       <label className={settingsCompactCheckboxRowClassName}>
                         <input
                           type='checkbox'
@@ -3855,24 +3945,73 @@ function PreviewTemplateSection({
                         </label>
                       ) : null}
                     </div>
+                    <button
+                      type='button'
+                      onClick={() => updateGraphic((current) => ({ ...current, preview: { ...current.preview, elements: current.preview.elements.filter((_, index) => index !== elementIndex) } }))}
+                      disabled={graphic.preview.elements.length === 1}
+                      className={settingsDangerButtonClassName}
+                    >
+                      Remove
+                    </button>
                   </div>
 
-                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
-                    <div>
-                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Position / size</p>
+                  <div className={previewElementGroupClassName}>
+                    <div className='grid gap-2.5 md:grid-cols-[minmax(0,1fr),9rem,9rem]'>
+                      <label className='space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Element id</span>
+                        <input
+                          value={element.id}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, id: event.target.value }))}
+                          className={settingsFieldClassName}
+                        />
+                      </label>
+                      <label className='space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
+                        <select
+                          value={element.kind}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
+                          className={settingsFieldClassName}
+                        >
+                          {previewElementKinds.map((kind) => (
+                            <option key={kind} value={kind}>
+                              {kind}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className='space-y-2'>
+                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
+                        <input
+                          value={element.sourceField}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
+                          className={settingsFieldClassName}
+                        />
+                      </label>
                     </div>
-                    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
-                      <NumberField compact label='X' value={element.box.x} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
-                      <NumberField compact label='Y' value={element.box.y} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
-                      <NumberField compact label='Width' value={element.box.width} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
-                      <NumberField compact label='Height' value={element.box.height} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
+                    {element.kind === 'text' ? (
+                      <div className='max-w-[24rem]'>
+                        <label className='space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview text override</span>
+                          <input
+                            value={element.previewText ?? ''}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, previewText: normalizeOptionalInput(event.target.value) }))}
+                            placeholder='Write the exact text you want to arrange in preview'
+                            className={settingsFieldClassName}
+                          />
+                        </label>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className={previewElementGroupClassName}>
+                    <div className='grid gap-2.5 md:grid-cols-[8.5rem,8.5rem,minmax(0,8.5rem)]'>
                       <NumberField compact label='Border radius' value={element.borderRadius ?? 0} min={0} max={200} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
-                      <label className='max-w-[10rem] space-y-2'>
+                      <label className='max-w-[10.5rem] space-y-2'>
                         <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
                         <select
                           value={element.transformOrigin ?? 'top-left'}
                           onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
-                          className={`${settingsFieldClassName} max-w-[10rem]`}
+                          className={`${settingsFieldClassName} max-w-[10.5rem] h-7 rounded-lg px-1.5 py-0.5 text-[11px]`}
                         >
                           {transformOrigins.map((origin) => (
                             <option key={origin} value={origin}>
@@ -3884,11 +4023,21 @@ function PreviewTemplateSection({
                     </div>
                   </div>
 
-                  <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
-                    <div>
-                      <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Colors / appearance</p>
+                  <div className={previewElementGroupClassName}>
+                    <div className='grid gap-2.5 md:grid-cols-2'>
+                      <div className='grid gap-2.5 grid-cols-2'>
+                        <NumberField compact label='X' value={element.box.x} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, x: value } }))} />
+                        <NumberField compact label='Y' value={element.box.y} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, y: value } }))} />
+                      </div>
+                      <div className='grid gap-2.5 grid-cols-2'>
+                        <NumberField compact label='Width' value={element.box.width} min={0} max={1920} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, width: value } }))} />
+                        <NumberField compact label='Height' value={element.box.height} min={0} max={1080} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, box: { ...current.box, height: value } }))} />
+                      </div>
                     </div>
-                    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+                  </div>
+
+                  <div className={previewElementGroupClassName}>
+                    <div className='grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3'>
                       <ColorField
                         compact
                         label='Text color'
@@ -3910,41 +4059,38 @@ function PreviewTemplateSection({
                     </div>
                   </div>
                   {element.kind === 'text' ? (
-                    <div className={`space-y-3 ${settingsInsetSectionClassName}`}>
-                      <div>
-                        <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Typography / spacing</p>
-                      </div>
-                      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+                    <div className={previewElementGroupClassName}>
+                      <div className='grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3'>
                         <NumberField compact label='Font size' value={textBehavior?.fontSize ?? 64} min={0} max={300} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, fontSize: value })))} />
                         <NumberField compact label='Min scaleX' value={textBehavior?.minScaleX ?? 0} min={0} max={1} step={0.01} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, minScaleX: value })))} />
-                        <label className='max-w-[10rem] space-y-2'>
+                        <label className='max-w-[10.5rem] space-y-2'>
                           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Text align</span>
                           <select
                             value={textBehavior?.textAlign ?? 'left'}
                             onChange={(event) => updatePreviewElement(elementIndex, (current) =>
                               updateElementBehavior(current, (behavior) => ({ ...behavior, textAlign: event.target.value as 'left' | 'center' })))}
-                            className={`${settingsFieldClassName} max-w-[10rem]`}
+                            className={`${settingsFieldClassName} max-w-[10.5rem] h-7 rounded-lg px-1.5 py-0.5 text-[11px]`}
                           >
                             <option value='left'>Left</option>
                             <option value='center'>Center</option>
                           </select>
                         </label>
                       </div>
-                      <div className='grid gap-3 md:grid-cols-[9rem,9rem,minmax(0,14rem)]'>
+                      <div className='grid gap-2.5 md:grid-cols-[8.5rem,8.5rem,minmax(0,12rem)]'>
                         <NumberField compact label='Padding left' value={textBehavior?.paddingLeft ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, paddingLeft: value })))} />
                         <NumberField compact label='Padding right' value={textBehavior?.paddingRight ?? 0} min={0} max={400} step={1} showSlider={false} onChange={(value) => updatePreviewElement(elementIndex, (current) =>
                           updateElementBehavior(current, (behavior) => ({ ...behavior, paddingRight: value })))} />
-                        <label className='max-w-[14rem] space-y-2'>
+                        <label className='max-w-[12rem] space-y-2'>
                           <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Font family</span>
                           <input
                             value={textBehavior?.fontFamily ?? 'Arial'}
                             onChange={(event) => updatePreviewElement(elementIndex, (current) =>
                               updateElementBehavior(current, (behavior) => ({ ...behavior, fontFamily: normalizeOptionalInput(event.target.value) })))}
                             placeholder='Arial, Helvetica, "My Local Font"'
-                            className={`${settingsFieldClassName} max-w-[14rem]`}
+                            className={`${settingsFieldClassName} max-w-[12rem] h-8 rounded-lg px-2 py-1 text-xs`}
                           />
                         </label>
                       </div>

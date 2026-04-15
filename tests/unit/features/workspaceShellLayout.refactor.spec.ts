@@ -54,6 +54,15 @@ describe('WorkspaceShell dual-preview layout refactor', () => {
     expect(source).toContain('Waiting for live output')
   })
 
+  it('shows concise on-air policy badges in workspace context and display screens', () => {
+    const source = readWorkspaceShellSource()
+
+    expect(source).toContain('Timed on-air')
+    expect(source).toContain('Manual on-air')
+    expect(source).toContain('Auto-hide after')
+    expect(source).toContain('Stays on-air until Stop.')
+  })
+
   it('does not depend on the old three-column shell with a dedicated right panel track', () => {
     const source = readWorkspaceShellSource()
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { ComponentProps } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -123,5 +125,22 @@ describe('SettingsPanel stability', () => {
     expect(html).toContain('Missing reference image | Schema warning')
     expect(html).toContain('Show profiles')
     expect(html).toContain('CSV schema')
+  })
+
+  it('defines per-graphic ONAIR behavior controls in the graphic configuration editor', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/features/settings/components/SettingsPanel.tsx'),
+      'utf8',
+    )
+    const graphicConfigurationSection = source.slice(
+      source.indexOf("title='Graphic configuration'"),
+      source.indexOf("title='Preview template'"),
+    )
+
+    expect(graphicConfigurationSection).toContain('ONAIR behavior')
+    expect(graphicConfigurationSection).toContain('Manual on-air')
+    expect(graphicConfigurationSection).toContain('Auto-hide')
+    expect(graphicConfigurationSection).toContain('Duration (seconds)')
+    expect(graphicConfigurationSection).toContain('Auto-hide after')
   })
 })

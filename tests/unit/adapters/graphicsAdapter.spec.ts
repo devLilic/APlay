@@ -65,6 +65,10 @@ const oscSettings: OscSettingsConfig = {
       address: '/lb/resume',
       args: [{ type: 's', value: '{{templateName}}' }],
     },
+    stopall: {
+      address: '/lb/stopall',
+      args: [],
+    },
   },
 }
 

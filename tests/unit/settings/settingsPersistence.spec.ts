@@ -25,6 +25,10 @@ const baseSettings = {
         address: '/graphics/resume',
         args: [{ type: 's', value: '{{templateName}}' }],
       },
+      stopall: {
+        address: '/graphics/stopall',
+        args: [],
+      },
     },
   },
   referenceImages: [
@@ -273,6 +277,42 @@ describe('settings storage load/save', () => {
     expect(reloadedGraphicRecord?.name).not.toBe(reloadedGraphic?.id)
   })
 
+  it('persists ONAIR behavior per graphic config in the settings document', () => {
+    const storage = createInMemorySettingsStorage()
+    const repository = createSettingsRepository(storage)
+
+    repository.save({
+      ...baseSettings,
+      graphics: baseSettings.graphics.map((graphic) =>
+        graphic.id === 'title-main'
+          ? {
+            ...graphic,
+            onAir: {
+              mode: 'autoHide',
+              durationSeconds: 9,
+            },
+          }
+          : {
+            ...graphic,
+            onAir: {
+              mode: 'manual',
+            },
+          }),
+    })
+
+    expect(repository.load().graphics.find((graphic) => graphic.id === 'title-main')).toMatchObject({
+      onAir: {
+        mode: 'autoHide',
+        durationSeconds: 9,
+      },
+    })
+    expect(repository.load().graphics.find((graphic) => graphic.id === 'person-lower-third')).toMatchObject({
+      onAir: {
+        mode: 'manual',
+      },
+    })
+  })
+
   it('persists and reloads structured OSC target and command args', () => {
     const storage = createInMemorySettingsStorage()
     const repository = createSettingsRepository(storage)
@@ -296,6 +336,10 @@ describe('settings storage load/save', () => {
         resume: {
           address: '/graphics/resume',
           args: [{ type: 's', value: '{{templateName}}' }],
+        },
+        stopall: {
+          address: '/graphics/stopall',
+          args: [],
         },
       },
     })

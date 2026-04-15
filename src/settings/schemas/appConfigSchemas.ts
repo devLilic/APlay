@@ -10,6 +10,7 @@ import type {
   GraphicFieldBinding,
   GraphicControlConfig,
   GraphicConfigKind,
+  GraphicOnAirConfig,
   GraphicInstanceConfig,
   OscCommandSetConfig,
   OscSettingsConfig,
@@ -62,6 +63,7 @@ const previewTextAlignValues = ['left', 'center'] as const
 const graphicConfigKinds = ['dynamic', 'static'] as const
 const staticGraphicAssetTypes = ['image'] as const
 const staticGraphicEntityTypes = ['image', 'staticImage'] as const
+const graphicOnAirModes = ['manual', 'autoHide'] as const
 
 export const referenceImageAssetSchema = createSchema<ReferenceImageAsset>((input) => {
   const value = assertRecord(input, 'referenceImageAsset')
@@ -150,6 +152,40 @@ export const oscCommandSetConfigSchema = createSchema<OscCommandSetConfig>((inpu
     play: oscCommandConfigSchema.parse(value.play),
     stop: oscCommandConfigSchema.parse(value.stop),
     resume: oscCommandConfigSchema.parse(value.resume),
+    stopall: value.stopall === undefined
+      ? {
+        address: '/liveboard/stopall',
+        args: [],
+      }
+      : oscCommandConfigSchema.parse(value.stopall),
+  }
+})
+
+export const graphicOnAirConfigSchema = createSchema<GraphicOnAirConfig>((input) => {
+  const value = input === undefined ? {} : assertRecord(input, 'graphicInstanceConfig.onAir')
+  const mode = value.mode === undefined
+    ? 'manual'
+    : parseEnumValue(
+      value.mode,
+      graphicOnAirModes,
+      'graphicInstanceConfig.onAir',
+      'mode',
+    )
+
+  if (mode === 'manual') {
+    return {
+      mode: 'manual',
+    }
+  }
+
+  const durationSeconds = parseRequiredNumber(value, 'durationSeconds', 'graphicInstanceConfig.onAir')
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new SchemaValidationError('graphicInstanceConfig.onAir.durationSeconds must be a positive number')
+  }
+
+  return {
+    mode: 'autoHide',
+    durationSeconds,
   }
 })
 
@@ -470,6 +506,7 @@ export const graphicInstanceConfigSchema = createSchema<GraphicInstanceConfig>((
       ? { datasourcePath: parseOptionalString(value, 'datasourcePath', 'graphicInstanceConfig') }
       : {}),
     control: graphicControlConfigSchema.parse(value.control),
+    onAir: graphicOnAirConfigSchema.parse(value.onAir),
     ...(bindings ? { bindings } : {}),
     ...(staticAsset ? { staticAsset } : {}),
     preview: previewTemplateDefinitionSchema.parse(value.preview),

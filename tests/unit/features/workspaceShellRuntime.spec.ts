@@ -207,6 +207,10 @@ const oscSettings: OscSettingsConfig = {
       address: '/global/resume',
       args: [{ type: 's', value: '{{templateName}}' }],
     },
+    stopall: {
+      address: '/global/stopall',
+      args: [],
+    },
   },
 }
 

@@ -193,26 +193,19 @@ export function PreviewCanvasSidebar({
   const previewBackground = resolveActivePreviewBackground(settings, graphic)
 
   return (
-    <aside className='ap-panel space-y-5 self-start bg-surface-panel p-5 xl:sticky xl:top-6'>
-      <div className='flex items-center justify-between gap-3'>
-        <div>
-          <p className='ap-section-eyebrow text-state-active'>Preview</p>
-          <h4 className='mt-1 text-lg font-semibold text-text-primary'>Preview16x9</h4>
-        </div>
+    <aside className='ap-panel space-y-3 self-start bg-surface-panel p-3 xl:sticky xl:top-6'>
+      <div className='flex items-center justify-end gap-3'>
         <span className={getStateBadgeClassName('selected')}>
           {activeGraphic?.name ?? graphic.name}
         </span>
       </div>
-      <div className='rounded-2xl border border-border-strong bg-surface-app p-4'>
+      <div className='rounded-xl border border-border-strong bg-surface-app p-2'>
         <PreviewCanvas
           template={graphic.preview}
           content={previewContent}
           backgroundImagePath={previewBackground.resolvedFilePath}
         />
       </div>
-      <p className='ap-copy'>
-        Preview-ul se actualizeaza live pe baza configurarii curente si a continutului entitatii selectate.
-      </p>
     </aside>
   )
 }

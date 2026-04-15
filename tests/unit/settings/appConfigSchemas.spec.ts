@@ -615,6 +615,9 @@ describe('GraphicInstanceConfig schema', () => {
         stop: '/graphics/title/stop',
         resume: '/graphics/title/resume',
       },
+      onAir: {
+        mode: 'manual',
+      },
       preview: {
         id: 'title-preview',
         designWidth: 1920,
@@ -721,6 +724,48 @@ describe('GraphicInstanceConfig schema', () => {
         actions: [{ actionType: 'playGraphic', label: 'Play' }],
       }).zIndex,
     ).toBe(7)
+  })
+
+  it('parses per-graphic ONAIR auto-hide behavior with a numeric duration in seconds', () => {
+    expect(
+      graphicInstanceConfigSchema.parse({
+        id: 'title-main',
+        name: 'Main title',
+        entityType: 'title',
+        dataFileName: 'title-main.json',
+        control: {
+          templateName: 'TITLE_MAIN',
+        },
+        onAir: {
+          mode: 'autoHide',
+          durationSeconds: 12,
+        },
+        preview: {
+          id: 'title-preview',
+          designWidth: 1920,
+          designHeight: 1080,
+          elements: [
+            {
+              id: 'headline',
+              kind: 'text',
+              sourceField: 'text',
+              box: {
+                x: 100,
+                y: 150,
+                width: 800,
+                height: 180,
+              },
+            },
+          ],
+        },
+        actions: [{ actionType: 'playGraphic', label: 'Play' }],
+      } as unknown),
+    ).toMatchObject({
+      onAir: {
+        mode: 'autoHide',
+        durationSeconds: 12,
+      },
+    })
   })
 
   it('allows missing zIndex and lets preview logic apply the safe default', () => {

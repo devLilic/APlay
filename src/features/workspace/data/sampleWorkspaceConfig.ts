@@ -31,6 +31,10 @@ export const sampleSettings: AppSettings = {
         address: '/liveboard/resume',
         args: [{ type: 's', value: '{{templateName}}' }],
       },
+      stopall: {
+        address: '/liveboard/stopall',
+        args: [],
+      },
     },
   },
   referenceImages: [],

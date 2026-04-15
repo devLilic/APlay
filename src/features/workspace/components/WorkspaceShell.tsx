@@ -23,9 +23,7 @@ import {
   type WorkspaceShellData,
 } from '@/features/workspace/state/workspaceShellRuntime'
 import {
-  applyWorkspaceOnAirEvent,
-  createGroupedOnAirSnapshot,
-  createSingleOnAirSnapshot,
+  createWorkspaceOnAirController,
   createWorkspaceOnAirState,
   type WorkspaceOnAirSnapshot,
 } from '@/features/workspace/state/workspaceOnAirState'
@@ -79,6 +77,11 @@ export function WorkspaceShell() {
   const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
   const [showSettings, setShowSettings] = useState(false)
   const [onAirState, setOnAirState] = useState(createWorkspaceOnAirState)
+  const [onAirController] = useState(() => createWorkspaceOnAirController({
+    now: () => Date.now(),
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+  }))
   const [featuredCollectionId, setFeaturedCollectionId] = useState<string>()
   const [draggedCollectionId, setDraggedCollectionId] = useState<string | null>(null)
   const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
@@ -148,6 +151,15 @@ export function WorkspaceShell() {
     })
     lastDiagnosticsSignatureRef.current = diagnosticsSignature
   }, [loadState, notificationStore])
+
+  useEffect(() => {
+    const unsubscribe = onAirController.subscribe(setOnAirState)
+
+    return () => {
+      unsubscribe()
+      onAirController.dispose()
+    }
+  }, [onAirController])
 
   useEffect(() => {
     try {
@@ -292,7 +304,7 @@ export function WorkspaceShell() {
       snapshot,
       data: nextData,
     })
-    setOnAirState(createWorkspaceOnAirState())
+    onAirController.reset()
     setFeaturedCollectionId(undefined)
     setSelection((currentSelection) =>
       createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
@@ -348,25 +360,22 @@ export function WorkspaceShell() {
     }
 
     if (actionType === 'playGraphic' && previewGraphic) {
-      setOnAirState((currentState) => applyWorkspaceOnAirEvent(currentState, {
-        type: 'play',
-        snapshot: createSingleOnAirSnapshot({
-          graphic: previewGraphic,
-          content: previewContent,
-          backgroundImagePath: selectedBackground.resolvedFilePath,
-          entityLabel: selectedEntity ? formatEntityLabel(selectedEntity.entity) : undefined,
-        }),
-      }))
+      onAirController.playSingle({
+        graphic: previewGraphic,
+        content: previewContent,
+        backgroundImagePath: selectedBackground.resolvedFilePath,
+        entityLabel: selectedEntity ? formatEntityLabel(selectedEntity.entity) : undefined,
+      })
       return
     }
 
-    if (actionType === 'stopGraphic') {
-      setOnAirState((currentState) => applyWorkspaceOnAirEvent(currentState, { type: 'stop' }))
+    if (actionType === 'stopGraphic' && previewGraphic) {
+      onAirController.stopGraphic(previewGraphic.id)
       return
     }
 
     if (actionType === 'resumeGraphic') {
-      setOnAirState((currentState) => applyWorkspaceOnAirEvent(currentState, { type: 'resume' }))
+      onAirController.resume()
     }
   }
 
@@ -384,27 +393,50 @@ export function WorkspaceShell() {
     }
 
     if (actionType === 'playGraphic' && previewGraphic) {
-      setOnAirState((currentState) => applyWorkspaceOnAirEvent(currentState, {
-        type: 'play',
-        snapshot: createGroupedOnAirSnapshot({
-          primaryGraphic: previewGraphic,
-          primaryContent: previewContent,
-          primaryEntityLabel: previewBaseEntity ? formatEntityLabel(previewBaseEntity.entity) : undefined,
-          backgroundImagePath: selectedBackground.resolvedFilePath,
-          itemCount: multiSelectionCount,
-          compositeItems: compositePreviewItems,
-        }),
-      }))
+      const groupedItems: Array<{
+        graphic: GraphicInstanceConfig
+        content: Record<string, string | undefined>
+        entityLabel?: string
+      }> = []
+
+      for (const item of selectedMultiItems) {
+        const isPrimaryItem = (
+          previewBaseEntity?.graphicConfigId === item.graphicConfigId &&
+          previewBaseEntity.entityIndex === item.entityIndex
+        )
+        if (isPrimaryItem) {
+          continue
+        }
+
+        const itemGraphic = workspaceData.graphicsById[item.graphicConfigId]
+        if (!itemGraphic) {
+          continue
+        }
+
+        groupedItems.push({
+          graphic: itemGraphic,
+          content: createEntityPreviewContent(item, itemGraphic),
+          entityLabel: formatEntityLabel(item.entity),
+        })
+      }
+
+      onAirController.playGrouped({
+        primaryGraphic: previewGraphic,
+        primaryContent: previewContent,
+        primaryEntityLabel: previewBaseEntity ? formatEntityLabel(previewBaseEntity.entity) : undefined,
+        backgroundImagePath: selectedBackground.resolvedFilePath,
+        items: groupedItems,
+      })
       return
     }
 
     if (actionType === 'stopGraphic') {
-      setOnAirState((currentState) => applyWorkspaceOnAirEvent(currentState, { type: 'stop' }))
+      onAirController.stopCurrent()
       return
     }
 
     if (actionType === 'resumeGraphic') {
-      setOnAirState((currentState) => applyWorkspaceOnAirEvent(currentState, { type: 'resume' }))
+      onAirController.resume()
     }
   }
 
@@ -937,21 +969,28 @@ export function WorkspaceShell() {
                 <div className={multiSelectionCount > 0 ? 'ap-state-multi w-full max-w-4xl rounded-xl border p-4' : 'ap-card w-full max-w-4xl p-4'}>
                   <p className='sr-only'>Center panel controls</p>
                   <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <span
-                      className={getStateBadgeClassName(
-                        multiSelectionCount > 0
-                          ? 'multiSelected'
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <span
+                        className={getStateBadgeClassName(
+                          multiSelectionCount > 0
+                            ? 'multiSelected'
+                            : selectedEntity && selectedGraphic
+                              ? 'selected'
+                              : 'disabled',
+                        )}
+                      >
+                        {multiSelectionCount > 0
+                          ? `Group selected: ${multiSelectionCount}`
                           : selectedEntity && selectedGraphic
-                            ? 'selected'
-                            : 'disabled',
-                      )}
-                    >
-                      {multiSelectionCount > 0
-                        ? `Group selected: ${multiSelectionCount}`
-                        : selectedEntity && selectedGraphic
-                          ? 'Graphic selected'
-                          : 'No selection'}
-                    </span>
+                            ? 'Graphic selected'
+                            : 'No selection'}
+                      </span>
+                      {selectedGraphic ? (
+                        <span className={getStateBadgeClassName(selectedGraphic.onAir?.mode === 'autoHide' ? 'warning' : 'disabled')}>
+                          {formatGraphicOnAirBadge(selectedGraphic)}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className='mt-4 grid gap-3 sm:grid-cols-3'>
@@ -1214,6 +1253,11 @@ function GraphicCollectionCard({
           <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-text-secondary'>
             {group.graphic.entityType} {isEmptyGroup ? '| Empty collection' : '| Graphic collection'}
           </p>
+          <div className='mt-2 flex flex-wrap items-center gap-2'>
+            <span className={getStateBadgeClassName(group.graphic.onAir?.mode === 'autoHide' ? 'warning' : 'disabled')}>
+              {formatGraphicOnAirBadge(group.graphic)}
+            </span>
+          </div>
         </div>
         <div className='flex flex-wrap items-center gap-2'>
           {isEmptyGroup ? <span className={getStateBadgeClassName('warning')}>Empty</span> : null}
@@ -1386,6 +1430,8 @@ function DualDisplayArea({
     <section className='grid gap-4 xl:grid-cols-2'>
       <DisplayScreen
         label='Preview'
+        badge={previewGraphic ? formatGraphicOnAirBadge(previewGraphic) : undefined}
+        detail={previewGraphic ? formatGraphicOnAirDetail(previewGraphic) : undefined}
       >
         {!previewGraphic ? (
           <DisplayEmptyState
@@ -1416,6 +1462,8 @@ function DualDisplayArea({
 
       <DisplayScreen
         label='ONAIR'
+        badge={onAirSnapshot?.statusBadge}
+        detail={onAirSnapshot?.statusDetail}
       >
         {!onAirSnapshot ? (
           <DisplayEmptyState
@@ -1437,17 +1485,35 @@ function DualDisplayArea({
 
 function DisplayScreen({
   label,
+  badge,
+  detail,
   children,
 }: {
   label: string
+  badge?: string
+  detail?: string
   children: ReactNode
 }) {
   return (
     <article className='ap-panel overflow-hidden p-3'>
       <div className='relative'>
-        <p className='pointer-events-none absolute left-3 top-3 z-20 text-sm font-semibold tracking-[0.18em] text-text-primary/80'>
-          {label}
-        </p>
+        <div className='pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-3'>
+          <p className='text-sm font-semibold tracking-[0.18em] text-text-primary/80'>
+            {label}
+          </p>
+          {badge ? (
+            <div className='flex max-w-[16rem] flex-col items-end gap-1 text-right'>
+              <span className='rounded-full border border-border bg-surface-app/80 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-primary/85'>
+                {badge}
+              </span>
+              {detail ? (
+                <span className='text-[10px] font-medium text-text-secondary/80'>
+                  {detail}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
         {children}
       </div>
     </article>
@@ -1474,4 +1540,18 @@ function EmptyState({ title, description }: { title: string; description: string
 function countBlockEntities(block: WorkspaceShellData['document']['blocks'][number]): number {
   const collections = block.entityCollections ?? {}
   return Object.values(collections).reduce((total, items) => total + items.length, 0)
+}
+
+function formatGraphicOnAirBadge(graphic: GraphicInstanceConfig): string {
+  return graphic.onAir?.mode === 'autoHide'
+    ? 'Timed on-air'
+    : 'Manual on-air'
+}
+
+function formatGraphicOnAirDetail(graphic: GraphicInstanceConfig): string | undefined {
+  if (graphic.onAir?.mode !== 'autoHide' || graphic.onAir.durationSeconds === undefined) {
+    return 'Stays on-air until Stop.'
+  }
+
+  return `Auto-hide after ${graphic.onAir.durationSeconds}s.`
 }

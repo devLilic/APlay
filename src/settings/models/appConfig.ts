@@ -12,6 +12,7 @@ export type CsvBlockDetectionMode = 'columnRegex'
 export type OscArgType = 's' | 'i' | 'f'
 export type GraphicConfigKind = 'dynamic' | 'static'
 export type StaticGraphicAssetType = 'image'
+export type GraphicOnAirMode = 'manual' | 'autoHide'
 
 export interface TextBehaviorConfig {
   allCaps?: boolean
@@ -35,6 +36,11 @@ export interface PreviewBackgroundConfig {
   opacity?: number
   fitMode?: PreviewBackgroundFitMode
   position?: PreviewBackgroundPosition
+}
+
+export interface GraphicOnAirConfig {
+  mode: GraphicOnAirMode
+  durationSeconds?: number
 }
 
 export interface GraphicFieldBinding {
@@ -67,6 +73,7 @@ export interface OscCommandSetConfig {
   play: OscCommandConfig
   stop: OscCommandConfig
   resume: OscCommandConfig
+  stopall: OscCommandConfig
 }
 
 export interface OscSettingsConfig {
@@ -129,6 +136,7 @@ export interface GraphicInstanceConfig {
   dataFileName: string
   datasourcePath?: string
   control: GraphicControlConfig
+  onAir?: GraphicOnAirConfig
   bindings?: GraphicFieldBinding[]
   staticAsset?: StaticGraphicAssetConfig
   preview: PreviewTemplateDefinition

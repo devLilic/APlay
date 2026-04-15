@@ -37,6 +37,10 @@ const baseSettingsWithOsc = {
         address: '/liveboard/resume',
         args: [],
       },
+      stopall: {
+        address: '/liveboard/stopall',
+        args: [],
+      },
     },
   },
   referenceImages: [],
@@ -180,6 +184,40 @@ describe('OSC configuration models', () => {
         },
       }),
     ).toThrow('resume')
+  })
+
+  it('defaults the global stopall command config for legacy settings', () => {
+    expect(
+      appSettingsSchema.parse({
+        ...baseSettingsWithOsc,
+        osc: {
+          ...baseSettingsWithOsc.osc,
+          commands: {
+            play: {
+              address: '/liveboard/play',
+              args: [],
+            },
+            stop: {
+              address: '/liveboard/stop',
+              args: [],
+            },
+            resume: {
+              address: '/liveboard/resume',
+              args: [],
+            },
+          },
+        },
+      }),
+    ).toMatchObject({
+      osc: {
+        commands: {
+          stopall: {
+            address: '/liveboard/stopall',
+            args: [],
+          },
+        },
+      },
+    })
   })
 
   it('settings persistence can save and load OSC config', () => {
