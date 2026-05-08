@@ -5,6 +5,17 @@ import { VITE_DEV_SERVER_URL } from '../bootstrap/paths'
 const allowedExternalProtocols = new Set(['https:'])
 const allowedExternalHosts = new Set<string>()
 
+export function setAllowedExternalHosts(hosts: Iterable<string>) {
+  allowedExternalHosts.clear()
+
+  for (const host of hosts) {
+    const normalizedHost = host.trim().toLowerCase()
+    if (normalizedHost.length > 0) {
+      allowedExternalHosts.add(normalizedHost)
+    }
+  }
+}
+
 export function applyRuntimeSecurityPolicies(window: BrowserWindow) {
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedExternalUrl(url)) {
@@ -45,7 +56,7 @@ export function isAllowedInAppNavigation(url: string) {
 }
 
 export function isAllowedHost(hostname: string) {
-  return allowedExternalHosts.size === 0 || allowedExternalHosts.has(hostname)
+  return allowedExternalHosts.size > 0 && allowedExternalHosts.has(hostname.toLowerCase())
 }
 
 export async function openExternalUrl(url: string) {

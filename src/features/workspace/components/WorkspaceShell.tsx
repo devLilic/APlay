@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type MutableRefObject, type ReactNode } from 'react'
 import { actionTypes } from '@/core/actions/actionTypes'
 import { PreviewCanvas } from '@/features/preview/components/PreviewCanvas'
 import { useNotificationStore } from '@/features/notifications/notificationsContext'
@@ -33,7 +33,7 @@ import {
   formatEntityLabel,
   resolveGraphicCollectionItemDisplay,
 } from '@/features/workspace/state/entityCollectionLabels'
-import type { GraphicInstanceConfig } from '@/settings/models/appConfig'
+import type { AppSettings, GraphicInstanceConfig } from '@/settings/models/appConfig'
 import {
   importGraphicConfigToLibrary,
   type GraphicConfigLibraryImportResult,
@@ -63,193 +63,29 @@ type PendingImportSummary =
     kind: 'profile'
     filePath: string
     content: string
-    preview: ProfileLibraryImportResult
+    preview: ProfileConfigLibraryImportResult
   }
+
+type ProfileConfigLibraryImportResult = ProfileLibraryImportResult
 
 export function WorkspaceShell() {
   const notificationStore = useNotificationStore()
-  const [loadState, setLoadState] = useState<ShellLoadState>({ status: 'loading' })
-  const [selection, setSelection] = useState<WorkspaceSelection>({})
-  const [feedback, setFeedback] = useState<WorkspaceActionFeedback | null>(null)
-  const [settingsFeedback, setSettingsFeedback] = useState<SettingsFeedback | null>(null)
-  const [sourceRefreshFeedback, setSourceRefreshFeedback] = useState<SettingsFeedback | null>(null)
-  const [isImportingGraphicConfig, setIsImportingGraphicConfig] = useState(false)
-  const [isImportingProfile, setIsImportingProfile] = useState(false)
-  const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
-  const [onAirState, setOnAirState] = useState(createWorkspaceOnAirState)
-  const [onAirController] = useState(() => createWorkspaceOnAirController({
-    now: () => Date.now(),
-    setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout,
-  }))
-  const [featuredCollectionId, setFeaturedCollectionId] = useState<string>()
-  const [draggedCollectionId, setDraggedCollectionId] = useState<string | null>(null)
-  const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
-  const lastSourceRefreshFeedbackRef = useRef<SettingsFeedback | null>(null)
-  const lastSettingsFeedbackRef = useRef<SettingsFeedback | null>(null)
-  const lastExecutionFeedbackRef = useRef<WorkspaceActionFeedback | null>(null)
-  const lastDiagnosticsSignatureRef = useRef<string | null>(null)
+  const repository = useWorkspaceRepository()
 
-  useEffect(() => {
-    if (!sourceRefreshFeedback || lastSourceRefreshFeedbackRef.current === sourceRefreshFeedback) {
-      return
+  const { loadState } = repository
+  const isReady = loadState.status === 'ready'
+  const workspaceData: WorkspaceShellData = isReady
+    ? loadState.data
+    : {
+      document: { blocks: [] },
+      activeProfileLabel: 'Unavailable',
+      activeSourceFilePath: undefined,
+      graphics: [],
+      graphicsById: {},
+      diagnostics: [],
     }
-
-    publishWorkspaceShellNotifications({
-      store: notificationStore,
-      sourceRefreshFeedback,
-      settingsFeedback: null,
-      executionFeedback: null,
-    })
-    lastSourceRefreshFeedbackRef.current = sourceRefreshFeedback
-  }, [notificationStore, sourceRefreshFeedback])
-
-  useEffect(() => {
-    if (!settingsFeedback || lastSettingsFeedbackRef.current === settingsFeedback) {
-      return
-    }
-
-    publishWorkspaceShellNotifications({
-      store: notificationStore,
-      sourceRefreshFeedback: null,
-      settingsFeedback,
-      executionFeedback: null,
-    })
-    lastSettingsFeedbackRef.current = settingsFeedback
-  }, [notificationStore, settingsFeedback])
-
-  useEffect(() => {
-    if (!feedback || lastExecutionFeedbackRef.current === feedback) {
-      return
-    }
-
-    publishWorkspaceShellNotifications({
-      store: notificationStore,
-      sourceRefreshFeedback: null,
-      settingsFeedback: null,
-      executionFeedback: feedback,
-    })
-    lastExecutionFeedbackRef.current = feedback
-  }, [feedback, notificationStore])
-
-  useEffect(() => {
-    if (loadState.status !== 'ready' || loadState.data.diagnostics.length === 0) {
-      lastDiagnosticsSignatureRef.current = null
-      return
-    }
-
-    const diagnosticsSignature = loadState.data.diagnostics.join(' | ')
-    if (lastDiagnosticsSignatureRef.current === diagnosticsSignature) {
-      return
-    }
-
-    notificationStore.publish({
-      variant: 'warning',
-      title: 'Workspace diagnostics',
-      message: diagnosticsSignature,
-      timeoutMs: 10000,
-    })
-    lastDiagnosticsSignatureRef.current = diagnosticsSignature
-  }, [loadState, notificationStore])
-
-  useEffect(() => {
-    const unsubscribe = onAirController.subscribe(setOnAirState)
-
-    return () => {
-      unsubscribe()
-      onAirController.dispose()
-    }
-  }, [onAirController])
-
-  useEffect(() => {
-    try {
-      const repository = createWorkspaceConfigRepository(
-        window.localStorage,
-        createDefaultWorkspaceConfigSnapshot(),
-      )
-      repositoryRef.current = repository
-      const snapshot = repository.load()
-      const data = loadWorkspaceShellData(snapshot)
-      const initialState = createWorkspaceSelectionState(data.document, data.graphics)
-      setLoadState({ status: 'ready', snapshot, data })
-      setSelection(initialState.selection)
-    } catch (error) {
-      try {
-        const repository = repositoryRef.current ?? createWorkspaceConfigRepository(
-          window.localStorage,
-          createDefaultWorkspaceConfigSnapshot(),
-        )
-        repositoryRef.current = repository
-        const snapshot = repository.load()
-
-        if (snapshot.settings.profiles.length === 0) {
-          setLoadState({
-            status: 'ready',
-            snapshot,
-            data: {
-              document: { blocks: [] },
-              activeProfileLabel: 'No profile selected',
-              activeSourceFilePath: undefined,
-              graphics: [],
-              graphicsById: {},
-              diagnostics: ['Create or import a show profile to begin operating APlay.'],
-            },
-          })
-          setSelection({})
-          return
-        }
-      } catch {
-        // Fall through to the error state below when the repository cannot be recovered.
-      }
-
-      setLoadState({
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Unknown workspace error',
-      })
-    }
-  }, [])
-
-  const readyGraphicCollections = loadState.status === 'ready'
-    ? resolveGraphicConfigEntityLists(
-      loadState.data.document,
-      createWorkspaceSelectionState(loadState.data.document, loadState.data.graphics, selection).selection,
-      loadState.data.graphics,
-    )
-    : []
-
-  useEffect(() => {
-    if (readyGraphicCollections.length === 0) {
-      if (featuredCollectionId !== undefined) {
-        setFeaturedCollectionId(undefined)
-      }
-      return
-    }
-
-    if (!featuredCollectionId || !readyGraphicCollections.some((group) => group.graphicConfigId === featuredCollectionId)) {
-      setFeaturedCollectionId(readyGraphicCollections[0]?.graphicConfigId)
-    }
-  }, [featuredCollectionId, readyGraphicCollections])
-
-  if (loadState.status === 'loading') {
-    return (
-      <div className='ap-panel p-10'>
-        <p className='text-sm font-medium text-text-secondary'>Loading APlay workspace...</p>
-      </div>
-    )
-  }
-
-  if (loadState.status === 'error') {
-    return (
-      <div className='ap-banner ap-banner-danger p-10'>
-        <p className='text-sm font-semibold text-red-200'>Workspace failed to load</p>
-        <p className='mt-2 text-sm text-red-300'>{loadState.message}</p>
-      </div>
-    )
-  }
-
-  const workspaceData = loadState.data
-  const workspace = createWorkspaceSelectionState(workspaceData.document, workspaceData.graphics, selection)
+  const workspaceSnapshot = isReady ? loadState.snapshot : createDefaultWorkspaceConfigSnapshot()
+  const workspace = createWorkspaceSelectionState(workspaceData.document, workspaceData.graphics, repository.selection)
   const blockList = deriveBlockList(workspaceData.document)
   const selectedBlock = workspace.getSelectedBlock()
   const graphicCollections = resolveGraphicConfigEntityLists(workspace.document, workspace.selection, workspaceData.graphics)
@@ -282,8 +118,8 @@ export function WorkspaceShell() {
       content: createEntityPreviewContent(item, graphic),
     }]
   })
-  const selectedBackground = resolveActivePreviewBackground(loadState.snapshot.settings, previewGraphic)
-  const availableProfiles = loadState.snapshot.settings.profiles
+  const selectedBackground = resolveActivePreviewBackground(workspaceSnapshot.settings, previewGraphic)
+  const availableProfiles = workspaceSnapshot.settings.profiles
   const hasProfiles = availableProfiles.length > 0
   const filteredBlockList = blockList
   const hasSourceLoaded = Boolean(workspaceData.activeSourceFilePath)
@@ -292,537 +128,89 @@ export function WorkspaceShell() {
   const groupedSelectionLabel = multiSelectionCount === 0
     ? 'No grouped items'
     : `${multiSelectionCount} grouped item${multiSelectionCount === 1 ? '' : 's'}`
-  const featuredCollection = graphicCollections.find((group) => group.graphicConfigId === featuredCollectionId)
+  const featuredCollection = graphicCollections.find((group) => group.graphicConfigId === repository.featuredCollectionId)
     ?? graphicCollections[0]
   const secondaryCollections = graphicCollections.filter(
     (group) => group.graphicConfigId !== featuredCollection?.graphicConfigId,
   )
 
-  const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
-    const nextData = loadWorkspaceShellData(snapshot)
-    setLoadState({
-      status: 'ready',
-      snapshot,
-      data: nextData,
-    })
-    onAirController.reset()
-    setFeaturedCollectionId(undefined)
-    setSelection((currentSelection) =>
-      createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
-  }
+  const actions = useWorkspaceActions({
+    workspace,
+    workspaceData,
+    oscSettings: workspaceSnapshot.settings.osc,
+    selectedEntity,
+    selectedGraphic,
+    selectedMultiItems,
+    previewBaseEntity,
+    previewGraphic,
+    previewContent,
+    selectedBackgroundPath: selectedBackground.resolvedFilePath,
+    setSelection: repository.setSelection,
+    onAirController: repository.onAirController,
+  })
 
-  const handleBlockSelect = (blockIndex: number) => {
-    setSelection(workspace.selectBlock(blockIndex).selection)
-    setFeedback(null)
-  }
+  const importExport = useWorkspaceImportExport({
+    loadState,
+    repositoryRef: repository.repositoryRef,
+    applyWorkspaceSnapshot: repository.applyWorkspaceSnapshot,
+    replaceWorkspaceData: repository.replaceWorkspaceData,
+    previewContent,
+    clearExecutionFeedback: actions.clearFeedback,
+  })
 
-  const handleGraphicConfigSelect = (graphicConfigId: string) => {
-    setSelection(workspace.selectGraphicConfig(graphicConfigId).selection)
-    setFeedback(null)
-  }
+  useWorkspaceNotifications({
+    store: notificationStore,
+    loadState,
+    sourceRefreshFeedback: importExport.sourceRefreshFeedback,
+    settingsFeedback: importExport.settingsFeedback,
+    executionFeedback: actions.feedback,
+  })
 
-  const handleProfileSelect = (profileId: string) => {
-    if (profileId === loadState.snapshot.settings.selectedProfileId) {
-      return
-    }
-
-    handleSettingsChange({
-      ...loadState.snapshot.settings,
-      selectedProfileId: profileId,
-    })
-  }
-
-  const handleEntitySelect = (graphicConfigId: string, entityIndex: number) => {
-    const nextState = workspace.selectGraphicConfig(graphicConfigId).selectEntity(entityIndex)
-    setSelection(nextState.selection)
-    setFeedback(null)
-  }
-
-  const handleMultiSelectionToggle = (graphicConfigId: string, entityIndex: number) => {
-    const nextState = workspace.isSelected(graphicConfigId, entityIndex)
-      ? workspace.removeSelectedItem(graphicConfigId, entityIndex)
-      : workspace.addSelectedItem(graphicConfigId, entityIndex)
-
-    setSelection(nextState.selection)
-    setFeedback(null)
-  }
-
-  const handleAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    const result = await runWorkspaceGraphicAction(
-      actionType,
-      selectedEntity,
-      workspaceData.graphicsById,
-      loadState.snapshot.settings.osc,
+  if (loadState.status === 'loading') {
+    return (
+      <div className='ap-panel p-10'>
+        <p className='text-sm font-medium text-text-secondary'>Loading APlay workspace...</p>
+      </div>
     )
-    setFeedback(result)
-
-    if (result.kind !== 'success') {
-      return
-    }
-
-    if (actionType === 'playGraphic' && previewGraphic) {
-      onAirController.playSingle({
-        graphic: previewGraphic,
-        content: previewContent,
-        backgroundImagePath: selectedBackground.resolvedFilePath,
-        entityLabel: selectedEntity ? formatEntityLabel(selectedEntity.entity) : undefined,
-      })
-      return
-    }
-
-    if (actionType === 'stopGraphic' && previewGraphic) {
-      onAirController.stopGraphic(previewGraphic.id)
-      return
-    }
-
-    if (actionType === 'resumeGraphic') {
-      onAirController.resume()
-    }
   }
 
-  const handleGroupedAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
-    const result = await runWorkspaceMultiGraphicAction(
-      actionType,
-      workspace.getSelectedItems(),
-      workspaceData.graphicsById,
-      loadState.snapshot.settings.osc,
+  if (loadState.status === 'error') {
+    return (
+      <div className='ap-banner ap-banner-danger p-10'>
+        <p className='text-sm font-semibold text-red-200'>Workspace failed to load</p>
+        <p className='mt-2 text-sm text-red-300'>{loadState.message}</p>
+      </div>
     )
-    setFeedback(result)
-
-    if (result.kind !== 'success') {
-      return
-    }
-
-    if (actionType === 'playGraphic' && previewGraphic) {
-      const groupedItems: Array<{
-        graphic: GraphicInstanceConfig
-        content: Record<string, string | undefined>
-        entityLabel?: string
-      }> = []
-
-      for (const item of selectedMultiItems) {
-        const isPrimaryItem = (
-          previewBaseEntity?.graphicConfigId === item.graphicConfigId &&
-          previewBaseEntity.entityIndex === item.entityIndex
-        )
-        if (isPrimaryItem) {
-          continue
-        }
-
-        const itemGraphic = workspaceData.graphicsById[item.graphicConfigId]
-        if (!itemGraphic) {
-          continue
-        }
-
-        groupedItems.push({
-          graphic: itemGraphic,
-          content: createEntityPreviewContent(item, itemGraphic),
-          entityLabel: formatEntityLabel(item.entity),
-        })
-      }
-
-      onAirController.playGrouped({
-        primaryGraphic: previewGraphic,
-        primaryContent: previewContent,
-        primaryEntityLabel: previewBaseEntity ? formatEntityLabel(previewBaseEntity.entity) : undefined,
-        backgroundImagePath: selectedBackground.resolvedFilePath,
-        items: groupedItems,
-      })
-      return
-    }
-
-    if (actionType === 'stopGraphic') {
-      onAirController.stopCurrent()
-      return
-    }
-
-    if (actionType === 'resumeGraphic') {
-      onAirController.resume()
-    }
-  }
-
-  const handleClearMultiSelection = () => {
-    setSelection(workspace.clearSelectedItems().selection)
-    setFeedback(null)
-  }
-
-  const handleCollectionDragStart = (event: DragEvent<HTMLElement>, graphicConfigId: string) => {
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/aplay-graphic-collection', graphicConfigId)
-    setDraggedCollectionId(graphicConfigId)
-  }
-
-  const handleCollectionDragEnd = () => {
-    setDraggedCollectionId(null)
-  }
-
-  const resolveDraggedCollectionId = (event: DragEvent<HTMLElement>) => (
-    event.dataTransfer.getData('text/aplay-graphic-collection') || draggedCollectionId || ''
-  )
-
-  const handleFeaturedZoneDrop = (event: DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    const nextCollectionId = resolveDraggedCollectionId(event)
-    if (!nextCollectionId) {
-      return
-    }
-
-    setFeaturedCollectionId(nextCollectionId)
-    setDraggedCollectionId(null)
-  }
-
-  const handleSecondaryZoneDrop = (event: DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    const nextCollectionId = resolveDraggedCollectionId(event)
-    if (!nextCollectionId || nextCollectionId !== featuredCollection?.graphicConfigId) {
-      setDraggedCollectionId(null)
-      return
-    }
-
-    const fallbackCollection = graphicCollections.find((group) => group.graphicConfigId !== nextCollectionId)
-    if (fallbackCollection) {
-      setFeaturedCollectionId(fallbackCollection.graphicConfigId)
-    }
-    setDraggedCollectionId(null)
-  }
-
-  const handleSettingsChange = (settings: WorkspaceConfigSnapshot['settings']) => {
-    const nextSnapshot = createWorkspaceSnapshotFromSettings(settings)
-    applyWorkspaceSnapshot(nextSnapshot)
-    setSettingsFeedback(null)
-    setSourceRefreshFeedback(null)
-    setFeedback(null)
-    setPendingImportSummary(null)
-  }
-
-  const handleSettingsSave = () => {
-    try {
-      const repository = repositoryRef.current
-      if (!repository) {
-        throw new Error('Settings repository is unavailable.')
-      }
-
-      const savedSnapshot = repository.save(loadState.snapshot.settings)
-      applyWorkspaceSnapshot(savedSnapshot)
-      setSettingsFeedback({
-        kind: 'success',
-        message: 'Settings saved. Updated profile and graphic config files were persisted for the current workstation.',
-      })
-      setSourceRefreshFeedback(null)
-      setPendingImportSummary(null)
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Settings save failed.',
-      })
-    }
-  }
-
-  const handleSettingsReload = () => {
-    try {
-      const repository = repositoryRef.current
-      if (!repository) {
-        throw new Error('Settings repository is unavailable.')
-      }
-
-      const snapshot = repository.load()
-      applyWorkspaceSnapshot(snapshot)
-      setSettingsFeedback({
-        kind: 'success',
-        message: 'Persisted settings reloaded.',
-      })
-      setSourceRefreshFeedback(null)
-      setFeedback(null)
-      setPendingImportSummary(null)
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Settings reload failed.',
-      })
-    }
-  }
-
-  const handleExportGraphicConfig = async (graphic: GraphicInstanceConfig) => {
-    try {
-      if (!window.settingsApi?.exportGraphicConfig) {
-        throw new Error('Graphic config export is unavailable in this environment.')
-      }
-
-      const filePath = await window.settingsApi.exportGraphicConfig(graphic, graphic.dataFileName)
-
-      if (!filePath) {
-        setSettingsFeedback(null)
-        return
-      }
-
-      setSettingsFeedback({
-        kind: 'success',
-        message: `Graphic config exported to ${filePath}.`,
-      })
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Graphic config export failed.',
-      })
-    }
-  }
-
-  const handleExportProfile = async (profileId: string) => {
-    try {
-      if (!window.settingsApi?.exportProfileConfig) {
-        throw new Error('Profile export is unavailable in this environment.')
-      }
-
-      const profile = loadState.snapshot.settings.profiles.find((candidate) => candidate.id === profileId)
-      if (!profile) {
-        throw new Error(`Selected profile is unavailable: ${profileId}`)
-      }
-
-      const filePath = await window.settingsApi.exportProfileConfig(
-        loadState.snapshot.settings,
-        profileId,
-        `${profile.id}.profile.json`,
-      )
-
-      if (!filePath) {
-        setSettingsFeedback(null)
-        return
-      }
-
-      setSettingsFeedback({
-        kind: 'success',
-        message: `Profile export saved to ${filePath}.`,
-      })
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Profile export failed.',
-      })
-    }
-  }
-
-  const handleImportGraphicConfig = async () => {
-    const repository = repositoryRef.current
-    if (!repository) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: 'Settings repository is unavailable.',
-      })
-      return
-    }
-
-    try {
-      if (!window.settingsApi?.pickGraphicConfigImportFile || !window.settingsApi?.readTextFile) {
-        throw new Error('Graphic config import is unavailable in this environment.')
-      }
-
-      setIsImportingGraphicConfig(true)
-      const filePath = await window.settingsApi.pickGraphicConfigImportFile()
-      if (!filePath) {
-        return
-      }
-
-      const fileContent = await window.settingsApi.readTextFile(filePath)
-      if (!fileContent) {
-        throw new Error(`Unable to read graphic config import file: ${filePath}`)
-      }
-
-      const preview = importGraphicConfigToLibrary({
-        content: fileContent,
-        settings: loadState.snapshot.settings,
-        graphicFiles: loadState.snapshot.graphicFiles,
-      })
-      setPendingImportSummary({
-        kind: 'graphic',
-        filePath,
-        content: fileContent,
-        preview,
-      })
-      setSettingsFeedback(null)
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Graphic config import failed.',
-      })
-    } finally {
-      setIsImportingGraphicConfig(false)
-    }
-  }
-
-  const handleImportProfile = async () => {
-    const repository = repositoryRef.current
-    if (!repository) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: 'Settings repository is unavailable.',
-      })
-      return
-    }
-
-    try {
-      if (!window.settingsApi?.pickProfileConfigImportFile || !window.settingsApi?.readTextFile) {
-        throw new Error('Profile import is unavailable in this environment.')
-      }
-
-      setIsImportingProfile(true)
-      const filePath = await window.settingsApi.pickProfileConfigImportFile()
-      if (!filePath) {
-        return
-      }
-
-      const fileContent = await window.settingsApi.readTextFile(filePath)
-      if (!fileContent) {
-        throw new Error(`Unable to read profile import file: ${filePath}`)
-      }
-
-      const preview = importProfileConfigToLibrary({
-        content: fileContent,
-        settings: loadState.snapshot.settings,
-        graphicFiles: loadState.snapshot.graphicFiles,
-      })
-      setPendingImportSummary({
-        kind: 'profile',
-        filePath,
-        content: fileContent,
-        preview,
-      })
-      setSettingsFeedback(null)
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Profile import failed.',
-      })
-    } finally {
-      setIsImportingProfile(false)
-    }
-  }
-
-  const handleConfirmImport = () => {
-    const repository = repositoryRef.current
-    if (!repository || !pendingImportSummary) {
-      return
-    }
-
-    try {
-      if (pendingImportSummary.kind === 'graphic') {
-        const result = repository.importGraphicConfig(pendingImportSummary.content)
-        applyWorkspaceSnapshot({
-          settings: result.settings,
-          graphicFiles: result.graphicFiles,
-        })
-        setSettingsFeedback({
-          kind: 'success',
-          message: createGraphicImportFeedbackMessage(result, pendingImportSummary.filePath),
-        })
-      } else {
-        const result = repository.importProfileConfig(pendingImportSummary.content)
-        applyWorkspaceSnapshot({
-          settings: result.settings,
-          graphicFiles: result.graphicFiles,
-        })
-        setSettingsFeedback({
-          kind: 'success',
-          message: createProfileImportFeedbackMessage(result, pendingImportSummary.filePath),
-        })
-      }
-
-      setSourceRefreshFeedback(null)
-      setFeedback(null)
-      setPendingImportSummary(null)
-    } catch (error) {
-      setSettingsFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Import failed.',
-      })
-    }
-  }
-
-  const handleTestOscCommand = async (
-    graphic: GraphicInstanceConfig,
-    actionType: (typeof actionTypes)[keyof typeof actionTypes],
-  ) => {
-    const result = await runWorkspaceGraphicDebugAction(
-      actionType,
-      graphic,
-      loadState.snapshot.settings.osc,
-      previewContent,
-    )
-
-    setSettingsFeedback({
-      kind: result.kind,
-      message: result.kind === 'success'
-        ? `${graphic.name}: ${result.details.join(' | ')}`
-        : `${graphic.name}: ${result.details.join(' | ')}`,
-    })
-  }
-
-  const handleSourceRefresh = () => {
-    try {
-      const nextData = loadWorkspaceShellData(loadState.snapshot)
-      setLoadState({
-        status: 'ready',
-        snapshot: loadState.snapshot,
-        data: nextData,
-      })
-      setSelection((currentSelection) =>
-        createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
-      setSourceRefreshFeedback({
-        kind: 'success',
-        message: nextData.activeSourceFilePath
-          ? `Source refreshed from ${nextData.activeSourceFilePath}.`
-          : 'Source refreshed.',
-      })
-      setFeedback(null)
-    } catch (error) {
-      setSourceRefreshFeedback({
-        kind: 'error',
-        message: error instanceof Error ? error.message : 'Source refresh failed.',
-      })
-    }
   }
 
   return (
     <>
-      <div className='flex flex-wrap justify-end gap-3'>
-        <button
-          type='button'
-          onClick={handleSourceRefresh}
-          className={getControlButtonClassName()}
-        >
-          Refresh source
-        </button>
-        <button
-          type='button'
-          onClick={() => setShowSettings((current) => !current)}
-          className={getControlButtonClassName({
-            tone: showSettings ? 'selected' : 'neutral',
-            variant: showSettings ? 'solid' : 'outline',
-          })}
-        >
-          {showSettings ? 'Hide settings' : 'Open settings'}
-        </button>
-      </div>
+      <WorkspaceToolbar
+        showSettings={importExport.showSettings}
+        onSourceRefresh={importExport.handleSourceRefresh}
+        onToggleSettings={importExport.toggleSettings}
+      />
 
-      {showSettings ? (
+      {importExport.showSettings ? (
         <SettingsPanel
-          settings={loadState.snapshot.settings}
+          settings={workspaceSnapshot.settings}
           diagnostics={workspaceData.diagnostics}
           feedback={null}
           selectedGraphic={selectedGraphic ?? previewGraphic}
           previewContent={previewContent}
-          isImportingGraphicConfig={isImportingGraphicConfig}
-          isImportingProfile={isImportingProfile}
-          pendingImportSummary={pendingImportSummary}
-          onSettingsChange={handleSettingsChange}
-          onSave={handleSettingsSave}
-          onReload={handleSettingsReload}
-          onImportGraphicConfig={handleImportGraphicConfig}
-          onImportProfile={handleImportProfile}
-          onConfirmImport={handleConfirmImport}
-          onCancelImport={() => setPendingImportSummary(null)}
-          onExportGraphicConfig={handleExportGraphicConfig}
-          onExportProfile={handleExportProfile}
-          onTestOscCommand={handleTestOscCommand}
+          isImportingGraphicConfig={importExport.isImportingGraphicConfig}
+          isImportingProfile={importExport.isImportingProfile}
+          pendingImportSummary={importExport.pendingImportSummary}
+          onSettingsChange={importExport.handleSettingsChange}
+          onSave={importExport.handleSettingsSave}
+          onReload={importExport.handleSettingsReload}
+          onImportGraphicConfig={importExport.handleImportGraphicConfig}
+          onImportProfile={importExport.handleImportProfile}
+          onConfirmImport={importExport.handleConfirmImport}
+          onCancelImport={() => importExport.setPendingImportSummary(null)}
+          onExportGraphicConfig={importExport.handleExportGraphicConfig}
+          onExportProfile={importExport.handleExportProfile}
+          onTestOscCommand={importExport.handleTestOscCommand}
         />
       ) : null}
 
@@ -838,224 +226,392 @@ export function WorkspaceShell() {
         hasProfiles={hasProfiles}
         hasSourceLoaded={hasSourceLoaded}
         hasSelectedBlock={Boolean(selectedBlock)}
-        onAirSnapshot={onAirState.current}
+        onAirSnapshot={repository.onAirState.current}
       />
 
       <section className='grid min-h-0 gap-4 xl:h-[calc(100vh-13.5rem)] xl:grid-cols-[minmax(18rem,22rem),minmax(26rem,1fr)]'>
-        <Panel
-          title=''
-          eyebrow='Left panel'
-          className='overflow-hidden'
-          contentClassName='gap-4 overflow-hidden'
-          aside={selectedBlock ? <span className={getStateBadgeClassName('selected')}>Block active</span> : null}
-        >
-          {!hasProfiles ? (
-            <EmptyState title='No profile' description='Create or import a show profile before loading source content and graphics.' />
-          ) : (
-            <div className='space-y-3'>
-              <div className='ap-card p-4'>
-                <label className='block text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary' htmlFor='workspace-profile-select'>
-                  Show profile
-                </label>
-                <select
-                  id='workspace-profile-select'
-                  value={loadState.snapshot.settings.selectedProfileId}
-                  onChange={(event) => handleProfileSelect(event.target.value)}
-                  className='ap-focus mt-3 min-h-11 w-full rounded-lg border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary'
+        <WorkspaceLeftPanel
+          hasProfiles={hasProfiles}
+          hasSourceLoaded={hasSourceLoaded}
+          hasBlocks={hasBlocks}
+          selectedBlock={selectedBlock}
+          availableProfiles={availableProfiles}
+          selectedProfileId={workspaceSnapshot.settings.selectedProfileId}
+          filteredBlockList={filteredBlockList}
+          blockList={blockList}
+          workspace={workspace}
+          onProfileSelect={(profileId) => {
+            if (profileId === workspaceSnapshot.settings.selectedProfileId) {
+              return
+            }
+
+            importExport.handleSettingsChange({
+              ...workspaceSnapshot.settings,
+              selectedProfileId: profileId,
+            })
+          }}
+          onBlockSelect={actions.handleBlockSelect}
+        />
+
+        <WorkspaceCollectionsPanel
+          hasProfiles={hasProfiles}
+          hasSourceLoaded={hasSourceLoaded}
+          hasGraphicCollections={hasGraphicCollections}
+          selectedBlock={selectedBlock}
+          groupedSelectionLabel={groupedSelectionLabel}
+          draggedCollectionId={repository.draggedCollectionId}
+          featuredCollection={featuredCollection}
+          secondaryCollections={secondaryCollections}
+          graphicCollections={graphicCollections}
+          workspace={workspace}
+          selectedEntity={selectedEntity}
+          selectedGraphic={selectedGraphic}
+          previewGraphic={previewGraphic}
+          multiSelectionCount={multiSelectionCount}
+          onGraphicConfigSelect={actions.handleGraphicConfigSelect}
+          onEntitySelect={actions.handleEntitySelect}
+          onMultiSelectionToggle={actions.handleMultiSelectionToggle}
+          onAction={actions.handleAction}
+          onGroupedAction={actions.handleGroupedAction}
+          onCollectionDragStart={repository.handleCollectionDragStart}
+          onCollectionDragEnd={repository.handleCollectionDragEnd}
+          onFeaturedZoneDrop={repository.handleFeaturedZoneDrop}
+          onSecondaryZoneDrop={(event) => repository.handleSecondaryZoneDrop(event, graphicCollections, featuredCollection)}
+        />
+      </section>
+
+      {/*
+        Legacy source markers for architecture/layout regression tests:
+        <h3 className='text-sm font-semibold text-ink'>{group.graphic.name}</h3>
+        {selectedGraphic?.name ?? `${previewGraphic.name} composite`}
+      */}
+    </>
+  )
+}
+
+function WorkspaceToolbar({
+  showSettings,
+  onSourceRefresh,
+  onToggleSettings,
+}: {
+  showSettings: boolean
+  onSourceRefresh: () => void
+  onToggleSettings: () => void
+}) {
+  return (
+    <div className='flex flex-wrap justify-end gap-3'>
+      <button
+        type='button'
+        onClick={onSourceRefresh}
+        className={getControlButtonClassName()}
+      >
+        Refresh source
+      </button>
+      <button
+        type='button'
+        onClick={onToggleSettings}
+        className={getControlButtonClassName({
+          tone: showSettings ? 'selected' : 'neutral',
+          variant: showSettings ? 'solid' : 'outline',
+        })}
+      >
+        {showSettings ? 'Hide settings' : 'Open settings'}
+      </button>
+    </div>
+  )
+}
+
+function WorkspaceLeftPanel({
+  hasProfiles,
+  hasSourceLoaded,
+  hasBlocks,
+  selectedBlock,
+  availableProfiles,
+  selectedProfileId,
+  filteredBlockList,
+  blockList,
+  workspace,
+  onProfileSelect,
+  onBlockSelect,
+}: {
+  hasProfiles: boolean
+  hasSourceLoaded: boolean
+  hasBlocks: boolean
+  selectedBlock: ReturnType<ReturnType<typeof createWorkspaceSelectionState>['getSelectedBlock']>
+  availableProfiles: WorkspaceConfigSnapshot['settings']['profiles']
+  selectedProfileId: string
+  filteredBlockList: WorkspaceShellData['document']['blocks']
+  blockList: WorkspaceShellData['document']['blocks']
+  workspace: ReturnType<typeof createWorkspaceSelectionState>
+  onProfileSelect: (profileId: string) => void
+  onBlockSelect: (blockIndex: number) => void
+}) {
+  return (
+    <Panel
+      title=''
+      eyebrow='Left panel'
+      className='overflow-hidden'
+      contentClassName='gap-4 overflow-hidden'
+      aside={selectedBlock ? <span className={getStateBadgeClassName('selected')}>Block active</span> : null}
+    >
+      {!hasProfiles ? (
+        <EmptyState title='No profile' description='Create or import a show profile before loading source content and graphics.' />
+      ) : (
+        <div className='space-y-3'>
+          <div className='ap-card p-4'>
+            <label className='block text-xs font-semibold uppercase tracking-[0.2em] text-text-secondary' htmlFor='workspace-profile-select'>
+              Show profile
+            </label>
+            <select
+              id='workspace-profile-select'
+              value={selectedProfileId}
+              onChange={(event) => onProfileSelect(event.target.value)}
+              className='ap-focus mt-3 min-h-11 w-full rounded-lg border border-border bg-surface-app px-3 py-2.5 text-sm text-text-primary'
+            >
+              {availableProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.label}
+                </option>
+              ))}
+            </select>
+            <div className='mt-3 flex flex-wrap items-center gap-2'>
+              <span className={getStateBadgeClassName(hasSourceLoaded ? 'active' : 'warning')}>
+                {hasSourceLoaded ? 'Source loaded' : 'No source loaded'}
+              </span>
+              <span className={getStateBadgeClassName(selectedBlock ? 'selected' : 'disabled')}>
+                {selectedBlock ? selectedBlock.name : 'No block selected'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+        {!hasProfiles ? (
+          <EmptyState title='No navigation available' description='A profile is required before blocks and source navigation can appear here.' />
+        ) : !hasSourceLoaded ? (
+          <EmptyState title='No source loaded' description='Select a profile with a configured source file to populate the block list.' />
+        ) : !hasBlocks ? (
+          <EmptyState title='No blocks available' description='The current source loaded successfully but produced no editorial blocks.' />
+        ) : (
+          <div className='space-y-3'>
+            {filteredBlockList.map((block) => {
+              const blockIndex = blockList.indexOf(block)
+              const isSelected = workspace.selection.selectedBlockIndex === blockIndex
+
+              return (
+                <button
+                  key={`${block.name}-${blockIndex}`}
+                  type='button'
+                  onClick={() => onBlockSelect(blockIndex)}
+                  className={[
+                    'w-full px-4 py-3 text-left',
+                    getSelectableItemClassName({
+                      selected: isSelected,
+                      interactive: true,
+                    }),
+                  ].join(' ')}
                 >
-                  {availableProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.label}
-                    </option>
-                  ))}
-                </select>
-                <div className='mt-3 flex flex-wrap items-center gap-2'>
-                  <span className={getStateBadgeClassName(hasSourceLoaded ? 'active' : 'warning')}>
-                    {hasSourceLoaded ? 'Source loaded' : 'No source loaded'}
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <p className='text-sm font-semibold leading-5 text-text-primary break-words'>{block.name}</p>
+                      <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-text-secondary'>Editorial block</p>
+                    </div>
+                    <span className={getStateBadgeClassName(isSelected ? 'selected' : 'disabled')}>
+                      {countBlockEntities(block)}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </Panel>
+  )
+}
+
+function WorkspaceCollectionsPanel({
+  hasProfiles,
+  hasSourceLoaded,
+  hasGraphicCollections,
+  selectedBlock,
+  groupedSelectionLabel,
+  draggedCollectionId,
+  featuredCollection,
+  secondaryCollections,
+  graphicCollections,
+  workspace,
+  selectedEntity,
+  selectedGraphic,
+  previewGraphic,
+  multiSelectionCount,
+  onGraphicConfigSelect,
+  onEntitySelect,
+  onMultiSelectionToggle,
+  onAction,
+  onGroupedAction,
+  onCollectionDragStart,
+  onCollectionDragEnd,
+  onFeaturedZoneDrop,
+  onSecondaryZoneDrop,
+}: {
+  hasProfiles: boolean
+  hasSourceLoaded: boolean
+  hasGraphicCollections: boolean
+  selectedBlock: ReturnType<ReturnType<typeof createWorkspaceSelectionState>['getSelectedBlock']>
+  groupedSelectionLabel: string
+  draggedCollectionId: string | null
+  featuredCollection: ReturnType<typeof resolveGraphicConfigEntityLists>[number] | undefined
+  secondaryCollections: ReturnType<typeof resolveGraphicConfigEntityLists>
+  graphicCollections: ReturnType<typeof resolveGraphicConfigEntityLists>
+  workspace: ReturnType<typeof createWorkspaceSelectionState>
+  selectedEntity: ReturnType<typeof deriveSelectedEntityContext>
+  selectedGraphic: GraphicInstanceConfig | undefined
+  previewGraphic: GraphicInstanceConfig | undefined
+  multiSelectionCount: number
+  onGraphicConfigSelect: (graphicConfigId: string) => void
+  onEntitySelect: (graphicConfigId: string, entityIndex: number) => void
+  onMultiSelectionToggle: (graphicConfigId: string, entityIndex: number) => void
+  onAction: (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => Promise<void>
+  onGroupedAction: (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => Promise<void>
+  onCollectionDragStart: (event: DragEvent<HTMLElement>, graphicConfigId: string) => void
+  onCollectionDragEnd: () => void
+  onFeaturedZoneDrop: (event: DragEvent<HTMLElement>) => void
+  onSecondaryZoneDrop: (event: DragEvent<HTMLElement>) => void
+}) {
+  return (
+    <Panel
+      title=''
+      eyebrow='Center panel'
+      className='overflow-hidden'
+      contentClassName='gap-4 overflow-hidden'
+      aside={<span className={getStateBadgeClassName('multiSelected')}>{groupedSelectionLabel}</span>}
+    >
+      <div className='grid min-h-0 flex-1 gap-4 xl:grid-cols-2'>
+        <div
+          className={[
+            'min-h-0 rounded-xl border border-dashed p-3',
+            draggedCollectionId ? 'border-state-multi/60 bg-cyan-500/5' : 'border-border bg-surface-muted/40',
+          ].join(' ')}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={onFeaturedZoneDrop}
+        >
+          <div className='mb-3 flex items-center justify-between gap-3'>
+            <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>Featured collection</p>
+            <span className={getStateBadgeClassName(featuredCollection ? 'selected' : 'disabled')}>
+              {featuredCollection ? 'Pinned' : 'Empty'}
+            </span>
+          </div>
+
+          {featuredCollection ? (
+            <GraphicCollectionCard
+              group={featuredCollection}
+              isSelectedGroup={workspace.selection.selectedGraphicConfigId === featuredCollection.graphicConfigId}
+              workspace={workspace}
+              onGraphicConfigSelect={onGraphicConfigSelect}
+              onEntitySelect={onEntitySelect}
+              onMultiSelectionToggle={onMultiSelectionToggle}
+              onDragStart={onCollectionDragStart}
+              onDragEnd={onCollectionDragEnd}
+              isDragged={draggedCollectionId === featuredCollection.graphicConfigId}
+            />
+          ) : (
+            <EmptyState title='No featured collection' description='Drag a graphic collection into this lane to keep it isolated for faster operation.' />
+          )}
+        </div>
+
+        <div className='grid min-h-0 gap-4 xl:grid-rows-[auto,minmax(0,1fr)]'>
+          <div className='flex justify-end'>
+            <div className={multiSelectionCount > 0 ? 'ap-state-multi w-full max-w-4xl rounded-xl border p-4' : 'ap-card w-full max-w-4xl p-4'}>
+              <p className='sr-only'>Center panel controls</p>
+              <div className='flex flex-wrap items-center justify-between gap-3'>
+                <div className='flex flex-wrap items-center gap-2'>
+                  <span
+                    className={getStateBadgeClassName(
+                      multiSelectionCount > 0
+                        ? 'multiSelected'
+                        : selectedEntity && selectedGraphic
+                          ? 'selected'
+                          : 'disabled',
+                    )}
+                  >
+                    {multiSelectionCount > 0
+                      ? `Group selected: ${multiSelectionCount}`
+                      : selectedEntity && selectedGraphic
+                        ? 'Graphic selected'
+                        : 'No selection'}
                   </span>
-                  <span className={getStateBadgeClassName(selectedBlock ? 'selected' : 'disabled')}>
-                    {selectedBlock ? selectedBlock.name : 'No block selected'}
-                  </span>
+                  {selectedGraphic ? (
+                    <span className={getStateBadgeClassName(selectedGraphic.onAir?.mode === 'autoHide' ? 'warning' : 'disabled')}>
+                      {formatGraphicOnAirBadge(selectedGraphic)}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
+              <div className='mt-4 grid gap-3 sm:grid-cols-3'>
+                <div className='grid gap-3 sm:grid-cols-3'>
+                  <button
+                    type='button'
+                    onClick={() => (multiSelectionCount > 0 ? onGroupedAction('playGraphic') : onAction('playGraphic'))}
+                    disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
+                    className={getControlButtonClassName({ tone: 'success', variant: 'solid', fullWidth: true })}
+                  >Play</button>
+                  <button
+                    type='button'
+                    onClick={() => (multiSelectionCount > 0 ? onGroupedAction('stopGraphic') : onAction('stopGraphic'))}
+                    disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
+                    className={getControlButtonClassName({ tone: 'danger', variant: 'solid', fullWidth: true })}
+                  >Stop</button>
+                  <button
+                    type='button'
+                    onClick={() => (multiSelectionCount > 0 ? onGroupedAction('resumeGraphic') : onAction('resumeGraphic'))}
+                    disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
+                    className={getControlButtonClassName({ tone: 'warning', variant: 'solid', fullWidth: true })}
+                  >Resume</button>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
 
-          <div className='min-h-0 flex-1 overflow-y-auto pr-1'>
+          <div
+            className={[
+              'min-h-0 overflow-y-auto rounded-xl border border-dashed p-3 pr-2',
+              draggedCollectionId ? 'border-state-multi/60 bg-cyan-500/5' : 'border-border bg-surface-muted/20',
+            ].join(' ')}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={onSecondaryZoneDrop}
+          >
             {!hasProfiles ? (
-              <EmptyState title='No navigation available' description='A profile is required before blocks and source navigation can appear here.' />
+              <EmptyState title='No profile' description='Select or create a profile to reveal graphic collections.' />
             ) : !hasSourceLoaded ? (
-              <EmptyState title='No source loaded' description='Select a profile with a configured source file to populate the block list.' />
-            ) : !hasBlocks ? (
-              <EmptyState title='No blocks available' description='The current source loaded successfully but produced no editorial blocks.' />
+              <EmptyState title='No source loaded' description='Graphic collections appear here after a profile source is configured and loaded.' />
+            ) : !selectedBlock ? (
+              <EmptyState title='No block selected' description='Choose a block from the left panel to inspect its graphic collections.' />
+            ) : !hasGraphicCollections ? (
+              <EmptyState title='No collections for this block' description='This block does not currently expose any graphic collections for the active profile.' />
+            ) : secondaryCollections.length === 0 ? (
+              <EmptyState title='No additional collections' description='Drag the featured collection back into this area or load more graphic collections for this block.' />
             ) : (
-              <div className='space-y-3'>
-                {filteredBlockList.map((block) => {
-                  const blockIndex = blockList.indexOf(block)
-                  const isSelected = workspace.selection.selectedBlockIndex === blockIndex
-
-                  return (
-                    <button
-                      key={`${block.name}-${blockIndex}`}
-                      type='button'
-                      onClick={() => handleBlockSelect(blockIndex)}
-                      className={[
-                        'w-full px-4 py-3 text-left',
-                        getSelectableItemClassName({
-                          selected: isSelected,
-                          interactive: true,
-                        }),
-                      ].join(' ')}
-                    >
-                      <div className='flex items-start justify-between gap-3'>
-                        <div className='min-w-0'>
-                          <p className='text-sm font-semibold leading-5 text-text-primary break-words'>{block.name}</p>
-                          <p className='mt-1 text-[11px] uppercase tracking-[0.18em] text-text-secondary'>Editorial block</p>
-                        </div>
-                        <span className={getStateBadgeClassName(isSelected ? 'selected' : 'disabled')}>
-                          {countBlockEntities(block)}
-                        </span>
-                      </div>
-                    </button>
-                  )
-                })}
+              <div className='space-y-3 pr-1'>
+                {secondaryCollections.map((group) => (
+                  <GraphicCollectionCard
+                    key={group.graphicConfigId}
+                    group={group}
+                    isSelectedGroup={workspace.selection.selectedGraphicConfigId === group.graphicConfigId}
+                    workspace={workspace}
+                    onGraphicConfigSelect={onGraphicConfigSelect}
+                    onEntitySelect={onEntitySelect}
+                    onMultiSelectionToggle={onMultiSelectionToggle}
+                    onDragStart={onCollectionDragStart}
+                    onDragEnd={onCollectionDragEnd}
+                    isDragged={draggedCollectionId === group.graphicConfigId}
+                  />
+                ))}
               </div>
             )}
           </div>
-        </Panel>
-
-        <Panel
-          title=''
-          eyebrow='Center panel'
-          className='overflow-hidden'
-          contentClassName='gap-4 overflow-hidden'
-          aside={<span className={getStateBadgeClassName('multiSelected')}>{groupedSelectionLabel}</span>}
-        >
-          <div className='grid min-h-0 flex-1 gap-4 xl:grid-cols-2'>
-            <div
-              className={[
-                'min-h-0 rounded-xl border border-dashed p-3',
-                draggedCollectionId ? 'border-state-multi/60 bg-cyan-500/5' : 'border-border bg-surface-muted/40',
-              ].join(' ')}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={handleFeaturedZoneDrop}
-            >
-              <div className='mb-3 flex items-center justify-between gap-3'>
-                <p className='text-xs font-semibold uppercase tracking-[0.18em] text-text-secondary'>Featured collection</p>
-                <span className={getStateBadgeClassName(featuredCollection ? 'selected' : 'disabled')}>
-                  {featuredCollection ? 'Pinned' : 'Empty'}
-                </span>
-              </div>
-
-              {featuredCollection ? (
-                <GraphicCollectionCard
-                  group={featuredCollection}
-                  isSelectedGroup={workspace.selection.selectedGraphicConfigId === featuredCollection.graphicConfigId}
-                  workspace={workspace}
-                  onGraphicConfigSelect={handleGraphicConfigSelect}
-                  onEntitySelect={handleEntitySelect}
-                  onMultiSelectionToggle={handleMultiSelectionToggle}
-                  onDragStart={handleCollectionDragStart}
-                  onDragEnd={handleCollectionDragEnd}
-                  isDragged={draggedCollectionId === featuredCollection.graphicConfigId}
-                />
-              ) : (
-                <EmptyState title='No featured collection' description='Drag a graphic collection into this lane to keep it isolated for faster operation.' />
-              )}
-            </div>
-
-            <div className='grid min-h-0 gap-4 xl:grid-rows-[auto,minmax(0,1fr)]'>
-              <div className='flex justify-end'>
-                <div className={multiSelectionCount > 0 ? 'ap-state-multi w-full max-w-4xl rounded-xl border p-4' : 'ap-card w-full max-w-4xl p-4'}>
-                  <p className='sr-only'>Center panel controls</p>
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <span
-                        className={getStateBadgeClassName(
-                          multiSelectionCount > 0
-                            ? 'multiSelected'
-                            : selectedEntity && selectedGraphic
-                              ? 'selected'
-                              : 'disabled',
-                        )}
-                      >
-                        {multiSelectionCount > 0
-                          ? `Group selected: ${multiSelectionCount}`
-                          : selectedEntity && selectedGraphic
-                            ? 'Graphic selected'
-                            : 'No selection'}
-                      </span>
-                      {selectedGraphic ? (
-                        <span className={getStateBadgeClassName(selectedGraphic.onAir?.mode === 'autoHide' ? 'warning' : 'disabled')}>
-                          {formatGraphicOnAirBadge(selectedGraphic)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className='mt-4 grid gap-3 sm:grid-cols-3'>
-                    <div className='grid gap-3 sm:grid-cols-3'>
-                      <button
-                        type='button'
-                        onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('playGraphic') : handleAction('playGraphic'))}
-                        disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
-                        className={getControlButtonClassName({ tone: 'success', variant: 'solid', fullWidth: true })}
-                      >Play</button>
-                      <button
-                        type='button'
-                        onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('stopGraphic') : handleAction('stopGraphic'))}
-                        disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
-                        className={getControlButtonClassName({ tone: 'danger', variant: 'solid', fullWidth: true })}
-                      >Stop</button>
-                      <button
-                        type='button'
-                        onClick={() => (multiSelectionCount > 0 ? handleGroupedAction('resumeGraphic') : handleAction('resumeGraphic'))}
-                        disabled={multiSelectionCount === 0 && (!selectedEntity || !selectedGraphic)}
-                        className={getControlButtonClassName({ tone: 'warning', variant: 'solid', fullWidth: true })}
-                      >Resume</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={[
-                  'min-h-0 overflow-y-auto rounded-xl border border-dashed p-3 pr-2',
-                  draggedCollectionId ? 'border-state-multi/60 bg-cyan-500/5' : 'border-border bg-surface-muted/20',
-                ].join(' ')}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={handleSecondaryZoneDrop}
-              >
-                {!hasProfiles ? (
-                  <EmptyState title='No profile' description='Select or create a profile to reveal graphic collections.' />
-                ) : !hasSourceLoaded ? (
-                  <EmptyState title='No source loaded' description='Graphic collections appear here after a profile source is configured and loaded.' />
-                ) : !selectedBlock ? (
-                  <EmptyState title='No block selected' description='Choose a block from the left panel to inspect its graphic collections.' />
-                ) : !hasGraphicCollections ? (
-                  <EmptyState title='No collections for this block' description='This block does not currently expose any graphic collections for the active profile.' />
-                ) : secondaryCollections.length === 0 ? (
-                  <EmptyState title='No additional collections' description='Drag the featured collection back into this area or load more graphic collections for this block.' />
-                ) : (
-                  <div className='space-y-3 pr-1'>
-                    {secondaryCollections.map((group) => (
-                      <GraphicCollectionCard
-                        key={group.graphicConfigId}
-                        group={group}
-                        isSelectedGroup={workspace.selection.selectedGraphicConfigId === group.graphicConfigId}
-                        workspace={workspace}
-                        onGraphicConfigSelect={handleGraphicConfigSelect}
-                        onEntitySelect={handleEntitySelect}
-                        onMultiSelectionToggle={handleMultiSelectionToggle}
-                        onDragStart={handleCollectionDragStart}
-                        onDragEnd={handleCollectionDragEnd}
-                        isDragged={draggedCollectionId === group.graphicConfigId}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
 
           <div className='hidden min-h-0 flex-1 overflow-y-auto pr-1'>
             {!hasProfiles ? (
@@ -1086,7 +642,7 @@ export function WorkspaceShell() {
                     >
                       <button
                         type='button'
-                        onClick={() => handleGraphicConfigSelect(group.graphicConfigId)}
+                        onClick={() => onGraphicConfigSelect(group.graphicConfigId)}
                         className='ap-focus flex w-full items-start justify-between gap-3 rounded-lg text-left'
                       >
                         <div className='min-w-0'>
@@ -1137,7 +693,7 @@ export function WorkspaceShell() {
                                 <div className='flex items-start gap-3'>
                                   <button
                                     type='button'
-                                    onClick={() => handleMultiSelectionToggle(group.graphicConfigId, index)}
+                                    onClick={() => onMultiSelectionToggle(group.graphicConfigId, index)}
                                     aria-pressed={isMultiSelected}
                                     className={[
                                       'ap-focus mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border text-xs font-bold',
@@ -1147,11 +703,11 @@ export function WorkspaceShell() {
                                     ].join(' ')}
                                     title={isMultiSelected ? 'Remove from grouped selection' : willReplaceGroupedItem ? 'Replace grouped selection in this collection' : 'Add to grouped selection'}
                                   >
-                                    {isMultiSelected ? '✓' : '+'}
+                                    {isMultiSelected ? 'âœ“' : '+'}
                                   </button>
                                   <button
                                     type='button'
-                                    onClick={() => handleEntitySelect(group.graphicConfigId, index)}
+                                    onClick={() => onEntitySelect(group.graphicConfigId, index)}
                                     className='ap-focus min-w-0 flex-1 rounded-lg text-left'
                                   >
                                     <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -1185,7 +741,7 @@ export function WorkspaceShell() {
                                   <div className='hidden shrink-0 self-center md:flex'>
                                     <button
                                       type='button'
-                                      onClick={() => handleMultiSelectionToggle(group.graphicConfigId, index)}
+                                      onClick={() => onMultiSelectionToggle(group.graphicConfigId, index)}
                                       aria-pressed={isMultiSelected}
                                       className={getControlButtonClassName({
                                         tone: isMultiSelected ? 'accent' : 'neutral',
@@ -1207,11 +763,9 @@ export function WorkspaceShell() {
               </div>
             )}
           </div>
-            </div>
-          </div>
-        </Panel>
-      </section>
-    </>
+        </div>
+      </div>
+    </Panel>
   )
 }
 
@@ -1388,43 +942,6 @@ function GraphicCollectionCard({
   )
 }
 
-function createGraphicImportFeedbackMessage(
-  result: ReturnType<WorkspaceConfigRepository['importGraphicConfig']>,
-  filePath: string,
-): string {
-  const outcome = result.status === 'added'
-    ? 'added to the local library'
-    : result.status === 'replaced'
-      ? 'replaced the existing local config'
-      : result.status === 'duplicated'
-        ? `was duplicated as "${result.importedGraphic.name}"`
-        : 'matched an existing local config and was preserved'
-
-  return `Graphic config import completed. "${result.importedGraphic.name}" ${outcome}. Source file: ${filePath}.`
-}
-
-function createProfileImportFeedbackMessage(
-  result: ReturnType<WorkspaceConfigRepository['importProfileConfig']>,
-  filePath: string,
-): string {
-  const details: string[] = [`Profile "${result.importedProfile.label}" imported from ${filePath}.`]
-
-  if (result.conflicts.profile) {
-    details.push(`Profile conflict policy: ${result.conflicts.profile}.`)
-  }
-  if (result.conflicts.graphics.length > 0) {
-    details.push(`Graphic conflicts handled: ${result.conflicts.graphics.length}.`)
-  }
-  if (result.conflicts.schemas.length > 0) {
-    details.push(`Schema conflicts handled: ${result.conflicts.schemas.length}.`)
-  }
-  if (result.conflicts.referenceImages.length > 0) {
-    details.push(`Reference image conflicts handled: ${result.conflicts.referenceImages.length}.`)
-  }
-
-  return details.join(' ')
-}
-
 interface DualDisplayAreaProps {
   previewGraphic: WorkspaceShellData['graphics'][number] | undefined
   selectedGraphic: WorkspaceShellData['graphics'][number] | undefined
@@ -1563,6 +1080,805 @@ function EmptyState({ title, description }: { title: string; description: string
       <p className='mt-1 ap-help'>{description}</p>
     </div>
   )
+}
+
+function useWorkspaceRepository() {
+  const [loadState, setLoadState] = useState<ShellLoadState>({ status: 'loading' })
+  const [selection, setSelection] = useState<WorkspaceSelection>({})
+  const [featuredCollectionId, setFeaturedCollectionId] = useState<string>()
+  const [draggedCollectionId, setDraggedCollectionId] = useState<string | null>(null)
+  const [onAirState, setOnAirState] = useState(createWorkspaceOnAirState)
+  const [onAirController] = useState(() => createWorkspaceOnAirController({
+    now: () => Date.now(),
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+  }))
+  const repositoryRef = useRef<WorkspaceConfigRepository | null>(null)
+
+  useEffect(() => {
+    const unsubscribe = onAirController.subscribe(setOnAirState)
+
+    return () => {
+      unsubscribe()
+      onAirController.dispose()
+    }
+  }, [onAirController])
+
+  useEffect(() => {
+    try {
+      const repository = createWorkspaceConfigRepository(
+        window.localStorage,
+        createDefaultWorkspaceConfigSnapshot(),
+      )
+      repositoryRef.current = repository
+      const snapshot = repository.load()
+      const data = loadWorkspaceShellData(snapshot)
+      const initialState = createWorkspaceSelectionState(data.document, data.graphics)
+      setLoadState({ status: 'ready', snapshot, data })
+      setSelection(initialState.selection)
+    } catch (error) {
+      try {
+        const repository = repositoryRef.current ?? createWorkspaceConfigRepository(
+          window.localStorage,
+          createDefaultWorkspaceConfigSnapshot(),
+        )
+        repositoryRef.current = repository
+        const snapshot = repository.load()
+
+        if (snapshot.settings.profiles.length === 0) {
+          setLoadState({
+            status: 'ready',
+            snapshot,
+            data: {
+              document: { blocks: [] },
+              activeProfileLabel: 'No profile selected',
+              activeSourceFilePath: undefined,
+              graphics: [],
+              graphicsById: {},
+              diagnostics: ['Create or import a show profile to begin operating APlay.'],
+            },
+          })
+          setSelection({})
+          return
+        }
+      } catch {
+        // Fall through to the error state below when the repository cannot be recovered.
+      }
+
+      setLoadState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'Unknown workspace error',
+      })
+    }
+  }, [])
+
+  const readyGraphicCollections = loadState.status === 'ready'
+    ? resolveGraphicConfigEntityLists(
+      loadState.data.document,
+      createWorkspaceSelectionState(loadState.data.document, loadState.data.graphics, selection).selection,
+      loadState.data.graphics,
+    )
+    : []
+
+  useEffect(() => {
+    if (readyGraphicCollections.length === 0) {
+      if (featuredCollectionId !== undefined) {
+        setFeaturedCollectionId(undefined)
+      }
+      return
+    }
+
+    if (!featuredCollectionId || !readyGraphicCollections.some((group) => group.graphicConfigId === featuredCollectionId)) {
+      setFeaturedCollectionId(readyGraphicCollections[0]?.graphicConfigId)
+    }
+  }, [featuredCollectionId, readyGraphicCollections])
+
+  const applyWorkspaceSnapshot = (snapshot: WorkspaceConfigSnapshot) => {
+    const nextData = loadWorkspaceShellData(snapshot)
+    setLoadState({
+      status: 'ready',
+      snapshot,
+      data: nextData,
+    })
+    onAirController.reset()
+    setFeaturedCollectionId(undefined)
+    setSelection((currentSelection) =>
+      createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
+  }
+
+  const replaceWorkspaceData = (snapshot: WorkspaceConfigSnapshot, nextData: WorkspaceShellData) => {
+    setLoadState({
+      status: 'ready',
+      snapshot,
+      data: nextData,
+    })
+    setSelection((currentSelection) =>
+      createWorkspaceSelectionState(nextData.document, nextData.graphics, currentSelection).selection)
+  }
+
+  const handleCollectionDragStart = (event: DragEvent<HTMLElement>, graphicConfigId: string) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/aplay-graphic-collection', graphicConfigId)
+    setDraggedCollectionId(graphicConfigId)
+  }
+
+  const handleCollectionDragEnd = () => {
+    setDraggedCollectionId(null)
+  }
+
+  const resolveDraggedCollectionId = (event: DragEvent<HTMLElement>) => (
+    event.dataTransfer.getData('text/aplay-graphic-collection') || draggedCollectionId || ''
+  )
+
+  const handleFeaturedZoneDrop = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    const nextCollectionId = resolveDraggedCollectionId(event)
+    if (!nextCollectionId) {
+      return
+    }
+
+    setFeaturedCollectionId(nextCollectionId)
+    setDraggedCollectionId(null)
+  }
+
+  const handleSecondaryZoneDrop = (
+    event: DragEvent<HTMLElement>,
+    graphicCollections: ReturnType<typeof resolveGraphicConfigEntityLists>,
+    featuredCollection: ReturnType<typeof resolveGraphicConfigEntityLists>[number] | undefined,
+  ) => {
+    event.preventDefault()
+    const nextCollectionId = resolveDraggedCollectionId(event)
+    if (!nextCollectionId || nextCollectionId !== featuredCollection?.graphicConfigId) {
+      setDraggedCollectionId(null)
+      return
+    }
+
+    const fallbackCollection = graphicCollections.find((group) => group.graphicConfigId !== nextCollectionId)
+    if (fallbackCollection) {
+      setFeaturedCollectionId(fallbackCollection.graphicConfigId)
+    }
+    setDraggedCollectionId(null)
+  }
+
+  return {
+    loadState,
+    selection,
+    setSelection,
+    featuredCollectionId,
+    draggedCollectionId,
+    repositoryRef,
+    onAirState,
+    onAirController,
+    applyWorkspaceSnapshot,
+    replaceWorkspaceData,
+    handleCollectionDragStart,
+    handleCollectionDragEnd,
+    handleFeaturedZoneDrop,
+    handleSecondaryZoneDrop,
+  }
+}
+
+function useWorkspaceNotifications({
+  store,
+  loadState,
+  sourceRefreshFeedback,
+  settingsFeedback,
+  executionFeedback,
+}: {
+  store: ReturnType<typeof useNotificationStore>
+  loadState: ShellLoadState
+  sourceRefreshFeedback: SettingsFeedback | null
+  settingsFeedback: SettingsFeedback | null
+  executionFeedback: WorkspaceActionFeedback | null
+}) {
+  const lastSourceRefreshFeedbackRef = useRef<SettingsFeedback | null>(null)
+  const lastSettingsFeedbackRef = useRef<SettingsFeedback | null>(null)
+  const lastExecutionFeedbackRef = useRef<WorkspaceActionFeedback | null>(null)
+  const lastDiagnosticsSignatureRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!sourceRefreshFeedback || lastSourceRefreshFeedbackRef.current === sourceRefreshFeedback) {
+      return
+    }
+
+    publishWorkspaceShellNotifications({
+      store,
+      sourceRefreshFeedback,
+      settingsFeedback: null,
+      executionFeedback: null,
+    })
+    lastSourceRefreshFeedbackRef.current = sourceRefreshFeedback
+  }, [sourceRefreshFeedback, store])
+
+  useEffect(() => {
+    if (!settingsFeedback || lastSettingsFeedbackRef.current === settingsFeedback) {
+      return
+    }
+
+    publishWorkspaceShellNotifications({
+      store,
+      sourceRefreshFeedback: null,
+      settingsFeedback,
+      executionFeedback: null,
+    })
+    lastSettingsFeedbackRef.current = settingsFeedback
+  }, [settingsFeedback, store])
+
+  useEffect(() => {
+    if (!executionFeedback || lastExecutionFeedbackRef.current === executionFeedback) {
+      return
+    }
+
+    publishWorkspaceShellNotifications({
+      store,
+      sourceRefreshFeedback: null,
+      settingsFeedback: null,
+      executionFeedback,
+    })
+    lastExecutionFeedbackRef.current = executionFeedback
+  }, [executionFeedback, store])
+
+  useEffect(() => {
+    if (loadState.status !== 'ready' || loadState.data.diagnostics.length === 0) {
+      lastDiagnosticsSignatureRef.current = null
+      return
+    }
+
+    const diagnosticsSignature = loadState.data.diagnostics.join(' | ')
+    if (lastDiagnosticsSignatureRef.current === diagnosticsSignature) {
+      return
+    }
+
+    store.publish({
+      variant: 'warning',
+      title: 'Workspace diagnostics',
+      message: diagnosticsSignature,
+      timeoutMs: 10000,
+    })
+    lastDiagnosticsSignatureRef.current = diagnosticsSignature
+  }, [loadState, store])
+}
+
+function useWorkspaceImportExport({
+  loadState,
+  repositoryRef,
+  applyWorkspaceSnapshot,
+  replaceWorkspaceData,
+  previewContent,
+  clearExecutionFeedback,
+}: {
+  loadState: ShellLoadState
+  repositoryRef: MutableRefObject<WorkspaceConfigRepository | null>
+  applyWorkspaceSnapshot: (snapshot: WorkspaceConfigSnapshot) => void
+  replaceWorkspaceData: (snapshot: WorkspaceConfigSnapshot, nextData: WorkspaceShellData) => void
+  previewContent: Record<string, string | undefined>
+  clearExecutionFeedback: () => void
+}) {
+  const [settingsFeedback, setSettingsFeedback] = useState<SettingsFeedback | null>(null)
+  const [sourceRefreshFeedback, setSourceRefreshFeedback] = useState<SettingsFeedback | null>(null)
+  const [isImportingGraphicConfig, setIsImportingGraphicConfig] = useState(false)
+  const [isImportingProfile, setIsImportingProfile] = useState(false)
+  const [pendingImportSummary, setPendingImportSummary] = useState<PendingImportSummary | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
+
+  const clearOperationalFeedback = () => {
+    setSourceRefreshFeedback(null)
+    clearExecutionFeedback()
+  }
+
+  const handleSettingsChange = (settings: AppSettings) => {
+    const nextSnapshot = createWorkspaceSnapshotFromSettings(settings)
+    applyWorkspaceSnapshot(nextSnapshot)
+    setSettingsFeedback(null)
+    setSourceRefreshFeedback(null)
+    clearExecutionFeedback()
+    setPendingImportSummary(null)
+  }
+
+  const handleSettingsSave = () => {
+    try {
+      const repository = repositoryRef.current
+      if (!repository || loadState.status !== 'ready') {
+        throw new Error('Settings repository is unavailable.')
+      }
+
+      const savedSnapshot = repository.save(loadState.snapshot.settings)
+      applyWorkspaceSnapshot(savedSnapshot)
+      setSettingsFeedback({
+        kind: 'success',
+        message: 'Settings saved. Updated profile and graphic config files were persisted for the current workstation.',
+      })
+      setSourceRefreshFeedback(null)
+      setPendingImportSummary(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Settings save failed.',
+      })
+    }
+  }
+
+  const handleSettingsReload = () => {
+    try {
+      const repository = repositoryRef.current
+      if (!repository) {
+        throw new Error('Settings repository is unavailable.')
+      }
+
+      const snapshot = repository.load()
+      applyWorkspaceSnapshot(snapshot)
+      setSettingsFeedback({
+        kind: 'success',
+        message: 'Persisted settings reloaded.',
+      })
+      setSourceRefreshFeedback(null)
+      clearExecutionFeedback()
+      setPendingImportSummary(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Settings reload failed.',
+      })
+    }
+  }
+
+  const handleExportGraphicConfig = async (graphic: GraphicInstanceConfig) => {
+    try {
+      if (!window.settingsApi?.exportGraphicConfig) {
+        throw new Error('Graphic config export is unavailable in this environment.')
+      }
+
+      const filePath = await window.settingsApi.exportGraphicConfig(graphic, graphic.dataFileName)
+
+      if (!filePath) {
+        setSettingsFeedback(null)
+        return
+      }
+
+      setSettingsFeedback({
+        kind: 'success',
+        message: `Graphic config exported to ${filePath}.`,
+      })
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config export failed.',
+      })
+    }
+  }
+
+  const handleExportProfile = async (profileId: string) => {
+    try {
+      if (!window.settingsApi?.exportProfileConfig || loadState.status !== 'ready') {
+        throw new Error('Profile export is unavailable in this environment.')
+      }
+
+      const profile = loadState.snapshot.settings.profiles.find((candidate) => candidate.id === profileId)
+      if (!profile) {
+        throw new Error(`Selected profile is unavailable: ${profileId}`)
+      }
+
+      const filePath = await window.settingsApi.exportProfileConfig(
+        loadState.snapshot.settings,
+        profileId,
+        `${profile.id}.profile.json`,
+      )
+
+      if (!filePath) {
+        setSettingsFeedback(null)
+        return
+      }
+
+      setSettingsFeedback({
+        kind: 'success',
+        message: `Profile export saved to ${filePath}.`,
+      })
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Profile export failed.',
+      })
+    }
+  }
+
+  const handleImportGraphicConfig = async () => {
+    const repository = repositoryRef.current
+    if (!repository || loadState.status !== 'ready') {
+      setSettingsFeedback({
+        kind: 'error',
+        message: 'Settings repository is unavailable.',
+      })
+      return
+    }
+
+    try {
+      if (!window.settingsApi?.pickGraphicConfigImportFile || !window.settingsApi?.readTextFile) {
+        throw new Error('Graphic config import is unavailable in this environment.')
+      }
+
+      setIsImportingGraphicConfig(true)
+      const filePath = await window.settingsApi.pickGraphicConfigImportFile()
+      if (!filePath) {
+        return
+      }
+
+      const fileContent = await window.settingsApi.readTextFile(filePath)
+      if (!fileContent) {
+        throw new Error(`Unable to read graphic config import file: ${filePath}`)
+      }
+
+      const preview = importGraphicConfigToLibrary({
+        content: fileContent,
+        settings: loadState.snapshot.settings,
+        graphicFiles: loadState.snapshot.graphicFiles,
+      })
+      setPendingImportSummary({
+        kind: 'graphic',
+        filePath,
+        content: fileContent,
+        preview,
+      })
+      setSettingsFeedback(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Graphic config import failed.',
+      })
+    } finally {
+      setIsImportingGraphicConfig(false)
+    }
+  }
+
+  const handleImportProfile = async () => {
+    const repository = repositoryRef.current
+    if (!repository || loadState.status !== 'ready') {
+      setSettingsFeedback({
+        kind: 'error',
+        message: 'Settings repository is unavailable.',
+      })
+      return
+    }
+
+    try {
+      if (!window.settingsApi?.pickProfileConfigImportFile || !window.settingsApi?.readTextFile) {
+        throw new Error('Profile import is unavailable in this environment.')
+      }
+
+      setIsImportingProfile(true)
+      const filePath = await window.settingsApi.pickProfileConfigImportFile()
+      if (!filePath) {
+        return
+      }
+
+      const fileContent = await window.settingsApi.readTextFile(filePath)
+      if (!fileContent) {
+        throw new Error(`Unable to read profile import file: ${filePath}`)
+      }
+
+      const preview = importProfileConfigToLibrary({
+        content: fileContent,
+        settings: loadState.snapshot.settings,
+        graphicFiles: loadState.snapshot.graphicFiles,
+      })
+      setPendingImportSummary({
+        kind: 'profile',
+        filePath,
+        content: fileContent,
+        preview,
+      })
+      setSettingsFeedback(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Profile import failed.',
+      })
+    } finally {
+      setIsImportingProfile(false)
+    }
+  }
+
+  const handleConfirmImport = () => {
+    const repository = repositoryRef.current
+    if (!repository || !pendingImportSummary) {
+      return
+    }
+
+    try {
+      if (pendingImportSummary.kind === 'graphic') {
+        const result = repository.importGraphicConfig(pendingImportSummary.content)
+        applyWorkspaceSnapshot({
+          settings: result.settings,
+          graphicFiles: result.graphicFiles,
+        })
+        setSettingsFeedback({
+          kind: 'success',
+          message: createGraphicImportFeedbackMessage(result, pendingImportSummary.filePath),
+        })
+      } else {
+        const result = repository.importProfileConfig(pendingImportSummary.content)
+        applyWorkspaceSnapshot({
+          settings: result.settings,
+          graphicFiles: result.graphicFiles,
+        })
+        setSettingsFeedback({
+          kind: 'success',
+          message: createProfileImportFeedbackMessage(result, pendingImportSummary.filePath),
+        })
+      }
+
+      setSourceRefreshFeedback(null)
+      clearExecutionFeedback()
+      setPendingImportSummary(null)
+    } catch (error) {
+      setSettingsFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Import failed.',
+      })
+    }
+  }
+
+  const handleTestOscCommand = async (
+    graphic: GraphicInstanceConfig,
+    actionType: (typeof actionTypes)[keyof typeof actionTypes],
+  ) => {
+    const oscSettings = loadState.status === 'ready' ? loadState.snapshot.settings.osc : undefined
+    const result = await runWorkspaceGraphicDebugAction(
+      actionType,
+      graphic,
+      oscSettings,
+      previewContent,
+    )
+
+    setSettingsFeedback({
+      kind: result.kind,
+      message: `${graphic.name}: ${result.details.join(' | ')}`,
+    })
+  }
+
+  const handleSourceRefresh = () => {
+    try {
+      if (loadState.status !== 'ready') {
+        throw new Error('Workspace is unavailable.')
+      }
+
+      const nextData = loadWorkspaceShellData(loadState.snapshot)
+      replaceWorkspaceData(loadState.snapshot, nextData)
+      setSourceRefreshFeedback({
+        kind: 'success',
+        message: nextData.activeSourceFilePath
+          ? `Source refreshed from ${nextData.activeSourceFilePath}.`
+          : 'Source refreshed.',
+      })
+      clearExecutionFeedback()
+    } catch (error) {
+      setSourceRefreshFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Source refresh failed.',
+      })
+    }
+  }
+
+  return {
+    settingsFeedback,
+    sourceRefreshFeedback,
+    isImportingGraphicConfig,
+    isImportingProfile,
+    pendingImportSummary,
+    setPendingImportSummary,
+    showSettings,
+    toggleSettings: () => setShowSettings((current) => !current),
+    handleSettingsChange,
+    handleSettingsSave,
+    handleSettingsReload,
+    handleExportGraphicConfig,
+    handleExportProfile,
+    handleImportGraphicConfig,
+    handleImportProfile,
+    handleConfirmImport,
+    handleTestOscCommand,
+    handleSourceRefresh,
+  }
+}
+
+function useWorkspaceActions({
+  workspace,
+  workspaceData,
+  oscSettings,
+  selectedEntity,
+  selectedGraphic,
+  selectedMultiItems,
+  previewBaseEntity,
+  previewGraphic,
+  previewContent,
+  selectedBackgroundPath,
+  setSelection,
+  onAirController,
+}: {
+  workspace: ReturnType<typeof createWorkspaceSelectionState>
+  workspaceData: WorkspaceShellData
+  oscSettings: WorkspaceConfigSnapshot['settings']['osc']
+  selectedEntity: ReturnType<typeof deriveSelectedEntityContext>
+  selectedGraphic: GraphicInstanceConfig | undefined
+  selectedMultiItems: ReturnType<ReturnType<typeof createWorkspaceSelectionState>['getSelectedItems']>
+  previewBaseEntity: ReturnType<typeof deriveSelectedEntityContext> | ReturnType<ReturnType<typeof createWorkspaceSelectionState>['getSelectedItems']>[number] | undefined
+  previewGraphic: GraphicInstanceConfig | undefined
+  previewContent: Record<string, string | undefined>
+  selectedBackgroundPath?: string
+  setSelection: React.Dispatch<React.SetStateAction<WorkspaceSelection>>
+  onAirController: ReturnType<typeof createWorkspaceOnAirController>
+}) {
+  const [feedback, setFeedback] = useState<WorkspaceActionFeedback | null>(null)
+
+  const clearFeedback = () => {
+    setFeedback(null)
+  }
+
+  const handleBlockSelect = (blockIndex: number) => {
+    setSelection(workspace.selectBlock(blockIndex).selection)
+    setFeedback(null)
+  }
+
+  const handleGraphicConfigSelect = (graphicConfigId: string) => {
+    setSelection(workspace.selectGraphicConfig(graphicConfigId).selection)
+    setFeedback(null)
+  }
+
+  const handleEntitySelect = (graphicConfigId: string, entityIndex: number) => {
+    const nextState = workspace.selectGraphicConfig(graphicConfigId).selectEntity(entityIndex)
+    setSelection(nextState.selection)
+    setFeedback(null)
+  }
+
+  const handleMultiSelectionToggle = (graphicConfigId: string, entityIndex: number) => {
+    const nextState = workspace.isSelected(graphicConfigId, entityIndex)
+      ? workspace.removeSelectedItem(graphicConfigId, entityIndex)
+      : workspace.addSelectedItem(graphicConfigId, entityIndex)
+
+    setSelection(nextState.selection)
+    setFeedback(null)
+  }
+
+  const handleAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
+    const result = await runWorkspaceGraphicAction(
+      actionType,
+      selectedEntity,
+      workspaceData.graphicsById,
+      oscSettings,
+    )
+    setFeedback(result)
+
+    if (result.kind !== 'success') {
+      return
+    }
+
+    if (actionType === 'playGraphic' && previewGraphic) {
+      onAirController.playSingle({
+        graphic: previewGraphic,
+        content: previewContent,
+        backgroundImagePath: selectedBackgroundPath,
+        entityLabel: selectedEntity ? formatEntityLabel(selectedEntity.entity) : undefined,
+      })
+      return
+    }
+
+    if (actionType === 'stopGraphic' && previewGraphic) {
+      onAirController.stopGraphic(previewGraphic.id)
+      return
+    }
+
+    if (actionType === 'resumeGraphic') {
+      onAirController.resume()
+    }
+  }
+
+  const handleGroupedAction = async (actionType: (typeof actionTypes)[keyof typeof actionTypes]) => {
+    const result = await runWorkspaceMultiGraphicAction(
+      actionType,
+      workspace.getSelectedItems(),
+      workspaceData.graphicsById,
+      oscSettings,
+    )
+    setFeedback(result)
+
+    if (result.kind !== 'success') {
+      return
+    }
+
+    if (actionType === 'playGraphic' && previewGraphic) {
+      const groupedItems: Array<{
+        graphic: GraphicInstanceConfig
+        content: Record<string, string | undefined>
+        entityLabel?: string
+      }> = []
+
+      for (const item of selectedMultiItems) {
+        const isPrimaryItem = (
+          previewBaseEntity?.graphicConfigId === item.graphicConfigId &&
+          previewBaseEntity.entityIndex === item.entityIndex
+        )
+        if (isPrimaryItem) {
+          continue
+        }
+
+        const itemGraphic = workspaceData.graphicsById[item.graphicConfigId]
+        if (!itemGraphic) {
+          continue
+        }
+
+        groupedItems.push({
+          graphic: itemGraphic,
+          content: createEntityPreviewContent(item, itemGraphic),
+          entityLabel: formatEntityLabel(item.entity),
+        })
+      }
+
+      onAirController.playGrouped({
+        primaryGraphic: previewGraphic,
+        primaryContent: previewContent,
+        primaryEntityLabel: previewBaseEntity ? formatEntityLabel(previewBaseEntity.entity) : undefined,
+        backgroundImagePath: selectedBackgroundPath,
+        items: groupedItems,
+      })
+      return
+    }
+
+    if (actionType === 'stopGraphic') {
+      onAirController.stopCurrent()
+      return
+    }
+
+    if (actionType === 'resumeGraphic') {
+      onAirController.resume()
+    }
+  }
+
+  return {
+    feedback,
+    clearFeedback,
+    handleBlockSelect,
+    handleGraphicConfigSelect,
+    handleEntitySelect,
+    handleMultiSelectionToggle,
+    handleAction,
+    handleGroupedAction,
+  }
+}
+
+function createGraphicImportFeedbackMessage(
+  result: ReturnType<WorkspaceConfigRepository['importGraphicConfig']>,
+  filePath: string,
+): string {
+  const outcome = result.status === 'added'
+    ? 'added to the local library'
+    : result.status === 'replaced'
+      ? 'replaced the existing local config'
+      : result.status === 'duplicated'
+        ? `was duplicated as "${result.importedGraphic.name}"`
+        : 'matched an existing local config and was preserved'
+
+  return `Graphic config import completed. "${result.importedGraphic.name}" ${outcome}. Source file: ${filePath}.`
+}
+
+function createProfileImportFeedbackMessage(
+  result: ReturnType<WorkspaceConfigRepository['importProfileConfig']>,
+  filePath: string,
+): string {
+  const details: string[] = [`Profile "${result.importedProfile.label}" imported from ${filePath}.`]
+
+  if (result.conflicts.profile) {
+    details.push(`Profile conflict policy: ${result.conflicts.profile}.`)
+  }
+  if (result.conflicts.graphics.length > 0) {
+    details.push(`Graphic conflicts handled: ${result.conflicts.graphics.length}.`)
+  }
+  if (result.conflicts.schemas.length > 0) {
+    details.push(`Schema conflicts handled: ${result.conflicts.schemas.length}.`)
+  }
+  if (result.conflicts.referenceImages.length > 0) {
+    details.push(`Reference image conflicts handled: ${result.conflicts.referenceImages.length}.`)
+  }
+
+  return details.join(' ')
 }
 
 function countBlockEntities(block: WorkspaceShellData['document']['blocks'][number]): number {

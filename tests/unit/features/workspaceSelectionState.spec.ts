@@ -418,6 +418,16 @@ describe('multi-selection state', () => {
     ])
   })
 
+  it('ignores invalid entity indexes when adding grouped-selected items', () => {
+    const state = createWorkspaceSelectionState(multiDocumentFixture, multiSelectionGraphicsFixture)
+      .addSelectedItem('pa_title_main', -1)
+      .addSelectedItem('pa_title_main', 99)
+      .addSelectedItem('location-main', 1.5)
+      .addSelectedItem('logo-main', 4)
+
+    expect(state.selection.selectedItems).toEqual([])
+  })
+
   it('keeps only one grouped-selected item per graphic config collection', () => {
     const documentWithTwoTitles: EditorialDocument = {
       blocks: [

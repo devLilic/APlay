@@ -84,6 +84,10 @@ export interface GraphicsAdapterDependencies {
   graphicOutput?: Pick<ReturnType<typeof createOscGraphicOutputAdapter>, 'buildCommand'>
 }
 
+type GraphicsAdapterDebugGlobal = typeof globalThis & {
+  __APLAY_DEBUG_WORKSPACE_RUNTIME__?: boolean
+}
+
 export function createGraphicsAdapter(
   dependencies: GraphicsAdapterDependencies,
 ): GraphicsAdapter {
@@ -173,7 +177,7 @@ async function runGraphicsAction(
     const command = builtCommand.command
 
     if (actionType === 'playGraphic') {
-      console.log('OSC PLAY RESOLUTION', {
+      debugGraphicsAdapter('OSC PLAY RESOLUTION', {
         graphicId: input.graphic.id,
         resolvedTemplateName: input.graphic.control.templateName ?? '',
         commandSource: builtCommand.source,
@@ -463,4 +467,13 @@ function resolveCommandPlaceholders(
     success: true,
     command: resolvedCommand,
   }
+}
+
+function debugGraphicsAdapter(label: string, payload: Record<string, unknown>): void {
+  const debugEnabled = (globalThis as GraphicsAdapterDebugGlobal).__APLAY_DEBUG_WORKSPACE_RUNTIME__ === true
+  if (!debugEnabled || typeof console === 'undefined' || typeof console.log !== 'function') {
+    return
+  }
+
+  console.log(label, payload)
 }
