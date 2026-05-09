@@ -1,0 +1,190 @@
+{
+  "version": 1,
+  "exportType": "graphic-config",
+  "payload": {
+    "id": "title-main",
+    "name": "Titles",
+    "entityType": "title",
+    "dataFileName": "title-main.json",
+    "datasourcePath": "D:\\Apps\\_json\\PunctulPeAzi\\title.json",
+    "control": {
+      "templateName": "TITLE_MAIN",
+      "play": "/aplay/title/play",
+      "stop": "/aplay/title/stop",
+      "resume": "/aplay/title/resume"
+    },
+    "onAir": {
+      "mode": "manual"
+    },
+    "bindings": [
+      {
+        "sourceField": "Titlu",
+        "targetField": "title_text",
+        "required": true
+      },
+      {
+        "sourceField": "Nr",
+        "targetField": "title_number",
+        "required": true
+      },
+      {
+        "sourceField": "Locatie",
+        "targetField": "title_location",
+        "required": true
+      }
+    ],
+    "collectionDisplay": {
+      "primarySourceField": "Nr",
+      "secondarySourceField": "Titlu"
+    },
+    "preview": {
+      "id": "title-preview",
+      "designWidth": 1920,
+      "designHeight": 1080,
+      "background": {
+        "opacity": 1,
+        "fitMode": "contain",
+        "position": "center"
+      },
+      "elements": [
+        {
+          "id": "title-nr",
+          "kind": "box",
+          "sourceField": "title_number",
+          "visible": true,
+          "transformOrigin": "top-left",
+          "borderRadius": 0,
+          "box": {
+            "x": 574,
+            "y": 861,
+            "width": 1293,
+            "height": 119
+          },
+          "textColor": "#edefef",
+          "backgroundColor": "#ffffff"
+        },
+        {
+          "id": "title-text",
+          "kind": "text",
+          "sourceField": "title_text",
+          "visible": true,
+          "transformOrigin": "top-left",
+          "box": {
+            "x": 573,
+            "y": 861,
+            "width": 1296,
+            "height": 119
+          },
+          "textColor": "#000000",
+          "behavior": {
+            "allCaps": true,
+            "fitInBox": true,
+            "minScaleX": 0.5,
+            "fontSize": 72,
+            "fontFamily": "Arial",
+            "textAlign": "left",
+            "paddingLeft": 10,
+            "paddingRight": 40
+          },
+          "text": {
+            "allCaps": true,
+            "fitInBox": true,
+            "minScaleX": 0.5,
+            "fontSize": 72,
+            "fontFamily": "Arial",
+            "textAlign": "left",
+            "paddingLeft": 10,
+            "paddingRight": 40
+          }
+        },
+        {
+          "id": "title-location",
+          "kind": "text",
+          "sourceField": "title_location",
+          "visible": true,
+          "transformOrigin": "top-left",
+          "borderRadius": 0,
+          "box": {
+            "x": 438,
+            "y": 816,
+            "width": 137,
+            "height": 32
+          },
+          "textColor": "#ffffff",
+          "backgroundColor": "#c91517",
+          "behavior": {
+            "allCaps": true,
+            "fitInBox": true,
+            "minScaleX": 0.7,
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "textAlign": "center",
+            "paddingLeft": 0,
+            "paddingRight": 0
+          },
+          "text": {
+            "allCaps": true,
+            "fitInBox": true,
+            "minScaleX": 0.7,
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "textAlign": "center",
+            "paddingLeft": 0,
+            "paddingRight": 0
+          }
+        },
+        {
+          "id": "title-address",
+          "kind": "text",
+          "sourceField": "title_address",
+          "previewText": "facebook.com/obiectiv-comun",
+          "visible": true,
+          "transformOrigin": "top-left",
+          "borderRadius": 0,
+          "box": {
+            "x": 580,
+            "y": 814,
+            "width": 423,
+            "height": 33
+          },
+          "textColor": "#ffffff",
+          "backgroundColor": "#343232",
+          "behavior": {
+            "allCaps": true,
+            "fitInBox": true,
+            "minScaleX": 0.7,
+            "fontSize": 21,
+            "fontFamily": "Arial",
+            "textAlign": "left",
+            "paddingLeft": 5,
+            "paddingRight": 0
+          },
+          "text": {
+            "allCaps": true,
+            "fitInBox": true,
+            "minScaleX": 0.7,
+            "fontSize": 21,
+            "fontFamily": "Arial",
+            "textAlign": "left",
+            "paddingLeft": 5,
+            "paddingRight": 0
+          }
+        }
+      ]
+    },
+    "actions": [
+      {
+        "actionType": "playGraphic",
+        "label": "Play"
+      },
+      {
+        "actionType": "stopGraphic",
+        "label": "Stop"
+      },
+      {
+        "actionType": "resumeGraphic",
+        "label": "Resume"
+      }
+    ]
+  }
+}

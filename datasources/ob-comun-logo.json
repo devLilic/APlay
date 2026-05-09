@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "exportType": "graphic-config",
+  "payload": {
+    "id": "logo",
+    "name": "Logo",
+    "entityType": "image",
+    "kind": "static",
+    "dataFileName": "logo.json",
+    "control": {
+      "templateName": "LOGO"
+    },
+    "onAir": {
+      "mode": "manual"
+    },
+    "staticAsset": {
+      "assetPath": "D:\\Apps\\_img\\ob-logo.png",
+      "assetType": "image"
+    },
+    "preview": {
+      "id": "logo-preview",
+      "designWidth": 1920,
+      "designHeight": 1080,
+      "background": {
+        "opacity": 1,
+        "fitMode": "contain",
+        "position": "center"
+      },
+      "elements": [
+        {
+          "id": "element-1",
+          "kind": "image",
+          "sourceField": "img",
+          "previewText": "Sample Preview Text",
+          "visible": true,
+          "transformOrigin": "top-left",
+          "borderRadius": 0,
+          "box": {
+            "x": 162,
+            "y": 858,
+            "width": 411,
+            "height": 125
+          },
+          "textColor": "#ffffff",
+          "behavior": {
+            "fitInBox": true,
+            "minScaleX": 0.7,
+            "fontSize": 64,
+            "fontFamily": "Arial",
+            "textAlign": "left",
+            "paddingLeft": 0,
+            "paddingRight": 0
+          },
+          "text": {
+            "fitInBox": true,
+            "minScaleX": 0.7,
+            "fontSize": 64,
+            "fontFamily": "Arial",
+            "textAlign": "left",
+            "paddingLeft": 0,
+            "paddingRight": 0
+          }
+        }
+      ]
+    },
+    "actions": [
+      {
+        "actionType": "playGraphic",
+        "label": "Play"
+      },
+      {
+        "actionType": "stopGraphic",
+        "label": "Stop"
+      },
+      {
+        "actionType": "resumeGraphic",
+        "label": "Resume"
+      }
+    ]
+  }
+}

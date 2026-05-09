@@ -154,4 +154,20 @@ describe('SettingsPanel stability', () => {
     expect(graphicConfigurationSection).toContain('Duration (seconds)')
     expect(graphicConfigurationSection).toContain('Auto-hide after')
   })
+
+  it('defines asset-library selection for static preview graphics and creates image previews by default for image configs', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/features/settings/components/SettingsPanel.tsx'),
+      'utf8',
+    )
+
+    expect(source).toContain('Static preview image')
+    expect(source).toContain('Image from Assets')
+    expect(source).toContain('Saved asset path')
+    expect(source).toContain("kind: 'image'")
+    expect(source).toContain("sourceField: 'staticAsset'")
+    expect(source).toContain('createDefaultStaticImagePreviewElement(1)')
+    expect(source).toContain('previewText: undefined')
+    expect(source).toContain('Pentru acest element ajustezi doar `x`, `y`, `width` si `height`.')
+  })
 })

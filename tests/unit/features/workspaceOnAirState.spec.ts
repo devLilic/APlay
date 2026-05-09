@@ -145,6 +145,26 @@ describe('workspaceOnAirState', () => {
     expect(snapshot.content).toEqual({ staticAsset: 'assets/logo.png' })
   })
 
+  it('keeps legacy static image source fields available inside ONAIR snapshot content', () => {
+    const snapshot = createSingleOnAirSnapshot({
+      graphic: {
+        ...staticLogoGraphic,
+        preview: {
+          ...staticLogoGraphic.preview,
+          elements: [
+            { id: 'logo-image', kind: 'image', sourceField: 'assetPath', box: { x: 0, y: 0, width: 100, height: 20 } },
+          ],
+        },
+      },
+      content: { staticAsset: 'assets/logo.png', assetPath: 'assets/logo.png' },
+    })
+
+    expect(snapshot.content).toEqual({
+      staticAsset: 'assets/logo.png',
+      assetPath: 'assets/logo.png',
+    })
+  })
+
   it('supports per-graphic auto-hide timers for single-item ONAIR playback', () => {
     vi.useFakeTimers()
 

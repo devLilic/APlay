@@ -888,6 +888,36 @@ describe('preview element calculations', () => {
     expect(second.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\static-image-b.png')
   })
 
+  it('prefers the selected static asset content over legacy previewText for image elements', () => {
+    const template: PreviewTemplateDefinition = {
+      id: 'static-image-preview',
+      designWidth: 1920,
+      designHeight: 1080,
+      elements: [
+        {
+          id: 'static-image',
+          kind: 'image',
+          sourceField: 'staticAsset',
+          previewText: 'C:\\APlay\\assets\\branding\\old-preview.png',
+          box: {
+            x: 100,
+            y: 120,
+            width: 240,
+            height: 120,
+          },
+        },
+      ],
+    }
+
+    const layout = calculatePreviewTemplateLayout(
+      template,
+      { width: 960, height: 540 },
+      { staticAsset: 'C:\\APlay\\assets\\branding\\selected-asset.png' },
+    )
+
+    expect(layout.elements[0]?.content).toBe('C:\\APlay\\assets\\branding\\selected-asset.png')
+  })
+
   it('renders both window-box fields when title and location are present', () => {
     const layout = calculatePreviewTemplateLayout(
       {

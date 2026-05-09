@@ -245,7 +245,9 @@ function calculatePreviewElementLayout(
   }
 
   const transformOrigin = element.transformOrigin ?? 'top-left'
-  const content = element.previewText ?? rawContent ?? ''
+  const content = element.kind === 'image'
+    ? rawContent ?? element.previewText ?? ''
+    : element.previewText ?? rawContent ?? ''
   const behavior = element.behavior ?? element.text
   const baseStyle = {
     left: element.box.x * scale.scaleX,

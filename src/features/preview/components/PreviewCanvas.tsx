@@ -243,7 +243,11 @@ async function resolvePreviewImageSource(source: string | undefined): Promise<st
     return normalizedSource
   }
 
-  return await window.settingsApi?.readReferenceImage?.(normalizedSource) ?? normalizedSource
+  if (!window.settingsApi?.readReferenceImage) {
+    return normalizedSource
+  }
+
+  return await window.settingsApi.readReferenceImage(normalizedSource) ?? undefined
 }
 
 function PreviewTextElement({ element }: { element: PreviewTemplateLayoutElement }) {

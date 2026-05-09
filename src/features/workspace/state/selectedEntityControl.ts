@@ -66,9 +66,11 @@ export function createSelectedEntityPreviewData(
   selectedEntity: SelectedEntityContext | undefined,
   graphic?: GraphicInstanceConfig,
 ): Record<string, string | undefined> {
+  const resolvedStaticAssetPath = graphic?.staticAsset?.assetPath
+
   if (!selectedEntity) {
-    return graphic?.staticAsset?.assetPath
-      ? { staticAsset: graphic.staticAsset.assetPath }
+    return resolvedStaticAssetPath
+      ? createStaticGraphicPreviewData({}, graphic, resolvedStaticAssetPath)
       : {}
   }
 
@@ -77,14 +79,28 @@ export function createSelectedEntityPreviewData(
     Object.entries(entity).map(([key, value]) => [key, typeof value === 'string' ? value : undefined]),
   )
 
-  if (graphic?.staticAsset?.assetPath) {
-    return {
-      ...previewData,
-      staticAsset: graphic.staticAsset.assetPath,
-    }
+  if (resolvedStaticAssetPath) {
+    return createStaticGraphicPreviewData(previewData, graphic, resolvedStaticAssetPath)
   }
 
   return previewData
+}
+
+function createStaticGraphicPreviewData(
+  previewData: Record<string, string | undefined>,
+  graphic: GraphicInstanceConfig | undefined,
+  assetPath: string,
+): Record<string, string | undefined> {
+  const imageElementFields = graphic?.preview.elements
+    .filter((element) => element.kind === 'image')
+    .map((element) => element.sourceField.trim())
+    .filter((sourceField) => sourceField.length > 0) ?? []
+
+  return {
+    ...previewData,
+    staticAsset: assetPath,
+    ...Object.fromEntries(imageElementFields.map((sourceField) => [sourceField, assetPath])),
+  }
 }
 
 function runAction(

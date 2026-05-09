@@ -104,6 +104,24 @@ const staticLogoGraphic: GraphicInstanceConfig = {
   actions: [],
 }
 
+const legacyStaticLogoGraphic: GraphicInstanceConfig = {
+  ...staticLogoGraphic,
+  id: 'logo-legacy-field',
+  name: 'Logo legacy field',
+  dataFileName: 'logo-legacy-field.json',
+  control: {
+    templateName: 'LOGO_LEGACY_FIELD',
+  },
+  preview: {
+    id: 'logo-legacy-field-preview',
+    designWidth: 1920,
+    designHeight: 1080,
+    elements: [
+      { id: 'logo-image', kind: 'image', sourceField: 'assetPath', box: { x: 0, y: 0, width: 100, height: 20 } },
+    ],
+  },
+}
+
 const localOverrideTitleGraphic: GraphicInstanceConfig = {
   ...titleWaitingGraphic,
   id: 'pa_title_local_override',
@@ -413,6 +431,18 @@ describe('workspace shell runtime with graphicConfig-based collections', () => {
       actions: [],
     })).toEqual({
       staticAsset: 'assets/logo.png',
+    })
+  })
+
+  it('maps static asset paths to every image element source field used by the graphic preview template', () => {
+    expect(createEntityPreviewContent(undefined, legacyStaticLogoGraphic)).toEqual({
+      staticAsset: 'assets/logo.png',
+      assetPath: 'assets/logo.png',
+    })
+
+    expect(createEntityPreviewContent(selectedStaticLogoItem, legacyStaticLogoGraphic)).toEqual({
+      staticAsset: 'assets/logo.png',
+      assetPath: 'assets/logo.png',
     })
   })
 

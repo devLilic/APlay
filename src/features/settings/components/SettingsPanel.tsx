@@ -600,14 +600,7 @@ export function SettingsPanel({
         return
       }
 
-      updateGraphic((graphic) => ({
-        ...graphic,
-        kind: 'static',
-        staticAsset: {
-          assetPath: filePath,
-          assetType: 'image',
-        },
-      }))
+      updateGraphic((graphic) => updateGraphicStaticAsset(graphic, filePath))
     } finally {
       setIsPickingStaticAsset(false)
     }
@@ -977,6 +970,18 @@ function createDefaultPreviewElement(index: number): PreviewElementDefinition {
   }
 }
 
+function createDefaultStaticImagePreviewElement(index: number): PreviewElementDefinition {
+  return {
+    id: `image-${index}`,
+    kind: 'image',
+    sourceField: 'staticAsset',
+    visible: true,
+    transformOrigin: 'top-left',
+    borderRadius: 0,
+    box: { x: 1360, y: 72, width: 420, height: 236 },
+  }
+}
+
 function getGraphicBindingSourceOptions(entityType: GraphicInstanceConfig['entityType']): string[] {
   return graphicBindingSourceFieldOptions[entityType] ?? []
 }
@@ -1088,7 +1093,7 @@ function createDefaultGraphicConfig(
       id: `${id}-preview`,
       designWidth: 1920,
       designHeight: 1080,
-      elements: [createDefaultPreviewElement(1)],
+      elements: [isStaticGraphic ? createDefaultStaticImagePreviewElement(1) : createDefaultPreviewElement(1)],
     },
     actions: [
       { actionType: 'playGraphic', label: 'Play' },
@@ -1193,6 +1198,67 @@ function createUniqueReferenceImageId(settings: AppSettings, name: string): stri
   }
 
   return candidate
+}
+
+function updateGraphicStaticAsset(
+  graphic: GraphicInstanceConfig,
+  assetPath: string,
+): GraphicInstanceConfig {
+  return {
+    ...graphic,
+    kind: 'static',
+    staticAsset: {
+      assetPath,
+      assetType: graphic.staticAsset?.assetType ?? 'image',
+    },
+    preview: {
+      ...graphic.preview,
+      elements: graphic.preview.elements.map((element) => (
+        element.kind === 'image' && element.sourceField === 'staticAsset'
+          ? { ...element, previewText: undefined }
+          : element
+      )),
+    },
+  }
+}
+
+function buildStaticGraphicPreviewContent(
+  graphic: GraphicInstanceConfig,
+  previewContent: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const assetPath = graphic.staticAsset?.assetPath
+  if (!assetPath) {
+    return previewContent
+  }
+
+  const imageElementFields = graphic.preview.elements
+    .filter((element) => element.kind === 'image')
+    .map((element) => element.sourceField.trim())
+    .filter((sourceField) => sourceField.length > 0)
+
+  return {
+    ...previewContent,
+    staticAsset: assetPath,
+    ...Object.fromEntries(imageElementFields.map((sourceField) => [sourceField, assetPath])),
+  }
+}
+
+function findReferenceImageAssetById(
+  referenceImages: ReferenceImageAsset[],
+  referenceImageId: string,
+): ReferenceImageAsset | undefined {
+  return referenceImages.find((image) => image.id === referenceImageId)
+}
+
+function findReferenceImageIdByPath(
+  referenceImages: ReferenceImageAsset[],
+  assetPath: string | undefined,
+): string | undefined {
+  if (!assetPath) {
+    return undefined
+  }
+
+  return referenceImages.find((image) => image.filePath === assetPath)?.id
 }
 
 function normalizeHexColor(value: string | undefined): string {
@@ -3174,14 +3240,7 @@ function GraphicBindingSection({
               <span className='text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300'>Asset file path</span>
               <input
                 value={graphic.staticAsset?.assetPath ?? ''}
-                onChange={(event) => updateGraphic((current) => ({
-                  ...current,
-                  kind: 'static',
-                  staticAsset: {
-                    assetPath: event.target.value,
-                    assetType: current.staticAsset?.assetType ?? 'image',
-                  },
-                }))}
+                onChange={(event) => updateGraphic((current) => updateGraphicStaticAsset(current, event.target.value))}
                 placeholder='C:\\APlay\\assets\\logo.png'
                 className={settingsFieldClassName}
               />
@@ -3874,10 +3933,17 @@ function PreviewTemplateSection({
     updater: (element: PreviewElementDefinition) => PreviewElementDefinition,
   ) => void
 }) {
+  const isStaticGraphic = graphic.kind === 'static' || graphic.entityType === 'image'
   const previewBackground = resolveActivePreviewBackground(settings, graphic)
-  const resolvedPreviewContent = graphic.staticAsset?.assetPath
-    ? { ...previewContent, staticAsset: graphic.staticAsset.assetPath }
-    : previewContent
+  const selectedStaticAssetReferenceId = findReferenceImageIdByPath(
+    settings.referenceImages,
+    graphic.staticAsset?.assetPath,
+  )
+  const resolvedPreviewContent = isStaticGraphic
+    ? buildStaticGraphicPreviewContent(graphic, previewContent)
+    : (graphic.staticAsset?.assetPath
+      ? { ...previewContent, staticAsset: graphic.staticAsset.assetPath }
+      : previewContent)
   const previewElementCardClassName = 'space-y-2.5 rounded-xl border border-border bg-card p-2.5 sm:p-3'
   const previewElementGroupClassName = 'space-y-2 rounded-xl border border-border-muted bg-surface-muted px-2.5 py-2'
 
@@ -4017,6 +4083,53 @@ function PreviewTemplateSection({
             ) : null}
           </div>
 
+          {isStaticGraphic ? (
+            <div className={`space-y-3 ${settingsSubsectionClassName}`}>
+              <div>
+                <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Static preview image</p>
+                <p className='mt-1 text-sm text-muted'>
+                  Select an image from Assets and use it as the saved static asset for this graphic config.
+                </p>
+              </div>
+
+              <div className='grid gap-3 md:grid-cols-2'>
+                <label className='space-y-2 md:col-span-2'>
+                  <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Image from Assets</span>
+                  <select
+                    value={selectedStaticAssetReferenceId ?? ''}
+                    onChange={(event) => {
+                      const nextAsset = findReferenceImageAssetById(settings.referenceImages, event.target.value)
+                      if (!nextAsset) {
+                        return
+                      }
+
+                      updateGraphic((current) => updateGraphicStaticAsset(current, nextAsset.filePath))
+                    }}
+                    className={settingsFieldClassName}
+                  >
+                    <option value=''>
+                      {settings.referenceImages.length > 0 ? 'Select image from Assets' : 'No images available in Assets'}
+                    </option>
+                    {settings.referenceImages.map((referenceImage) => (
+                      <option key={referenceImage.id} value={referenceImage.id}>
+                        {referenceImage.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className='space-y-2 md:col-span-2'>
+                  <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Saved asset path</span>
+                  <input
+                    value={graphic.staticAsset?.assetPath ?? ''}
+                    readOnly
+                    className={settingsReadOnlyFieldClassName}
+                  />
+                </label>
+              </div>
+            </div>
+          ) : null}
+
           <div className={settingsCompactFieldGroupClassName}>
             <div className='flex flex-wrap items-center justify-between gap-3'>
               <p className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Preview elements</p>
@@ -4032,6 +4145,7 @@ function PreviewTemplateSection({
             <div className={settingsCompactScrollAreaClassName}>
               {graphic.preview.elements.map((element, elementIndex) => {
                 const textBehavior = getElementBehavior(element)
+                const isStaticImageElement = isStaticGraphic && element.kind === 'image'
 
                 return (
                   <div key={`${elementIndex}`} className={previewElementCardClassName}>
@@ -4096,7 +4210,18 @@ function PreviewTemplateSection({
                         <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Kind</span>
                         <select
                           value={element.kind}
-                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, kind: event.target.value as PreviewElementKind }))}
+                          onChange={(event) => updatePreviewElement(elementIndex, (current) => {
+                            const nextKind = event.target.value as PreviewElementKind
+
+                            return nextKind === 'image' && isStaticGraphic
+                              ? {
+                                ...current,
+                                kind: nextKind,
+                                sourceField: 'staticAsset',
+                                previewText: undefined,
+                              }
+                              : { ...current, kind: nextKind }
+                          })}
                           className={settingsFieldClassName}
                         >
                           {previewElementKinds.map((kind) => (
@@ -4106,14 +4231,25 @@ function PreviewTemplateSection({
                           ))}
                         </select>
                       </label>
-                      <label className='space-y-2'>
-                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
-                        <input
-                          value={element.sourceField}
-                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
-                          className={settingsFieldClassName}
-                        />
-                      </label>
+                      {isStaticImageElement ? (
+                        <label className='space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
+                          <input
+                            value='staticAsset'
+                            readOnly
+                            className={settingsReadOnlyFieldClassName}
+                          />
+                        </label>
+                      ) : (
+                        <label className='space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Source field</span>
+                          <input
+                            value={element.sourceField}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, sourceField: event.target.value }))}
+                            className={settingsFieldClassName}
+                          />
+                        </label>
+                      )}
                     </div>
                     {element.kind === 'text' ? (
                       <div className='max-w-[24rem]'>
@@ -4128,27 +4264,34 @@ function PreviewTemplateSection({
                         </label>
                       </div>
                     ) : null}
+                    {isStaticImageElement ? (
+                      <div className='ap-card-muted px-3 py-2 text-xs text-text-secondary'>
+                        Asset-ul este preluat din `Static preview image`. Pentru acest element ajustezi doar `x`, `y`, `width` si `height`.
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className={previewElementGroupClassName}>
-                    <div className='grid gap-2.5 md:grid-cols-[8.5rem,8.5rem,minmax(0,8.5rem)]'>
-                      <NumberField compact label='Border radius' value={element.borderRadius ?? 0} min={0} max={200} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
-                      <label className='max-w-[10.5rem] space-y-2'>
-                        <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
-                        <select
-                          value={element.transformOrigin ?? 'top-left'}
-                          onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
-                          className={`${settingsFieldClassName} max-w-[10.5rem] h-7 rounded-lg px-1.5 py-0.5 text-[11px]`}
-                        >
-                          {transformOrigins.map((origin) => (
-                            <option key={origin} value={origin}>
-                              {origin}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                  {!isStaticImageElement ? (
+                    <div className={previewElementGroupClassName}>
+                      <div className='grid gap-2.5 md:grid-cols-[8.5rem,8.5rem,minmax(0,8.5rem)]'>
+                        <NumberField compact label='Border radius' value={element.borderRadius ?? 0} min={0} max={200} step={1} onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderRadius: value }))} />
+                        <label className='max-w-[10.5rem] space-y-2'>
+                          <span className='text-xs font-semibold uppercase tracking-[0.18em] text-muted'>Transform origin</span>
+                          <select
+                            value={element.transformOrigin ?? 'top-left'}
+                            onChange={(event) => updatePreviewElement(elementIndex, (current) => ({ ...current, transformOrigin: event.target.value as TransformOrigin }))}
+                            className={`${settingsFieldClassName} max-w-[10.5rem] h-7 rounded-lg px-1.5 py-0.5 text-[11px]`}
+                          >
+                            {transformOrigins.map((origin) => (
+                              <option key={origin} value={origin}>
+                                {origin}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   <div className={previewElementGroupClassName}>
                     <div className='grid gap-2.5 md:grid-cols-2'>
@@ -4163,28 +4306,30 @@ function PreviewTemplateSection({
                     </div>
                   </div>
 
-                  <div className={previewElementGroupClassName}>
-                    <div className='grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3'>
-                      <ColorField
-                        compact
-                        label='Text color'
-                        value={element.textColor}
-                        onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, textColor: value }))}
-                      />
-                      <ColorField
-                        compact
-                        label='Background color'
-                        value={element.backgroundColor}
-                        onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, backgroundColor: value }))}
-                      />
-                      <ColorField
-                        compact
-                        label='Border color'
-                        value={element.borderColor}
-                        onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderColor: value }))}
-                      />
+                  {!isStaticImageElement ? (
+                    <div className={previewElementGroupClassName}>
+                      <div className='grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3'>
+                        <ColorField
+                          compact
+                          label='Text color'
+                          value={element.textColor}
+                          onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, textColor: value }))}
+                        />
+                        <ColorField
+                          compact
+                          label='Background color'
+                          value={element.backgroundColor}
+                          onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, backgroundColor: value }))}
+                        />
+                        <ColorField
+                          compact
+                          label='Border color'
+                          value={element.borderColor}
+                          onChange={(value) => updatePreviewElement(elementIndex, (current) => ({ ...current, borderColor: value }))}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
                   {element.kind === 'text' ? (
                     <div className={previewElementGroupClassName}>
                       <div className='grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3'>
